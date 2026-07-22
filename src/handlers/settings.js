@@ -225,9 +225,11 @@ async function showSettingsPage(interaction, type, page) {
 
 // اختيار القوائم
 async function handleSettingsSelect(interaction) {
+  console.log('TRACE select:', interaction.customId, 'deferred:', interaction.deferred, 'replied:', interaction.replied);
   try {
     if (!interaction.deferred && !interaction.replied)
       await interaction.deferReply({ ephemeral: true });
+    console.log('TRACE select deferred ok');
   } catch (e) {
     console.error('ERR-SELDEF:', e.message);
     return interaction.reply({ content: '⚠️ ERR-SELDEF', ephemeral: true }).catch(()=>{});
@@ -235,6 +237,7 @@ async function handleSettingsSelect(interaction) {
 
   try {
     const id = interaction.customId;
+    console.log('TRACE select id:', id);
     const cfg = getConfig();
 
     // كولداون
@@ -252,9 +255,10 @@ async function handleSettingsSelect(interaction) {
 
     // اختيار رتبة/روم
     const parts = id.split('_');
-    if (parts[0] !== 'sl') return;
+    if (parts[0] !== 'sl') { console.log('TRACE select: not sl, return'); return; }
     const system = parts[1];
     const field = parts.slice(2).join('_');
+    console.log('TRACE select system:', system, 'field:', field);
     const values = interaction.values;
     if (!cfg[system]) return safeSend(interaction, { content: `⚠️ النظام ${system} غير موجود` });
 
@@ -270,8 +274,10 @@ async function handleSettingsSelect(interaction) {
 
     if (listFields.includes(field)) {
       cfg[system].rolesToRemove = values || [];
+      console.log('TRACE select saved rolesToRemove:', JSON.stringify(cfg[system].rolesToRemove));
     } else {
       cfg[system][mapKey] = values[0] || null;
+      console.log('TRACE select saved', mapKey, '=', values[0] || null);
     }
 
     saveConfig(cfg);
