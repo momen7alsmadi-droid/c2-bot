@@ -44,10 +44,16 @@ client.on('interactionCreate', async (interaction) => {
       await handleSettingsSelect(interaction);
     }
   } catch (err) {
-    console.error(err);
-    if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
-      interaction.reply({ content: '⚠️ خطأ غير متوقع.', ephemeral: true }).catch(() => {});
-    }
+    console.error('❌ ERROR:', err.message, err.stack);
+    try {
+      if (interaction.isRepliable()) {
+        if (interaction.deferred) {
+          await interaction.editReply({ content: '⚠️ خطأ غير متوقع.', embeds: [], components: [] }).catch(() => {});
+        } else if (!interaction.replied) {
+          await interaction.reply({ content: '⚠️ خطأ غير متوقع.', ephemeral: true }).catch(() => {});
+        }
+      }
+    } catch(e) { console.error('Reply error:', e.message); }
   }
 });
 
