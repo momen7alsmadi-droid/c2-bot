@@ -1,0 +1,6 @@
+node_modules/
+data/
+.env
+bot.log
+*.zip
+*.tar.gz
