@@ -116,6 +116,8 @@ async function handleButton(interaction) {
   if (id === 'set_report_2') return showSettingsPage(interaction, 'report', 2);
   if (id === 'set_report_3') return showSettingsPage(interaction, 'report', 3);
   if (id === 'set_resign') return showSettingsPage(interaction, 'resign', 1);
+  if (id === 'set_resign_1') return showSettingsPage(interaction, 'resign', 1);
+  if (id === 'set_resign_2') return showSettingsPage(interaction, 'resign', 2);
   if (id.startsWith('sl_report_cd_')) {
     return handleSettingsSelect(interaction);
   }

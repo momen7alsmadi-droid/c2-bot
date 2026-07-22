@@ -35,12 +35,13 @@ const DEFAULT_CONFIG = {
     cooldownDuration: 60            // مدة الكولداون بالدقائق
   },
   resign: {
-    allowedRoleId: null,     // من يمكنه استخدام /استقالة
-    logChannelId: null,      // روم لوق الاستقالات
-    rolesToRemove: [],       // الرتب التي تُزال عند تقديم الاستقالة
-    resignRoleId: null       // رتبة ما بعد الاستقالة
+    allowedRoleId: null,      // من يمكنه استخدام /استقالة
+    logChannelId: null,       // روم لوق الاستقالات
+    rolesToRemove: [],        // الرتب التي تُزال عند تقديم الاستقالة
+    resignRoleId: null,       // رتبة ما بعد الاستقالة
+    upperManagementRoleId: null  // رتبة الإدارة العليا (للأزرار)
   },
-  disabledGuilds: []         // السيرفرات المعطلة
+  disabledGuilds: []          // السيرفرات المعطلة
 }
 
 function readJSON(filePath, fallback) {

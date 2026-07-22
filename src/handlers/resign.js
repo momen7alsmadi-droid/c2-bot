@@ -50,6 +50,15 @@ async function handleResign(interaction) {
 async function handleResignButton(interaction, action, userId) {
   const guild = interaction.guild;
   const cfg = getConfig();
+
+  // التحقق من صلاحية الإدارة العليا
+  const memberClicker = interaction.member;
+  const hasAdmin = memberClicker.permissions.has('Administrator');
+  const hasUpperRole = cfg.resign.upperManagementRoleId && memberClicker.roles.cache.has(cfg.resign.upperManagementRoleId);
+  if (!hasAdmin && !hasUpperRole) {
+    return interaction.reply({ content: '❌ ليس لديك صلاحية لقبول أو رفض الاستقالات. يحتاج إلى رتبة الإدارة العليا أو صلاحية Administrator.', ephemeral: true });
+  }
+
   const member = await guild.members.fetch(userId).catch(() => null);
   const newEmbed = EmbedBuilder.from(interaction.message.embeds[0]);
 
