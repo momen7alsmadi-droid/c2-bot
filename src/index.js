@@ -77,7 +77,8 @@ async function handleModalSubmit(interaction) {
 }
 
 async function handleButton(interaction) {
-  const parts = interaction.customId.split('_');
+  const id = interaction.customId;
+  const parts = id.split('_');
   const prefix = parts[0];
 
   // أزرار الإجازة
