@@ -11,7 +11,7 @@ const { handleReportCommand, handleReportButton, handleReportSettings } = requir
 const { handleResign, handleResignButton, handleDevSettings } = require('./handlers/resign');
 const { handleMasterPanel, handleDevRefresh, handleDevDisable, handleDevEnable, handleDevToggle } = require('./handlers/master-panel');
 const { handleHelp } = require('./handlers/help');
-const { handleSettings, renderSettingsPage, handleSettingsSelect, handleSettingsButtonAction } = require('./handlers/settings');
+const { handleSettings, showSettingsPage, handleSettingsSelect } = require('./handlers/settings');
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
@@ -102,9 +102,18 @@ async function handleButton(interaction) {
     return handleResignButton(interaction, action, userId);
   }
 
-  // أزرار الإعدادات (كلها تروح على handleSettingsButtonAction)
-  if (prefix === 'settings' || prefix === 'set') {
-    return handleSettingsButtonAction(interaction);
+  // أزرار الإعدادات
+  if (id === 'settings_back') {
+    return showSettingsPage(interaction, 'main', 0);
+  }
+  if (id === 'set_leave') return showSettingsPage(interaction, 'leave', 1);
+  if (id === 'set_daleel') return showSettingsPage(interaction, 'daleel', 1);
+  if (id === 'set_report') return showSettingsPage(interaction, 'report', 1);
+  if (id === 'set_resign') return showSettingsPage(interaction, 'resign', 1);
+  if (id === 'set_report_next') return showSettingsPage(interaction, 'report', 2);
+  if (id === 'set_report_prev') return showSettingsPage(interaction, 'report', 1);
+  if (id.startsWith('sl_report_cd_')) {
+    return handleSettingsSelect(interaction);
   }
 
   // أزرار المطور
