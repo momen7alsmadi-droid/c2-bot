@@ -7,7 +7,6 @@ const ACCEPT_COLOR = 0x2ECC71;
 const DISMISS_COLOR = 0x992D22;
 
 // كولداون البلاغات (1 ساعة)
-const REPORT_COOLDOWN_MS = 60 * 60 * 1000;
 const reportCooldowns = new Map();
 
 function buildReportButtons(reportId, disableDecision) {
@@ -48,11 +47,14 @@ async function handleReportCommand(interaction, cfg) {
   const reason = interaction.options.getString('السبب');
   const when = interaction.options.getString('متى');
   const whereChannel = interaction.options.getChannel('المكان');
-  // كولداون
-  const lastReport = reportCooldowns.get(interaction.user.id);
-  if (lastReport && Date.now() - lastReport < REPORT_COOLDOWN_MS) {
-    const remaining = Math.ceil((REPORT_COOLDOWN_MS - (Date.now() - lastReport)) / 60000);
-    return interaction.reply({ content: `⏳ يجب عليك الانتظار **${remaining} دقيقة** قبل تقديم بلاغ آخر.`, ephemeral: true });
+  // كولداون (من الإعدادات)
+  if (cfg.report.cooldownEnabled !== false) {
+    const cdMs = (cfg.report.cooldownDuration || 60) * 60 * 1000;
+    const lastReport = reportCooldowns.get(interaction.user.id);
+    if (lastReport && Date.now() - lastReport < cdMs) {
+      const remaining = Math.ceil((cdMs - (Date.now() - lastReport)) / 60000);
+      return interaction.reply({ content: `⏳ يجب عليك الانتظار **${remaining} دقيقة** قبل تقديم بلاغ آخر.`, ephemeral: true });
+    }
   }
 
   const evidenceList = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => interaction.options.getAttachment(`دليل_${n}`)).filter(Boolean);

@@ -38,14 +38,17 @@ async function handleMasterPanel(interaction) {
 
   const row1 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('dev_refresh').setLabel('🔄 تحديث الإجازات').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('dev_resign_settings').setLabel('📄 إعدادات الاستقالة').setStyle(ButtonStyle.Secondary),
   );
   const row2 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('dev_disable').setLabel('🔴 تعطيل سيرفر').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId('dev_enable').setLabel('🟢 تفعيل سيرفر').setStyle(ButtonStyle.Success),
   );
+  const row3 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('dev_disable_all').setLabel('🔴🔴 إطفاء الكل').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('dev_enable_all').setLabel('🟢🟢 تشغيل الكل').setStyle(ButtonStyle.Success),
+  );
 
-  return interaction.reply({ embeds: [embed], components: [row1, row2], ephemeral: true });
+  return interaction.reply({ embeds: [embed], components: [row1, row2, row3], ephemeral: true });
 }
 
 // ------------------- التحديث -------------------
@@ -128,6 +131,22 @@ async function handleDevToggle(interaction) {
   if (interaction.user.id !== DEV_BOT_ID) return;
   const [_, action, guildId] = interaction.customId.split('_');
   const cfg = getConfig();
+
+  if (guildId === 'all') {
+    if (action === 'disable') {
+      const allIds = [...interaction.client.guilds.cache.keys()];
+      for (const id of allIds) {
+        if (!cfg.disabledGuilds.includes(id)) cfg.disabledGuilds.push(id);
+      }
+      saveConfig(cfg);
+      await interaction.update({ content: `🔴 تم إطفاء البوت في **جميع السيرفرات** (${allIds.length})`, components: [] });
+    } else if (action === 'enable') {
+      cfg.disabledGuilds = [];
+      saveConfig(cfg);
+      await interaction.update({ content: `🟢 تم تشغيل البوت في **جميع السيرفرات**`, components: [] });
+    }
+    return;
+  }
 
   if (action === 'disable') {
     if (!cfg.disabledGuilds.includes(guildId)) cfg.disabledGuilds.push(guildId);

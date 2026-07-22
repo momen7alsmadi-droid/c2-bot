@@ -57,11 +57,7 @@ const commands = [
     .setDescription('شرح البوت والأوامر')
     .toJSON(),
 
-  // ------------------- /تحديث -------------------
-  new SlashCommandBuilder()
-    .setName('تحديث')
-    .setDescription('تحديث الإجازات المنتهية (للمطور)')
-    .toJSON(),
+
 
   // ------------------- /اعدادات -------------------
   new SlashCommandBuilder()

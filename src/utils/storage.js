@@ -30,7 +30,9 @@ const DEFAULT_CONFIG = {
     warning3RoleId: null,           // رتبة الفصل من الإدارة (التحذير الثالث)
     upperManagementRoleId: null,    // رتبة الإدارة العليا التي تُشعَر عند الفصل
     upperManagementChannelId: null, // روم إشعارات الإدارة العليا
-    logChannelId: null              // روم لوق نظام البلاغات
+    logChannelId: null,             // روم لوق نظام البلاغات
+    cooldownEnabled: true,          // الكولداون شغال ولا لا
+    cooldownDuration: 60            // مدة الكولداون بالدقائق
   },
   resign: {
     allowedRoleId: null,     // من يمكنه استخدام /استقالة
