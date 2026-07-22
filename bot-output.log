@@ -1,0 +1,36 @@
+✅ البوت شغّال باسم AA Cia#1714
+(node:28544) DeprecationWarning: The ready event has been renamed to clientReady to distinguish it from the gateway READY event and will only emit under that name in v15. Please use clientReady instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:28544) Warning: Supplying "ephemeral" for interaction response options is deprecated. Utilize flags instead.
+DiscordjsError [InteractionAlreadyReplied]: The reply to this interaction has already been sent or deferred.
+    at ButtonInteraction.update (/data/data/com.termux/files/home/c2/node_modules/discord.js/src/structures/interfaces/InteractionResponses.js:335:46)
+    at renderSettingsPage (/data/data/com.termux/files/home/c2/src/handlers/settings.js:96:24)
+    at handleSettingsButtonAction (/data/data/com.termux/files/home/c2/src/handlers/settings.js:272:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Client.<anonymous> (/data/data/com.termux/files/home/c2/src/index.js:42:7) {
+  code: 'InteractionAlreadyReplied'
+}
+DiscordjsError [InteractionAlreadyReplied]: The reply to this interaction has already been sent or deferred.
+    at ButtonInteraction.update (/data/data/com.termux/files/home/c2/node_modules/discord.js/src/structures/interfaces/InteractionResponses.js:335:46)
+    at renderSettingsPage (/data/data/com.termux/files/home/c2/src/handlers/settings.js:115:24)
+    at handleSettingsButtonAction (/data/data/com.termux/files/home/c2/src/handlers/settings.js:272:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Client.<anonymous> (/data/data/com.termux/files/home/c2/src/index.js:42:7) {
+  code: 'InteractionAlreadyReplied'
+}
+DiscordjsError [InteractionAlreadyReplied]: The reply to this interaction has already been sent or deferred.
+    at ButtonInteraction.update (/data/data/com.termux/files/home/c2/node_modules/discord.js/src/structures/interfaces/InteractionResponses.js:335:46)
+    at renderSettingsPage (/data/data/com.termux/files/home/c2/src/handlers/settings.js:148:26)
+    at handleSettingsButtonAction (/data/data/com.termux/files/home/c2/src/handlers/settings.js:272:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Client.<anonymous> (/data/data/com.termux/files/home/c2/src/index.js:42:7) {
+  code: 'InteractionAlreadyReplied'
+}
+DiscordjsError [InteractionAlreadyReplied]: The reply to this interaction has already been sent or deferred.
+    at ButtonInteraction.update (/data/data/com.termux/files/home/c2/node_modules/discord.js/src/structures/interfaces/InteractionResponses.js:335:46)
+    at renderSettingsPage (/data/data/com.termux/files/home/c2/src/handlers/settings.js:210:24)
+    at handleSettingsButtonAction (/data/data/com.termux/files/home/c2/src/handlers/settings.js:272:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Client.<anonymous> (/data/data/com.termux/files/home/c2/src/index.js:42:7) {
+  code: 'InteractionAlreadyReplied'
+}

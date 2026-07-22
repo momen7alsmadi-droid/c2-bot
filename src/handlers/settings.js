@@ -233,7 +233,6 @@ async function handleSettingsButtonAction(interaction) {
     const p = getPending(userId);
     const current = p && p.system === 'report' && 'cooldownEnabled' in p.changes ? p.changes.cooldownEnabled : getConfig().report.cooldownEnabled !== false;
     setPending(userId, 'report', 'cooldownEnabled', !current);
-    await interaction.deferUpdate();
     return renderSettingsPage(interaction, 'report', 2);
   }
 
@@ -241,7 +240,6 @@ async function handleSettingsButtonAction(interaction) {
   const cdMatch = id.match(/^sl_report_cooldown_(\d+)$/);
   if (cdMatch) {
     setPending(userId, 'report', 'cooldownDuration', parseInt(cdMatch[1]));
-    await interaction.deferUpdate();
     return renderSettingsPage(interaction, 'report', 2);
   }
 
@@ -253,14 +251,12 @@ async function handleSettingsButtonAction(interaction) {
   // تحديث (يعيد الرسم مع المعلقة)
   if (id.startsWith('settings_refresh_')) {
     const type = id.replace('settings_refresh_', '');
-    await interaction.deferUpdate();
     return renderSettingsPage(interaction, type, 1);
   }
 
   // تنقل بين صفحات البلاغات
   if (id.startsWith('set_report_page_')) {
     const page = parseInt(id.split('_page_')[1]);
-    await interaction.deferUpdate();
     return renderSettingsPage(interaction, 'report', page);
   }
 
@@ -268,7 +264,6 @@ async function handleSettingsButtonAction(interaction) {
   if (id.startsWith('set_')) {
     const type = id.replace('set_', '').split('_')[0];
     const page = id.includes('_page_') ? parseInt(id.split('_page_')[1]) : 1;
-    await interaction.deferUpdate();
     return renderSettingsPage(interaction, type, page);
   }
 }
@@ -298,7 +293,6 @@ async function handleSettingsSelect(interaction) {
   const value = key === 'rolesToRemove' ? values : (values[0] || null);
 
   setPending(userId, system, key, value);
-  await interaction.deferUpdate();
 
   // نعرض الصفحة مرة ثانية مع التغييرات المعلقة
   const page = system === 'report' ? 1 : 1;
