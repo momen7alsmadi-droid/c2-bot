@@ -1,3 +1,4 @@
+const { version } = require('../utils/version');
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const { getConfig, saveConfig, getReports, saveReports } = require('../utils/storage');
 const { hasRole, isAdmin, setFieldValue, generateId, sendLog } = require('../utils/helpers');
@@ -96,7 +97,7 @@ async function handleReportCommand(interaction, cfg) {
       { name: '— الحالة', value: '⏳ قيد المراجعة' },
     )
     .setImage(evidenceList[0].url)
-    .setFooter({ text: `رقم البلاغ: ${id}` })
+    .setFooter({ text: `الإصدار: ${version} | رقم البلاغ: ${id}` })
     .setTimestamp();
 
   const extraEmbeds = evidenceList.slice(1).map(a => new EmbedBuilder().setColor(REPORT_COLOR).setImage(a.url));

@@ -3,6 +3,7 @@ const {
   RoleSelectMenuBuilder, ChannelSelectMenuBuilder
 } = require('discord.js');
 const { getConfig, saveConfig } = require('../utils/storage');
+const { version } = require('../utils/version');
 
 // دوال مساعدة
 const rl = (id) => id ? `<@&${id}>` : '❌ غير محدد';
@@ -56,6 +57,7 @@ async function showSettingsPage(interaction, type, page) {
     const embed = new EmbedBuilder()
       .setTitle(`⚙️ ${type === 'leave' ? '📋 الإجازات' : type === 'daleel' ? '📌 الدلائل' : type === 'report' ? '🛡️ البلاغات' : '📄 الاستقالات'}`)
       .setColor(0x3498DB)
+      .setFooter({ text: `الإصدار: ${version}` })
       .setTimestamp();
 
     const btnBack = new ButtonBuilder().setCustomId('settings_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary);
@@ -225,42 +227,30 @@ async function showSettingsPage(interaction, type, page) {
 
 // اختيار القوائم
 async function handleSettingsSelect(interaction) {
-  console.log('TRACE select:', interaction.customId, 'deferred:', interaction.deferred, 'replied:', interaction.replied);
-  try {
-    if (!interaction.deferred && !interaction.replied)
-      await interaction.deferReply({ ephemeral: true });
-    console.log('TRACE select deferred ok');
-  } catch (e) {
-    console.error('ERR-SELDEF:', e.message);
-    return interaction.reply({ content: '⚠️ ERR-SELDEF', ephemeral: true }).catch(()=>{});
-  }
-
   try {
     const id = interaction.customId;
-    console.log('TRACE select id:', id);
     const cfg = getConfig();
 
     // كولداون
     if (id === 'sl_report_cd_toggle') {
       cfg.report.cooldownEnabled = cfg.report.cooldownEnabled === false ? true : false;
       saveConfig(cfg);
-      return safeSend(interaction, { content: `✅ تم ${cfg.report.cooldownEnabled ? 'تشغيل' : 'إطفاء'} الكولداون.` });
+      return interaction.reply({ content: `✅ تم ${cfg.report.cooldownEnabled ? 'تشغيل' : 'إطفاء'} الكولداون.`, ephemeral: true }).catch(e=>console.error('ERR-SEL1:',e.message));
     }
     const cdMatch = id.match(/^sl_report_cd_(\d+)$/);
     if (cdMatch) {
       cfg.report.cooldownDuration = parseInt(cdMatch[1]);
       saveConfig(cfg);
-      return safeSend(interaction, { content: `✅ تم تعيين مدة الكولداون إلى ${cdMatch[1]} دقيقة.` });
+      return interaction.reply({ content: `✅ تم تعيين مدة الكولداون إلى ${cdMatch[1]} دقيقة.`, ephemeral: true }).catch(e=>console.error('ERR-SEL2:',e.message));
     }
 
     // اختيار رتبة/روم
     const parts = id.split('_');
-    if (parts[0] !== 'sl') { console.log('TRACE select: not sl, return'); return; }
+    if (parts[0] !== 'sl') return;
     const system = parts[1];
     const field = parts.slice(2).join('_');
-    console.log('TRACE select system:', system, 'field:', field);
     const values = interaction.values;
-    if (!cfg[system]) return safeSend(interaction, { content: `⚠️ النظام ${system} غير موجود` });
+    if (!cfg[system]) return interaction.reply({ content: `⚠️ النظام ${system} غير موجود`, ephemeral: true }).catch(()=>{});
 
     const roleFields = ['allowedRole', 'adminRole', 'leaveRole', 'resignRole', 'warning1', 'warning2', 'warning3', 'upperMgmt'];
     const listFields = ['rolesToRemove'];
@@ -274,10 +264,8 @@ async function handleSettingsSelect(interaction) {
 
     if (listFields.includes(field)) {
       cfg[system].rolesToRemove = values || [];
-      console.log('TRACE select saved rolesToRemove:', JSON.stringify(cfg[system].rolesToRemove));
     } else {
       cfg[system][mapKey] = values[0] || null;
-      console.log('TRACE select saved', mapKey, '=', values[0] || null);
     }
 
     saveConfig(cfg);
@@ -293,10 +281,10 @@ async function handleSettingsSelect(interaction) {
 
     const label = fieldNames[field] || field;
     const valueStr = values.length ? values.map(v => `<@&${v}>`).join(', ') : 'بدون';
-    return safeSend(interaction, { content: `✅ تم تحديث **${label}** → ${valueStr}` });
+    return interaction.reply({ content: `✅ تم تحديث **${label}** → ${valueStr}`, ephemeral: true }).catch(e=>console.error('ERR-SEL3:',e.message));
   } catch (e) {
     console.error('ERR-SEL:', e.message, e.stack);
-    return safeSend(interaction, { content: `⚠️ ERR-SEL: ${e.message}` });
+    try { await interaction.reply({ content: `⚠️ ERR-SEL`, ephemeral: true }); } catch(e2) { console.error('ERR-SEL4:', e2.message); }
   }
 }
 

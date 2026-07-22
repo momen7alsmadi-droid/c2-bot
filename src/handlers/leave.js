@@ -1,3 +1,4 @@
+const { version } = require('../utils/version');
 const {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder,
   ModalBuilder, TextInputBuilder, TextInputStyle
@@ -62,7 +63,7 @@ async function handleLeaveModalSubmit(interaction) {
       { name: 'المدة المحتسبة', value: `${days} يوم${guessed ? ' ⚠️ (تخمين تلقائي)' : ''}` },
       { name: 'الحالة', value: '⏳ بانتظار القبول' },
     )
-    .setFooter({ text: `${interaction.user.tag} | ${interaction.user.id}` })
+    .setFooter({ text: `الإصدار: ${version} | ${interaction.user.tag}` })
     .setTimestamp();
 
   const row = new ActionRowBuilder().addComponents(

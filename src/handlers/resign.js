@@ -1,3 +1,4 @@
+const { version } = require('../utils/version');
 const {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder
 } = require('discord.js');
@@ -28,7 +29,7 @@ async function handleResign(interaction) {
       { name: '— سـبـب الاسـتـقـالـة', value: reason },
       { name: '— الحالة', value: '⏳ بانتظار القبول' },
     )
-    .setFooter({ text: `${interaction.user.tag} | ${interaction.user.id}` })
+    .setFooter({ text: `الإصدار: ${version} | ${interaction.user.tag}` })
     .setTimestamp();
 
   const row = new ActionRowBuilder().addComponents(

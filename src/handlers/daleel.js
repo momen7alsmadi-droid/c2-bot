@@ -1,3 +1,4 @@
+const { version } = require('../utils/version');
 const { EmbedBuilder } = require('discord.js');
 const { getConfig, saveConfig } = require('../utils/storage');
 const { hasRole, sendLog } = require('../utils/helpers');
@@ -36,7 +37,7 @@ async function handleDaleelCommand(interaction, cfg) {
       { name: 'مكان العقوبة', value: place },
     )
     .setImage(attachment.url)
-    .setFooter({ text: `مقدَّم من طرف ${interaction.user.tag}` })
+    .setFooter({ text: `الإصدار: ${version} | مقدَّم من طرف ${interaction.user.tag}` })
     .setTimestamp();
 
   const channel = await interaction.guild.channels.fetch(cfg.daleel.channelId).catch(() => null);

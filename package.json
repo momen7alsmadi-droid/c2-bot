@@ -1,6 +1,6 @@
 {
   "name": "a1",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "بوت ديسكورد لنظام الاجازات والدلائل والبلاغات على الإداريين",
   "main": "src/index.js",
   "type": "commonjs",
