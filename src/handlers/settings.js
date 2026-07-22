@@ -181,7 +181,7 @@ async function showSettingsPage(interaction, type, page) {
       });
     }
 
-    // ========== الاستقالة ==========
+    // ========== الاستقالة (صفحة واحدة) ==========
     if (type === 'resign') {
       const r = cfg.resign;
       embed.setDescription('👑 أي شخص عنده صلاحية Administrator يعتبر من الإدارة العليا تلقائياً');
@@ -190,6 +190,7 @@ async function showSettingsPage(interaction, type, page) {
         { name: '🎖️ رتبة ما بعد الاستقالة', value: rl(r.resignRoleId) },
         { name: '👑 رتبة الإدارة العليا', value: rl(r.upperManagementRoleId) },
         { name: '📨 روم الاستقبال', value: ch(r.logChannelId) },
+        { name: '🗑️ الرتب المُزالة', value: lst(r.rolesToRemove) },
       );
       return safeSend(interaction, {
         embeds: [embed],
@@ -198,22 +199,7 @@ async function showSettingsPage(interaction, type, page) {
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_resignRole').setPlaceholder('🎖️ رتبة ما بعد الاستقالة').setMaxValues(1)),
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_upperMgmt').setPlaceholder('👑 رتبة الإدارة العليا').setMaxValues(1)),
           new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_resign_logChannel').setPlaceholder('📨 روم الاستقبال').setMaxValues(1)),
-          new ActionRowBuilder().addComponents(btnBack, new ButtonBuilder().setCustomId('set_resign_2').setLabel('▶️ الرتب المُزالة').setStyle(ButtonStyle.Primary)),
-        ]
-      });
-    }
-
-    // ========== الاستقالة - صفحة 2 ==========
-    if (type === 'resign' && page === 2) {
-      const r = cfg.resign;
-      embed.addFields(
-        { name: '🗑️ الرتب المُزالة', value: lst(r.rolesToRemove) },
-      );
-      return safeSend(interaction, {
-        embeds: [embed],
-        components: [
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_rolesToRemove').setPlaceholder('🗑️ رتب للإزالة').setMaxValues(25)),
-          new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('set_resign_1').setLabel('◀️ الأساسيات').setStyle(ButtonStyle.Primary), btnBack),
         ]
       });
     }
