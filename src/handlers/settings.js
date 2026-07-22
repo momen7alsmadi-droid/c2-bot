@@ -97,7 +97,10 @@ async function renderSettingsPage(interaction, type, page) {
       embeds: [embed],
       components: [
         new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1)),
-        new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_leave_requestChannel').setPlaceholder('📨 روم الطلبات').setMaxValues(1)),
+        new ActionRowBuilder().addComponents(
+          new ChannelSelectMenuBuilder().setCustomId('sl_leave_requestChannel').setPlaceholder('📨 روم الطلبات').setMaxValues(1),
+          new ChannelSelectMenuBuilder().setCustomId('sl_leave_logChannel').setPlaceholder('📝 روم اللوق').setMaxValues(1),
+        ),
         new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_leaveRole').setPlaceholder('🎖️ رتبة الإجازة').setMaxValues(1)),
         new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_rolesToRemove').setPlaceholder('🗑️ رتب للإزالة').setMaxValues(25)),
         new ActionRowBuilder().addComponents(btnBack, btnSave, btnRefresh),
@@ -116,7 +119,10 @@ async function renderSettingsPage(interaction, type, page) {
       embeds: [embed],
       components: [
         new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_daleel_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1)),
-        new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_daleel_channel').setPlaceholder('📨 روم الإرسال').setMaxValues(1)),
+        new ActionRowBuilder().addComponents(
+          new ChannelSelectMenuBuilder().setCustomId('sl_daleel_channel').setPlaceholder('📨 روم الإرسال').setMaxValues(1),
+          new ChannelSelectMenuBuilder().setCustomId('sl_daleel_logChannel').setPlaceholder('📝 روم اللوق').setMaxValues(1),
+        ),
         new ActionRowBuilder().addComponents(btnBack, btnSave, btnRefresh),
       ]
     });
@@ -210,7 +216,10 @@ async function renderSettingsPage(interaction, type, page) {
     return interaction.update({
       embeds: [embed],
       components: [
-        new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1)),
+        new ActionRowBuilder().addComponents(
+          new RoleSelectMenuBuilder().setCustomId('sl_resign_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1),
+          new RoleSelectMenuBuilder().setCustomId('sl_resign_resignRole').setPlaceholder('🎖️ رتبة ما بعد الاستقالة').setMaxValues(1),
+        ),
         new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_resign_logChannel').setPlaceholder('📨 روم الاستقبال').setMaxValues(1)),
         new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_rolesToRemove').setPlaceholder('🗑️ رتب للإزالة').setMaxValues(25)),
         new ActionRowBuilder().addComponents(btnBack, btnSave, btnRefresh),
@@ -340,7 +349,9 @@ async function handleSettingsSave(interaction) {
   saveConfig(cfg);
   clearPending(userId);
 
-  await interaction.update({ content: '✅ **تم حفظ جميع التغييرات بنجاح!**', embeds: [], components: [] });
+  // نعرض الصفحة مرة ثانية مباشرة (بدون إغلاق)
+  const page = system === 'report' ? 1 : 1;
+  return renderSettingsPage(interaction, system, page);
 }
 
 module.exports = { handleSettings, renderSettingsPage, handleSettingsSelect, handleSettingsButtonAction };

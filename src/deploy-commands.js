@@ -14,10 +14,18 @@ const commands = [
     .setName('دليل')
     .setDescription('تقديم استمارة دليل عقوبة')
     .addUserOption(o => o.setName('العضو').setDescription('يوزر العضو المعاقب').setRequired(true))
-    .addStringOption(o => o.setName('العقوبة').setDescription('نوع العقوبة').setRequired(true))
+    .addStringOption(o => o.setName('العقوبة').setDescription('نوع العقوبة').setRequired(true)
+      .addChoices(
+        { name: '🔨 باند (Ban)', value: 'باند' },
+        { name: '👢 كيك (Kick)', value: 'كيك' },
+        { name: '⚠️ تحذير (Warn)', value: 'تحذير' },
+        { name: '⏰ تايم (Timeout)', value: 'تايم' },
+        { name: '⛓️ سجن (Jail)', value: 'سجن' },
+      ))
     .addStringOption(o => o.setName('السبب').setDescription('سبب العقوبة').setRequired(true))
     .addStringOption(o => o.setName('المكان').setDescription('مكان العقوبة').setRequired(true))
     .addAttachmentOption(o => o.setName('الصورة').setDescription('صورة الدليل').setRequired(true))
+    .addStringOption(o => o.setName('المدة').setDescription('مدة العقوبة (للتايم والسجن)').setRequired(false))
     .toJSON(),
 
   // ------------------- /بلاغ -------------------

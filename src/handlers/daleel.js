@@ -15,15 +15,23 @@ async function handleDaleelCommand(interaction, cfg) {
   const targetUser = interaction.options.getUser('العضو');
   const penalty = interaction.options.getString('العقوبة');
   const reason = interaction.options.getString('السبب');
+  const duration = interaction.options.getString('المدة');
   const place = interaction.options.getString('المكان');
   const attachment = interaction.options.getAttachment('الصورة');
+
+  // تحقق من المدة إذا كانت العقوبة تايم أو سجن
+  if ((penalty === 'تايم' || penalty === 'سجن') && !duration) {
+    return interaction.reply({ content: `⚠️ يجب تحديد **المدة** لعقوبة ${penalty}.`, ephemeral: true });
+  }
+
+  const penaltyText = duration ? `${penalty} (${duration})` : penalty;
 
   const embed = new EmbedBuilder()
     .setTitle('📋 استمارة دليل عقوبة')
     .setColor(0xE67E22)
     .addFields(
       { name: 'يوزر العضو', value: `${targetUser}` },
-      { name: 'العقوبة', value: penalty },
+      { name: 'العقوبة', value: penaltyText },
       { name: 'سبب العقوبة', value: reason },
       { name: 'مكان العقوبة', value: place },
     )
@@ -44,8 +52,9 @@ async function handleDaleelCommand(interaction, cfg) {
     .setColor(0xE67E22)
     .addFields(
       { name: 'العضو المعاقب', value: `${targetUser} (${targetUser.tag} | ${targetUser.id})` },
-      { name: 'العقوبة', value: penalty },
+      { name: 'العقوبة', value: penaltyText },
       { name: 'السبب', value: reason },
+      { name: 'المدة', value: duration || 'بدون' },
       { name: 'المكان', value: place },
       { name: 'مقدّم الدليل', value: `${interaction.user} (${interaction.user.tag} | ${interaction.user.id})` },
     )
