@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 async function handleHelp(interaction) {
   const embed = new EmbedBuilder()
@@ -30,7 +30,14 @@ async function handleHelp(interaction) {
     .setFooter({ text: 'بوت الإدارة المتكامل' })
     .setTimestamp();
 
-  return interaction.reply({ embeds: [embed], ephemeral: true });
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setLabel('🆘 سيرفر الدعم')
+      .setStyle(ButtonStyle.Link)
+      .setURL('https://discord.gg/qdDQWKxQZu'),
+  );
+
+  return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
 }
 
 module.exports = { handleHelp };
