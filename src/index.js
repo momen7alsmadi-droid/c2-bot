@@ -44,7 +44,7 @@ client.on('interactionCreate', async (interaction) => {
       await handleSettingsSelect(interaction);
     }
   } catch (err) {
-    console.error('❌ ERROR:', err.message, err.stack);
+    console.error('❌ ERROR [' + interaction.customId + ']:', err.message, err.stack);
     try {
       if (interaction.isRepliable()) {
         if (interaction.deferred) {
