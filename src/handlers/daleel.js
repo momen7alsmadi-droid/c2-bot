@@ -19,9 +19,9 @@ async function handleDaleelCommand(interaction, cfg) {
   const place = interaction.options.getString('المكان');
   const attachment = interaction.options.getAttachment('الصورة');
 
-  // تحقق من المدة إذا كانت العقوبة تايم أو سجن
-  if ((penalty === 'تايم' || penalty === 'سجن') && !duration) {
-    return interaction.reply({ content: `⚠️ يجب تحديد **المدة** لعقوبة ${penalty}.`, ephemeral: true });
+  // تحقق من المدة إذا كانت العقوبة تايم
+  if (penalty === 'تايم' && !duration) {
+    return interaction.reply({ content: '⚠️ يجب تحديد **المدة** لعقوبة التايم.', ephemeral: true });
   }
 
   const penaltyText = duration ? `${penalty} (${duration})` : penalty;
