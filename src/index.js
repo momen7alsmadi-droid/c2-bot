@@ -96,12 +96,9 @@ async function handleButton(interaction) {
     return handleResignButton(interaction, action, userId);
   }
 
-  // أزرار الإعدادات
-  if (id.startsWith('sl_report_cooldown_') || id.startsWith('settings_save_') || id.startsWith('settings_refresh_') || id === 'settings_back' || (id.startsWith('set_') && id.includes('_page_'))) {
-    return handleSettingsButtonAction(interaction);
-  }
+  // أزرار الإعدادات (كلها تروح على handleSettingsButtonAction)
   if (prefix === 'settings' || prefix === 'set') {
-    return renderSettingsPage(interaction);
+    return handleSettingsButtonAction(interaction);
   }
 
   // أزرار المطور

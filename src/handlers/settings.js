@@ -5,7 +5,7 @@ const {
 const { getConfig, saveConfig } = require('../utils/storage');
 
 // ------------------- التغييرات المعلقة -------------------
-const pendingSettings = new Map(); // userId -> { system: 'leave', changes: { field: value, ... } }
+const pendingSettings = new Map(); // userId -> { system, changes: { field: value } }
 
 function getPending(userId) { return pendingSettings.get(userId) || null; }
 function setPending(userId, system, field, value) {
@@ -37,23 +37,12 @@ async function handleSettings(interaction) {
 }
 
 // ------------------- عرض صفحة الإعدادات -------------------
+// type: leave/daleel/report/resign | page: 1/2
 
-async function renderSettingsPage(interaction) {
+async function renderSettingsPage(interaction, type, page) {
   const cfg = getConfig();
-  const customId = interaction.customId || '';
-  let type = customId.replace('set_', '').split('_')[0];
-  let page = customId.includes('_page_') ? parseInt(customId.split('_page_')[1]) : 1;
-
-  // رجوع
-  if (customId === 'settings_back') return handleSettings(interaction);
-
-  // تحديث (يعرض الإيمبد مع التغييرات المعلقة)
-  if (customId.startsWith('settings_refresh_')) {
-    type = customId.replace('settings_refresh_', '');
-    page = 1;
-  }
-
   const titles = { leave: '📋 الإجازات', daleel: '📌 الدلائل', report: '🛡️ البلاغات', resign: '📄 الاستقالات' };
+
   const embed = new EmbedBuilder()
     .setTitle(`⚙️ إعدادات ${titles[type]}`)
     .setColor(0x3498DB)
@@ -68,29 +57,41 @@ async function renderSettingsPage(interaction) {
   const btnSave = new ButtonBuilder().setCustomId(`settings_save_${type}`).setLabel('✅ حفظ').setStyle(ButtonStyle.Success).setDisabled(!hasPending);
   const btnRefresh = new ButtonBuilder().setCustomId(`settings_refresh_${type}`).setLabel('🔄 تحديث').setStyle(ButtonStyle.Primary);
 
-  // دالة مساعدة لعرض القيمة (مع تمييز المعلقة)
-  const val = (saved, field) => {
+  // دالة مساعدة لعرض القيمة
+  const display = (saved, field) => {
+    // القيمة المعلقة (غير محفوظة)
     if (pending && pending.system === type && field in pending.changes) {
       const v = pending.changes[field];
       if (v === null || v === undefined || v === '') return '📝 لم يتم الاختيار';
-      if (field.includes('Role') || field === 'allowedRole' || field === 'adminRole' || field === 'leaveRole' || field === 'resignRole') return `📝 <@&${v}>`;
-      if (field.includes('Channel')) return `📝 <#${v}>`;
       if (Array.isArray(v)) return v.length ? v.map(id => `📝 <@&${id}>`).join(', ') : '📝 لا يوجد';
+      // أدوار وقنوات
+      if (field === 'allowedRole' || field === 'adminRole' || field === 'leaveRole' ||
+          field === 'resignRole' || field === 'warning1' || field === 'warning2' ||
+          field === 'warning3' || field === 'upperMgmt') return `📝 <@&${v}>`;
+      if (field === 'channel' || field === 'requestChannel' || field === 'logChannel' ||
+          field === 'upperMgmtChannel') return `📝 <#${v}>`;
       return `📝 ${v}`;
     }
+    // القيمة المحفوظة
     if (saved === null || saved === undefined) return '❌ غير محدد';
     if (Array.isArray(saved)) return saved.length ? saved.map(id => `<@&${id}>`).join(', ') : 'لا يوجد';
-    return saved;
+    // أدوار وقنوات
+    if (field === 'allowedRole' || field === 'adminRole' || field === 'leaveRole' ||
+        field === 'resignRole' || field === 'warning1' || field === 'warning2' ||
+        field === 'warning3' || field === 'upperMgmt') return `<@&${saved}>`;
+    if (field === 'channel' || field === 'requestChannel' || field === 'logChannel' ||
+        field === 'upperMgmtChannel') return `<#${saved}>`;
+    return `\`${saved}\``;
   };
 
   if (type === 'leave') {
     const l = cfg.leave;
     embed.addFields(
-      { name: '🎯 رتبة الاستخدام', value: val(l.allowedRoleId, 'allowedRole') },
-      { name: '📨 روم الطلبات', value: val(l.requestChannelId, 'requestChannel') },
-      { name: '🎖️ رتبة الإجازة', value: val(l.leaveRoleId, 'leaveRole') },
-      { name: '🗑️ الرتب المُزالة', value: val(l.rolesToRemove, 'rolesToRemove') },
-      { name: '📝 روم اللوق', value: val(l.logChannelId, 'logChannel') },
+      { name: '🎯 رتبة الاستخدام', value: display(l.allowedRoleId, 'allowedRole') },
+      { name: '📨 روم الطلبات', value: display(l.requestChannelId, 'requestChannel') },
+      { name: '🎖️ رتبة الإجازة', value: display(l.leaveRoleId, 'leaveRole') },
+      { name: '🗑️ الرتب المُزالة', value: display(l.rolesToRemove, 'rolesToRemove') },
+      { name: '📝 روم اللوق', value: display(l.logChannelId, 'logChannel') },
     );
     return interaction.update({
       embeds: [embed],
@@ -107,9 +108,9 @@ async function renderSettingsPage(interaction) {
   if (type === 'daleel') {
     const d = cfg.daleel;
     embed.addFields(
-      { name: '🎯 رتبة الاستخدام', value: val(d.allowedRoleId, 'allowedRole') },
-      { name: '📨 روم الإرسال', value: val(d.channelId, 'channel') },
-      { name: '📝 روم اللوق', value: val(d.logChannelId, 'logChannel') },
+      { name: '🎯 رتبة الاستخدام', value: display(d.allowedRoleId, 'allowedRole') },
+      { name: '📨 روم الإرسال', value: display(d.channelId, 'channel') },
+      { name: '📝 روم اللوق', value: display(d.logChannelId, 'logChannel') },
     );
     return interaction.update({
       embeds: [embed],
@@ -124,11 +125,10 @@ async function renderSettingsPage(interaction) {
   if (type === 'report') {
     const r = cfg.report;
     const cdEnabled = r.cooldownEnabled !== false;
-    const cdStatus = cdEnabled ? '🟢 شغال' : '🔴 متوقف';
     const cdDuration = r.cooldownDuration || 60;
 
     // كولداون من المعلقة
-    let showCdStatus = cdStatus;
+    let showCdStatus = cdEnabled ? '🟢 شغال' : '🔴 متوقف';
     let showCdDuration = cdDuration;
     if (pending && pending.system === 'report') {
       if ('cooldownEnabled' in pending.changes) showCdStatus = pending.changes.cooldownEnabled ? '📝 شغال' : '📝 متوقف';
@@ -138,12 +138,12 @@ async function renderSettingsPage(interaction) {
     if (page === 1) {
       embed.setDescription('📌 **الرتب** - اختر الرتب المناسبة');
       embed.addFields(
-        { name: '🎯 رتبة الاستخدام', value: val(r.allowedRoleId, 'allowedRole') },
-        { name: '🎖️ رتبة الإدارة', value: val(r.adminRoleId, 'adminRole') },
-        { name: '⚠️ تحذير أول', value: val(r.warning1RoleId, 'warning1') },
-        { name: '⚠️⚠️ تحذير ثاني', value: val(r.warning2RoleId, 'warning2') },
-        { name: '🚫 تحذير ثالث (فصل)', value: val(r.warning3RoleId, 'warning3') },
-        { name: '👑 الإدارة العليا', value: val(r.upperManagementRoleId, 'upperMgmt') },
+        { name: '🎯 رتبة الاستخدام', value: display(r.allowedRoleId, 'allowedRole') },
+        { name: '🎖️ رتبة الإدارة', value: display(r.adminRoleId, 'adminRole') },
+        { name: '⚠️ تحذير أول', value: display(r.warning1RoleId, 'warning1') },
+        { name: '⚠️⚠️ تحذير ثاني', value: display(r.warning2RoleId, 'warning2') },
+        { name: '🚫 تحذير ثالث (فصل)', value: display(r.warning3RoleId, 'warning3') },
+        { name: '👑 الإدارة العليا', value: display(r.upperManagementRoleId, 'upperMgmt') },
       );
       return interaction.update({
         embeds: [embed],
@@ -169,12 +169,11 @@ async function renderSettingsPage(interaction) {
     } else {
       embed.setDescription('📌 **القنوات والكولداون**');
       embed.addFields(
-        { name: '📨 روم الاستقبال', value: val(r.channelId, 'channel') },
-        { name: '📝 روم اللوق', value: val(r.logChannelId, 'logChannel') },
-        { name: '📢 روم الإشعارات', value: val(r.upperManagementChannelId, 'upperMgmtChannel') },
+        { name: '📨 روم الاستقبال', value: display(r.channelId, 'channel') },
+        { name: '📝 روم اللوق', value: display(r.logChannelId, 'logChannel') },
+        { name: '📢 روم الإشعارات', value: display(r.upperManagementChannelId, 'upperMgmtChannel') },
         { name: '⏱️ الكولداون', value: `${showCdStatus} - المدة: ${showCdDuration} دقيقة` },
       );
-      // أزرار الكولداون حسب الحالة المعلقة
       const isCdEnabled = pending && pending.system === 'report' && 'cooldownEnabled' in pending.changes ? pending.changes.cooldownEnabled : cdEnabled;
       return interaction.update({
         embeds: [embed],
@@ -203,10 +202,10 @@ async function renderSettingsPage(interaction) {
   if (type === 'resign') {
     const r = cfg.resign;
     embed.addFields(
-      { name: '🎯 رتبة الاستخدام', value: val(r.allowedRoleId, 'allowedRole') },
-      { name: '📨 روم الاستقبال', value: val(r.logChannelId, 'logChannel') },
-      { name: '🗑️ الرتب المُزالة', value: val(r.rolesToRemove, 'rolesToRemove') },
-      { name: '🎖️ رتبة ما بعد الاستقالة', value: val(r.resignRoleId, 'resignRole') },
+      { name: '🎯 رتبة الاستخدام', value: display(r.allowedRoleId, 'allowedRole') },
+      { name: '📨 روم الاستقبال', value: display(r.logChannelId, 'logChannel') },
+      { name: '🗑️ الرتب المُزالة', value: display(r.rolesToRemove, 'rolesToRemove') },
+      { name: '🎖️ رتبة ما بعد الاستقالة', value: display(r.resignRoleId, 'resignRole') },
     );
     return interaction.update({
       embeds: [embed],
@@ -220,10 +219,63 @@ async function renderSettingsPage(interaction) {
   }
 }
 
-// ------------------- معالجة اختيار القوائم (تخزين معلق) -------------------
+// ------------------- معالجة أزرار التنقل + الكولداون -------------------
+
+async function handleSettingsButtonAction(interaction) {
+  const id = interaction.customId;
+  const userId = interaction.user.id;
+
+  // رجوع
+  if (id === 'settings_back') return handleSettings(interaction);
+
+  // كولداون: تبديل
+  if (id === 'sl_report_cooldown_toggle') {
+    const p = getPending(userId);
+    const current = p && p.system === 'report' && 'cooldownEnabled' in p.changes ? p.changes.cooldownEnabled : getConfig().report.cooldownEnabled !== false;
+    setPending(userId, 'report', 'cooldownEnabled', !current);
+    await interaction.deferUpdate();
+    return renderSettingsPage(interaction, 'report', 2);
+  }
+
+  // كولداون: مدة
+  const cdMatch = id.match(/^sl_report_cooldown_(\d+)$/);
+  if (cdMatch) {
+    setPending(userId, 'report', 'cooldownDuration', parseInt(cdMatch[1]));
+    await interaction.deferUpdate();
+    return renderSettingsPage(interaction, 'report', 2);
+  }
+
+  // حفظ
+  if (id.startsWith('settings_save_')) {
+    return handleSettingsSave(interaction);
+  }
+
+  // تحديث (يعيد الرسم مع المعلقة)
+  if (id.startsWith('settings_refresh_')) {
+    const type = id.replace('settings_refresh_', '');
+    await interaction.deferUpdate();
+    return renderSettingsPage(interaction, type, 1);
+  }
+
+  // تنقل بين صفحات البلاغات
+  if (id.startsWith('set_report_page_')) {
+    const page = parseInt(id.split('_page_')[1]);
+    await interaction.deferUpdate();
+    return renderSettingsPage(interaction, 'report', page);
+  }
+
+  // أيام الأزرار (set_leave, set_daleel, etc)
+  if (id.startsWith('set_')) {
+    const type = id.replace('set_', '').split('_')[0];
+    const page = id.includes('_page_') ? parseInt(id.split('_page_')[1]) : 1;
+    await interaction.deferUpdate();
+    return renderSettingsPage(interaction, type, page);
+  }
+}
+
+// ------------------- معالجة اختيار القوائم -------------------
 
 async function handleSettingsSelect(interaction) {
-  const cfg = getConfig();
   const parts = interaction.customId.split('_');
   const prefix = parts[0];
   if (prefix !== 'sl') return;
@@ -233,21 +285,12 @@ async function handleSettingsSelect(interaction) {
   const values = interaction.values;
   const userId = interaction.user.id;
 
-  // تعيين القيمة - ربط أسماء الحقول مع ملف التخزين
+  // تعيين القيمة
   const mapField = (f) => {
-    if (f === 'allowedRole') return 'allowedRole';
-    if (f === 'adminRole') return 'adminRole';
-    if (f === 'leaveRole') return 'leaveRole';
-    if (f === 'resignRole') return 'resignRole';
-    if (f === 'channel') return 'channel';
-    if (f === 'requestChannel') return 'requestChannel';
-    if (f === 'logChannel') return 'logChannel';
-    if (f === 'upperMgmtChannel') return 'upperMgmtChannel';
-    if (f === 'warning1') return 'warning1';
-    if (f === 'warning2') return 'warning2';
-    if (f === 'warning3') return 'warning3';
-    if (f === 'upperMgmt') return 'upperMgmt';
-    if (f === 'rolesToRemove') return 'rolesToRemove';
+    if (f === 'allowedRole' || f === 'adminRole' || f === 'leaveRole' || f === 'resignRole') return f;
+    if (f === 'channel' || f === 'requestChannel' || f === 'logChannel' || f === 'upperMgmtChannel') return f;
+    if (f === 'warning1' || f === 'warning2' || f === 'warning3' || f === 'upperMgmt') return f;
+    if (f === 'rolesToRemove') return f;
     return f;
   };
 
@@ -258,8 +301,8 @@ async function handleSettingsSelect(interaction) {
   await interaction.deferUpdate();
 
   // نعرض الصفحة مرة ثانية مع التغييرات المعلقة
-  const fakeInteraction = { ...interaction, customId: `set_${system}` };
-  return renderSettingsPage(fakeInteraction);
+  const page = system === 'report' ? 1 : 1;
+  return renderSettingsPage(interaction, system, page);
 }
 
 // ------------------- حفظ التغييرات -------------------
@@ -276,25 +319,26 @@ async function handleSettingsSave(interaction) {
   const changes = pending.changes;
 
   // تعيين القيم من المعلقة إلى الكونفج
+  const mapKey = (f) => {
+    if (f === 'allowedRole') return 'allowedRoleId';
+    if (f === 'adminRole') return 'adminRoleId';
+    if (f === 'leaveRole') return 'leaveRoleId';
+    if (f === 'resignRole') return 'resignRoleId';
+    if (f === 'channel') return 'channelId';
+    if (f === 'requestChannel') return 'requestChannelId';
+    if (f === 'logChannel') return 'logChannelId';
+    if (f === 'upperMgmtChannel') return 'upperManagementChannelId';
+    if (f === 'warning1') return 'warning1RoleId';
+    if (f === 'warning2') return 'warning2RoleId';
+    if (f === 'warning3') return 'warning3RoleId';
+    if (f === 'upperMgmt') return 'upperManagementRoleId';
+    if (f === 'cooldownEnabled') return 'cooldownEnabled';
+    if (f === 'cooldownDuration') return 'cooldownDuration';
+    if (f === 'rolesToRemove') return 'rolesToRemove';
+    return f;
+  };
+
   for (const [field, value] of Object.entries(changes)) {
-    const mapKey = (f) => {
-      if (f === 'allowedRole') return 'allowedRoleId';
-      if (f === 'adminRole') return 'adminRoleId';
-      if (f === 'leaveRole') return 'leaveRoleId';
-      if (f === 'resignRole') return 'resignRoleId';
-      if (f === 'channel') return 'channelId';
-      if (f === 'requestChannel') return 'requestChannelId';
-      if (f === 'logChannel') return 'logChannelId';
-      if (f === 'upperMgmtChannel') return 'upperManagementChannelId';
-      if (f === 'warning1') return 'warning1RoleId';
-      if (f === 'warning2') return 'warning2RoleId';
-      if (f === 'warning3') return 'warning3RoleId';
-      if (f === 'upperMgmt') return 'upperManagementRoleId';
-      if (f === 'cooldownEnabled') return 'cooldownEnabled';
-      if (f === 'cooldownDuration') return 'cooldownDuration';
-      if (f === 'rolesToRemove') return 'rolesToRemove';
-      return f;
-    };
     const cfgKey = mapKey(field);
     cfg[system][cfgKey] = value;
   }
@@ -303,38 +347,6 @@ async function handleSettingsSave(interaction) {
   clearPending(userId);
 
   await interaction.update({ content: '✅ **تم حفظ جميع التغييرات بنجاح!**', embeds: [], components: [] });
-}
-
-// ------------------- أزرار الكولداون -------------------
-
-async function handleSettingsButtonAction(interaction) {
-  const id = interaction.customId;
-  const userId = interaction.user.id;
-
-  // كولداون: تبديل تشغيل/إطفاء
-  if (id === 'sl_report_cooldown_toggle') {
-    const p = getPending(userId);
-    const current = p && p.system === 'report' && 'cooldownEnabled' in p.changes ? p.changes.cooldownEnabled : getConfig().report.cooldownEnabled !== false;
-    setPending(userId, 'report', 'cooldownEnabled', !current);
-    await interaction.deferUpdate();
-    return renderSettingsPage({ ...interaction, customId: 'set_report_page_2' });
-  }
-
-  // كولداون: تغيير المدة
-  const cdMatch = id.match(/^sl_report_cooldown_(\d+)$/);
-  if (cdMatch) {
-    setPending(userId, 'report', 'cooldownDuration', parseInt(cdMatch[1]));
-    await interaction.deferUpdate();
-    return renderSettingsPage({ ...interaction, customId: 'set_report_page_2' });
-  }
-
-  // حفظ
-  if (id.startsWith('settings_save_')) {
-    return handleSettingsSave(interaction);
-  }
-
-  // باقي الأزرار (رجوع، تحديث، تنقل بين الصفحات)
-  return renderSettingsPage(interaction);
 }
 
 module.exports = { handleSettings, renderSettingsPage, handleSettingsSelect, handleSettingsButtonAction };
