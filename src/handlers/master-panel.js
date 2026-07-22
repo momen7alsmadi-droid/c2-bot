@@ -1,6 +1,7 @@
 const {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder
 } = require('discord.js');
+const { version } = require('../../package.json');
 const { getLeaves, saveLeaves, getConfig, saveConfig } = require('../utils/storage');
 
 const DEV_BOT_ID = '1387331972094890036';
@@ -33,7 +34,7 @@ async function handleMasterPanel(interaction) {
       { name: '📊 إحصائيات', value: `سيرفرات: ${totalGuilds}\nمعطل: ${disabledCount}\nإجازات نشطة: ${activeLeaves}` },
       { name: '🌍 السيرفرات', value: guildsList.slice(0, 1020) },
     )
-    .setFooter({ text: `@${interaction.user.tag}` })
+    .setFooter({ text: `الإصدار: ${version} | @${interaction.user.tag}` })
     .setTimestamp();
 
   const row1 = new ActionRowBuilder().addComponents(

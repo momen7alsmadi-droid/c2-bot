@@ -1,4 +1,5 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { version } = require('../../package.json');
 
 async function handleHelp(interaction) {
   const embed = new EmbedBuilder()
@@ -27,7 +28,7 @@ async function handleHelp(interaction) {
         value: 'عرض شرح البوت والأوامر.',
       },
     )
-    .setFooter({ text: 'بوت الإدارة المتكامل' })
+    .setFooter({ text: `الإصدار: ${version}` })
     .setTimestamp();
 
   const row = new ActionRowBuilder().addComponents(
