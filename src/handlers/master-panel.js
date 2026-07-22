@@ -140,11 +140,11 @@ async function handleDevToggle(interaction) {
         if (!cfg.disabledGuilds.includes(id)) cfg.disabledGuilds.push(id);
       }
       saveConfig(cfg);
-      await interaction.update({ content: `🔴 تم إطفاء البوت في **جميع السيرفرات** (${allIds.length})`, components: [] });
+      await interaction.reply({ content: `🔴 تم إطفاء البوت في **جميع السيرفرات** (${allIds.length})`, ephemeral: true });
     } else if (action === 'enable') {
       cfg.disabledGuilds = [];
       saveConfig(cfg);
-      await interaction.update({ content: `🟢 تم تشغيل البوت في **جميع السيرفرات**`, components: [] });
+      await interaction.reply({ content: `🟢 تم تشغيل البوت في **جميع السيرفرات**`, ephemeral: true });
     }
     return;
   }
@@ -152,11 +152,11 @@ async function handleDevToggle(interaction) {
   if (action === 'disable') {
     if (!cfg.disabledGuilds.includes(guildId)) cfg.disabledGuilds.push(guildId);
     saveConfig(cfg);
-    await interaction.update({ content: `🔴 تم تعطيل البوت في \`${guildId}\``, components: [] });
+    await interaction.reply({ content: `🔴 تم تعطيل البوت في \`${guildId}\``, ephemeral: true });
   } else if (action === 'enable') {
     cfg.disabledGuilds = cfg.disabledGuilds.filter(id => id !== guildId);
     saveConfig(cfg);
-    await interaction.update({ content: `🟢 تم تفعيل البوت في \`${guildId}\``, components: [] });
+    await interaction.reply({ content: `🟢 تم تفعيل البوت في \`${guildId}\``, ephemeral: true });
   }
 }
 

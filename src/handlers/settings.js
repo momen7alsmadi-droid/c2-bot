@@ -5,20 +5,9 @@ const {
 const { getConfig, saveConfig } = require('../utils/storage');
 const { version } = require('../utils/version');
 
-// دوال مساعدة
 const rl = (id) => id ? `<@&${id}>` : '❌ غير محدد';
 const ch = (id) => id ? `<#${id}>` : '❌ غير محدد';
 const lst = (arr) => Array.isArray(arr) && arr.length ? arr.map(i => `<@&${i}>`).join(', ') : 'لا يوجد';
-
-async function safeSend(interaction, payload) {
-  try {
-    if (interaction.deferred) return await interaction.editReply(payload);
-    if (interaction.replied) return await interaction.followUp(payload);
-    return await interaction.reply(payload);
-  } catch (e) {
-    console.error('❌ safeSend:', e.message);
-  }
-}
 
 // الصفحة الرئيسية
 async function handleSettings(interaction) {
@@ -27,6 +16,7 @@ async function handleSettings(interaction) {
       .setTitle('⚙️ لوحة الإعدادات')
       .setColor(0x2ECC71)
       .setDescription('اختر النظام الذي تريد تعديل إعداداته:')
+      .setFooter({ text: `الإصدار: ${version}` })
       .setTimestamp();
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('set_leave').setLabel('📋 إجازة').setStyle(ButtonStyle.Primary),
@@ -37,21 +27,12 @@ async function handleSettings(interaction) {
     return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
   } catch (e) {
     console.error('ERR-HOME:', e.message);
-    return interaction.reply({ content: '⚠️ ERR-HOME', ephemeral: true }).catch(()=>{});
+    try { await interaction.reply({ content: '⚠️ ERR-HOME', ephemeral: true }); } catch(_) {}
   }
 }
 
 // عرض صفحة إعدادات
 async function showSettingsPage(interaction, type, page) {
-  // تأجيل
-  try {
-    if (!interaction.deferred && !interaction.replied)
-      await interaction.deferReply({ ephemeral: true });
-  } catch (e) {
-    console.error('ERR-DEFER:', e.message);
-    return interaction.reply({ content: '⚠️ ERR-DEFER', ephemeral: true }).catch(()=>{});
-  }
-
   try {
     const cfg = getConfig();
     const embed = new EmbedBuilder()
@@ -62,7 +43,7 @@ async function showSettingsPage(interaction, type, page) {
 
     const btnBack = new ButtonBuilder().setCustomId('settings_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary);
 
-    // ========== الإجازة - صفحة 1 ==========
+    // الإجازة - صفحة 1
     if (type === 'leave' && page === 1) {
       const l = cfg.leave;
       embed.addFields(
@@ -70,8 +51,8 @@ async function showSettingsPage(interaction, type, page) {
         { name: '📨 روم الطلبات', value: ch(l.requestChannelId) },
         { name: '📝 روم اللوق', value: ch(l.logChannelId) },
       );
-      return safeSend(interaction, {
-        embeds: [embed],
+      return interaction.reply({
+        embeds: [embed], ephemeral: true,
         components: [
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1)),
           new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_leave_requestChannel').setPlaceholder('📨 روم الطلبات').setMaxValues(1)),
@@ -81,15 +62,15 @@ async function showSettingsPage(interaction, type, page) {
       });
     }
 
-    // ========== الإجازة - صفحة 2 ==========
+    // الإجازة - صفحة 2
     if (type === 'leave' && page === 2) {
       const l = cfg.leave;
       embed.addFields(
         { name: '🎖️ رتبة الإجازة', value: rl(l.leaveRoleId) },
         { name: '🗑️ الرتب المُزالة', value: lst(l.rolesToRemove) },
       );
-      return safeSend(interaction, {
-        embeds: [embed],
+      return interaction.reply({
+        embeds: [embed], ephemeral: true,
         components: [
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_leaveRole').setPlaceholder('🎖️ رتبة الإجازة').setMaxValues(1)),
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_rolesToRemove').setPlaceholder('🗑️ رتب للإزالة').setMaxValues(25)),
@@ -98,7 +79,7 @@ async function showSettingsPage(interaction, type, page) {
       });
     }
 
-    // ========== الدلائل ==========
+    // الدلائل
     if (type === 'daleel') {
       const d = cfg.daleel;
       embed.addFields(
@@ -106,8 +87,8 @@ async function showSettingsPage(interaction, type, page) {
         { name: '📨 روم الإرسال', value: ch(d.channelId) },
         { name: '📝 روم اللوق', value: ch(d.logChannelId) },
       );
-      return safeSend(interaction, {
-        embeds: [embed],
+      return interaction.reply({
+        embeds: [embed], ephemeral: true,
         components: [
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_daleel_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1)),
           new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_daleel_channel').setPlaceholder('📨 روم الإرسال').setMaxValues(1)),
@@ -117,7 +98,7 @@ async function showSettingsPage(interaction, type, page) {
       });
     }
 
-    // ========== البلاغات - صفحة 1 (الرتب 1) ==========
+    // البلاغات - صفحة 1 (الرتب 1)
     if (type === 'report' && page === 1) {
       const r = cfg.report;
       embed.setDescription('🔄 اختر الرتب (1/2)');
@@ -126,8 +107,8 @@ async function showSettingsPage(interaction, type, page) {
         { name: '🎖️ رتبة الإدارة', value: rl(r.adminRoleId) },
         { name: '⚠️ تحذير أول', value: rl(r.warning1RoleId) },
       );
-      return safeSend(interaction, {
-        embeds: [embed],
+      return interaction.reply({
+        embeds: [embed], ephemeral: true,
         components: [
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_report_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1)),
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_report_adminRole').setPlaceholder('🎖️ رتبة الإدارة').setMaxValues(1)),
@@ -137,7 +118,7 @@ async function showSettingsPage(interaction, type, page) {
       });
     }
 
-    // ========== البلاغات - صفحة 2 (الرتب 2) ==========
+    // البلاغات - صفحة 2 (الرتب 2)
     if (type === 'report' && page === 2) {
       const r = cfg.report;
       embed.setDescription('🔄 اختر الرتب (2/2)');
@@ -146,8 +127,8 @@ async function showSettingsPage(interaction, type, page) {
         { name: '🚫 تحذير ثالث', value: rl(r.warning3RoleId) },
         { name: '👑 إدارة عليا', value: rl(r.upperManagementRoleId) },
       );
-      return safeSend(interaction, {
-        embeds: [embed],
+      return interaction.reply({
+        embeds: [embed], ephemeral: true,
         components: [
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_report_warning2').setPlaceholder('⚠️⚠️ تحذير ثاني').setMaxValues(1)),
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_report_warning3').setPlaceholder('🚫 فصل').setMaxValues(1)),
@@ -157,7 +138,7 @@ async function showSettingsPage(interaction, type, page) {
       });
     }
 
-    // ========== البلاغات - صفحة 3 (القنوات والكولداون) ==========
+    // البلاغات - صفحة 3 (القنوات والكولداون)
     if (type === 'report' && page === 3) {
       const r = cfg.report;
       const cdStatus = r.cooldownEnabled !== false ? '🟢 شغال' : '🔴 متوقف';
@@ -169,8 +150,8 @@ async function showSettingsPage(interaction, type, page) {
         { name: '📢 روم الإشعارات', value: ch(r.upperManagementChannelId) },
         { name: '⏱️ الكولداون', value: `${cdStatus} - المدة: ${cdDur} دقيقة` },
       );
-      return safeSend(interaction, {
-        embeds: [embed],
+      return interaction.reply({
+        embeds: [embed], ephemeral: true,
         components: [
           new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_report_channel').setPlaceholder('📨 روم الاستقبال').setMaxValues(1)),
           new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_report_logChannel').setPlaceholder('📝 روم اللوق').setMaxValues(1)),
@@ -181,8 +162,8 @@ async function showSettingsPage(interaction, type, page) {
       });
     }
 
-    // ========== الاستقالة (صفحة واحدة) ==========
-    if (type === 'resign') {
+    // الاستقالة - صفحة 1
+    if (type === 'resign' && page === 1) {
       const r = cfg.resign;
       embed.setDescription('👑 أي شخص عنده صلاحية Administrator يعتبر من الإدارة العليا تلقائياً');
       embed.addFields(
@@ -190,24 +171,38 @@ async function showSettingsPage(interaction, type, page) {
         { name: '🎖️ رتبة ما بعد الاستقالة', value: rl(r.resignRoleId) },
         { name: '👑 رتبة الإدارة العليا', value: rl(r.upperManagementRoleId) },
         { name: '📨 روم الاستقبال', value: ch(r.logChannelId) },
-        { name: '🗑️ الرتب المُزالة', value: lst(r.rolesToRemove) },
       );
-      return safeSend(interaction, {
-        embeds: [embed],
+      return interaction.reply({
+        embeds: [embed], ephemeral: true,
         components: [
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1)),
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_resignRole').setPlaceholder('🎖️ رتبة ما بعد الاستقالة').setMaxValues(1)),
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_upperMgmt').setPlaceholder('👑 رتبة الإدارة العليا').setMaxValues(1)),
           new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_resign_logChannel').setPlaceholder('📨 روم الاستقبال').setMaxValues(1)),
-          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_rolesToRemove').setPlaceholder('🗑️ رتب للإزالة').setMaxValues(25), btnBack),
+          new ActionRowBuilder().addComponents(btnBack, new ButtonBuilder().setCustomId('set_resign_2').setLabel('▶️ الرتب المُزالة').setStyle(ButtonStyle.Primary)),
         ]
       });
     }
 
-    return safeSend(interaction, { content: '⚠️ ERR-UNK' });
+    // الاستقالة - صفحة 2
+    if (type === 'resign' && page === 2) {
+      const r = cfg.resign;
+      embed.addFields(
+        { name: '🗑️ الرتب المُزالة', value: lst(r.rolesToRemove) },
+      );
+      return interaction.reply({
+        embeds: [embed], ephemeral: true,
+        components: [
+          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_rolesToRemove').setPlaceholder('🗑️ رتب للإزالة').setMaxValues(25)),
+          new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('set_resign_1').setLabel('◀️ الأساسيات').setStyle(ButtonStyle.Primary), btnBack),
+        ]
+      });
+    }
+
+    return interaction.reply({ content: '⚠️ ERR-UNK', ephemeral: true });
   } catch (e) {
     console.error('ERR-GLOBAL:', e.message);
-    return safeSend(interaction, { content: '⚠️ ERR-GLOBAL' });
+    try { await interaction.reply({ content: '⚠️ ERR-GLOBAL', ephemeral: true }); } catch(_) {}
   }
 }
 
@@ -221,16 +216,15 @@ async function handleSettingsSelect(interaction) {
     if (id === 'sl_report_cd_toggle') {
       cfg.report.cooldownEnabled = cfg.report.cooldownEnabled === false ? true : false;
       saveConfig(cfg);
-      return interaction.reply({ content: `✅ تم ${cfg.report.cooldownEnabled ? 'تشغيل' : 'إطفاء'} الكولداون.`, ephemeral: true }).catch(e=>console.error('ERR-SEL1:',e.message));
+      return interaction.reply({ content: `✅ تم ${cfg.report.cooldownEnabled ? 'تشغيل' : 'إطفاء'} الكولداون.`, ephemeral: true }).catch(e => console.error('ERR-SEL1:', e.message));
     }
     const cdMatch = id.match(/^sl_report_cd_(\d+)$/);
     if (cdMatch) {
       cfg.report.cooldownDuration = parseInt(cdMatch[1]);
       saveConfig(cfg);
-      return interaction.reply({ content: `✅ تم تعيين مدة الكولداون إلى ${cdMatch[1]} دقيقة.`, ephemeral: true }).catch(e=>console.error('ERR-SEL2:',e.message));
+      return interaction.reply({ content: `✅ تم تعيين مدة الكولداون إلى ${cdMatch[1]} دقيقة.`, ephemeral: true }).catch(e => console.error('ERR-SEL2:', e.message));
     }
 
-    // اختيار رتبة/روم
     const parts = id.split('_');
     if (parts[0] !== 'sl') return;
     const system = parts[1];
@@ -267,10 +261,10 @@ async function handleSettingsSelect(interaction) {
 
     const label = fieldNames[field] || field;
     const valueStr = values.length ? values.map(v => `<@&${v}>`).join(', ') : 'بدون';
-    return interaction.reply({ content: `✅ تم تحديث **${label}** → ${valueStr}`, ephemeral: true }).catch(e=>console.error('ERR-SEL3:',e.message));
+    return interaction.reply({ content: `✅ تم تحديث **${label}** → ${valueStr}`, ephemeral: true }).catch(e => console.error('ERR-SEL3:', e.message));
   } catch (e) {
     console.error('ERR-SEL:', e.message, e.stack);
-    try { await interaction.reply({ content: `⚠️ ERR-SEL`, ephemeral: true }); } catch(e2) { console.error('ERR-SEL4:', e2.message); }
+    try { await interaction.reply({ content: '⚠️ ERR-SEL', ephemeral: true }); } catch(_) {}
   }
 }
 
