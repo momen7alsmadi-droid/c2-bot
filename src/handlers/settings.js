@@ -97,7 +97,7 @@ async function renderSettingsPage(interaction, type, page) {
       { name: '🗑️ الرتب المُزالة', value: display(l.rolesToRemove, 'rolesToRemove') },
       { name: '📝 روم اللوق', value: display(l.logChannelId, 'logChannel') },
     );
-    return interaction.update({
+    return interaction.editReply({
       embeds: [embed],
       components: [
         new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1)),
@@ -119,7 +119,7 @@ async function renderSettingsPage(interaction, type, page) {
       { name: '📨 روم الإرسال', value: display(d.channelId, 'channel') },
       { name: '📝 روم اللوق', value: display(d.logChannelId, 'logChannel') },
     );
-    return interaction.update({
+    return interaction.editReply({
       embeds: [embed],
       components: [
         new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_daleel_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1)),
@@ -153,7 +153,7 @@ async function renderSettingsPage(interaction, type, page) {
         { name: '🚫 تحذير ثالث (فصل)', value: display(r.warning3RoleId, 'warning3') },
         { name: '👑 الإدارة العليا', value: display(r.upperManagementRoleId, 'upperMgmt') },
       );
-      return interaction.update({
+      return interaction.editReply({
         embeds: [embed],
         components: [
           new ActionRowBuilder().addComponents(
@@ -183,7 +183,7 @@ async function renderSettingsPage(interaction, type, page) {
         { name: '⏱️ الكولداون', value: `${showCdStatus} - المدة: ${showCdDuration} دقيقة` },
       );
       const isCdEnabled = pending && pending.system === 'report' && 'cooldownEnabled' in pending.changes ? pending.changes.cooldownEnabled : cdEnabled;
-      return interaction.update({
+      return interaction.editReply({
         embeds: [embed],
         components: [
           new ActionRowBuilder().addComponents(
@@ -215,7 +215,7 @@ async function renderSettingsPage(interaction, type, page) {
       { name: '🗑️ الرتب المُزالة', value: display(r.rolesToRemove, 'rolesToRemove') },
       { name: '🎖️ رتبة ما بعد الاستقالة', value: display(r.resignRoleId, 'resignRole') },
     );
-    return interaction.update({
+    return interaction.editReply({
       embeds: [embed],
       components: [
         new ActionRowBuilder().addComponents(
@@ -246,6 +246,7 @@ async function handleSettingsButtonAction(interaction) {
     const p = getPending(userId);
     const current = p && p.system === 'report' && 'cooldownEnabled' in p.changes ? p.changes.cooldownEnabled : getConfig().report.cooldownEnabled !== false;
     setPending(userId, 'report', 'cooldownEnabled', !current);
+    await interaction.deferUpdate();
     return renderSettingsPage(interaction, 'report', 2);
   }
 
@@ -253,23 +254,27 @@ async function handleSettingsButtonAction(interaction) {
   const cdMatch = id.match(/^sl_report_cooldown_(\d+)$/);
   if (cdMatch) {
     setPending(userId, 'report', 'cooldownDuration', parseInt(cdMatch[1]));
+    await interaction.deferUpdate();
     return renderSettingsPage(interaction, 'report', 2);
   }
 
   // حفظ
   if (id.startsWith('settings_save_')) {
+    await interaction.deferUpdate();
     return handleSettingsSave(interaction);
   }
 
   // تحديث (يعيد الرسم مع المعلقة)
   if (id.startsWith('settings_refresh_')) {
     const type = id.replace('settings_refresh_', '');
+    await interaction.deferUpdate();
     return renderSettingsPage(interaction, type, 1);
   }
 
   // تنقل بين صفحات البلاغات
   if (id.startsWith('set_report_page_')) {
     const page = parseInt(id.split('_page_')[1]);
+    await interaction.deferUpdate();
     return renderSettingsPage(interaction, 'report', page);
   }
 
@@ -277,6 +282,7 @@ async function handleSettingsButtonAction(interaction) {
   if (id.startsWith('set_')) {
     const type = id.replace('set_', '').split('_')[0];
     const page = id.includes('_page_') ? parseInt(id.split('_page_')[1]) : 1;
+    await interaction.deferUpdate();
     return renderSettingsPage(interaction, type, page);
   }
 }
@@ -309,6 +315,7 @@ async function handleSettingsSelect(interaction) {
 
   // نعرض الصفحة مرة ثانية مع التغييرات المعلقة
   const page = system === 'report' ? 1 : 1;
+  await interaction.deferUpdate();
   return renderSettingsPage(interaction, system, page);
 }
 
