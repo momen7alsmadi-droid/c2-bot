@@ -47,9 +47,8 @@ async function renderSettingsPage(interaction) {
   // رجوع
   if (customId === 'settings_back') return handleSettings(interaction);
 
-  // تحديث (يمسح المعلقة)
+  // تحديث (يعرض الإيمبد مع التغييرات المعلقة)
   if (customId.startsWith('settings_refresh_')) {
-    clearPending(interaction.user.id);
     type = customId.replace('settings_refresh_', '');
     page = 1;
   }
@@ -162,7 +161,7 @@ async function renderSettingsPage(interaction) {
             new RoleSelectMenuBuilder().setCustomId('sl_report_upperMgmt').setPlaceholder('👑 إدارة عليا').setMaxValues(1),
           ),
           new ActionRowBuilder().addComponents(
-            btnBack, btnSave,
+            btnBack, btnSave, btnRefresh,
             new ButtonBuilder().setCustomId('set_report_page_2').setLabel('📨 القنوات والكولداون ▶️').setStyle(ButtonStyle.Primary),
           ),
         ]
@@ -194,7 +193,7 @@ async function renderSettingsPage(interaction) {
           ),
           new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('set_report_page_1').setLabel('◀️ الرتب').setStyle(ButtonStyle.Primary),
-            btnBack, btnSave,
+            btnBack, btnSave, btnRefresh,
           ),
         ]
       });
