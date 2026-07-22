@@ -5,3 +5,4 @@ bot.log
 *.zip
 *.tar.gz
 RAILWAY_README.txt
+bot-*.log
