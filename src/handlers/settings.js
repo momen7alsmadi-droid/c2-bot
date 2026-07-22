@@ -18,8 +18,8 @@ function clearPending(userId) { pendingSettings.delete(userId); }
 
 // ------------------- /اعدادات -------------------
 
-async function handleSettings(interaction) {
-  clearPending(interaction.user.id);
+function buildMainMenu(userId) {
+  clearPending(userId);
   const embed = new EmbedBuilder()
     .setTitle('⚙️ لوحة الإعدادات')
     .setColor(0x2ECC71)
@@ -33,7 +33,11 @@ async function handleSettings(interaction) {
     new ButtonBuilder().setCustomId('set_resign').setLabel('📄 استقالة').setStyle(ButtonStyle.Primary),
   );
 
-  return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+  return { embeds: [embed], components: [row], ephemeral: true };
+}
+
+async function handleSettings(interaction) {
+  return interaction.reply(buildMainMenu(interaction.user.id));
 }
 
 // ------------------- عرض صفحة الإعدادات -------------------
@@ -232,8 +236,10 @@ async function handleSettingsButtonAction(interaction) {
   const id = interaction.customId;
   const userId = interaction.user.id;
 
-  // رجوع
-  if (id === 'settings_back') return handleSettings(interaction);
+  // رجوع (يحدث الرسالة الحالية، ما يولد وحدة جديدة)
+  if (id === 'settings_back') {
+    return interaction.update(buildMainMenu(interaction.user.id));
+  }
 
   // كولداون: تبديل
   if (id === 'sl_report_cooldown_toggle') {
@@ -352,4 +358,4 @@ async function handleSettingsSave(interaction) {
   return renderSettingsPage(interaction, system, page);
 }
 
-module.exports = { handleSettings, renderSettingsPage, handleSettingsSelect, handleSettingsButtonAction };
+module.exports = { handleSettings, buildMainMenu, renderSettingsPage, handleSettingsSelect, handleSettingsButtonAction };
