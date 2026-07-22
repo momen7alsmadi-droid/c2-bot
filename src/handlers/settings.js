@@ -4,47 +4,10 @@ const {
 } = require('discord.js');
 const { getConfig, saveConfig } = require('../utils/storage');
 
-// كل الأخطاء تسجل بكود مميز
-const E = (code, msg) => `[${code}] ${msg}`;
-const ERR = {
-  REPLY: 'SET-001',
-  DEFER_REPLY: 'SET-002',
-  EDIT_REPLY: 'SET-003',
-  LOAD_CONFIG: 'SET-004',
-  MAIN_PAGE: 'SET-005',
-  LEAVE_PAGE: 'SET-006',
-  DALEEL_PAGE: 'SET-007',
-  REPORT_P1: 'SET-008',
-  REPORT_P2: 'SET-009',
-  RESIGN_PAGE: 'SET-010',
-  SELECT_SAVE: 'SET-011',
-  COOLDOWN_SAVE: 'SET-012',
-};
-
-// دوال مساعدة
+// ------------------- دوال مساعدة -------------------
 const rl = (id) => id ? `<@&${id}>` : '❌ غير محدد';
 const ch = (id) => id ? `<#${id}>` : '❌ غير محدد';
 const lst = (arr) => Array.isArray(arr) && arr.length ? arr.map(i => `<@&${i}>`).join(', ') : 'لا يوجد';
-
-async function safeReply(interaction, payload) {
-  try {
-    if (interaction.deferred) return await interaction.editReply(payload);
-    if (interaction.replied) return await interaction.followUp(payload);
-    return await interaction.reply(payload);
-  } catch (e) {
-    console.error(E(ERR.REPLY, 'safeReply failed'), e.message);
-  }
-}
-
-async function safeDefer(interaction) {
-  try {
-    if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: true });
-    }
-  } catch (e) {
-    console.error(E(ERR.DEFER_REPLY, 'defer failed'), e.message);
-  }
-}
 
 async function safeEdit(interaction, payload) {
   try {
@@ -52,13 +15,14 @@ async function safeEdit(interaction, payload) {
     if (interaction.replied) return await interaction.followUp(payload);
     return await interaction.reply(payload);
   } catch (e) {
-    console.error(E(ERR.EDIT_REPLY, 'edit failed'), e.message);
+    console.error('❌ safeEdit:', e.message);
   }
 }
 
-// ------------------- عرض الصفحة الرئيسية -------------------
+const E = (c, m) => `[${c}] ${m}`;
+
+// ------------------- الصفحة الرئيسية -------------------
 async function handleSettings(interaction) {
-  await safeDefer(interaction);
   try {
     const embed = new EmbedBuilder()
       .setTitle('⚙️ لوحة الإعدادات')
@@ -71,50 +35,92 @@ async function handleSettings(interaction) {
       new ButtonBuilder().setCustomId('set_report').setLabel('🛡️ بلاغات').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('set_resign').setLabel('📄 استقالة').setStyle(ButtonStyle.Primary),
     );
-    return safeEdit(interaction, { embeds: [embed], components: [row] });
+    return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
   } catch (e) {
-    console.error(E(ERR.MAIN_PAGE, 'handleSettings'), e);
-    return safeEdit(interaction, { content: `⚠️ ${E(ERR.MAIN_PAGE, 'فشل فتح الإعدادات')}` });
+    console.error('ERR-SET-001:', e.message);
+    return interaction.reply({ content: '⚠️ ERR-SET-001', ephemeral: true }).catch(()=>{});
   }
 }
 
 // ------------------- عرض صفحة نظام -------------------
 async function showSettingsPage(interaction, type, page) {
-  await safeDefer(interaction);
+  const trace = (label) => console.log(`TRACE [${type} p${page}] ${label}`);
+  trace('start');
+
+  // محاولة الـ defer
   try {
-    const cfg = getConfig();
-    if (!cfg) return safeEdit(interaction, { content: `⚠️ ${E(ERR.LOAD_CONFIG, 'فشل تحميل الإعدادات')}` });
-
-    const embed = new EmbedBuilder()
-      .setTitle(`⚙️ ${type === 'leave' ? '📋 الإجازات' : type === 'daleel' ? '📌 الدلائل' : type === 'report' ? '🛡️ البلاغات' : '📄 الاستقالات'}`)
-      .setColor(0x3498DB)
-      .setTimestamp();
-
-    const btnBack = new ButtonBuilder().setCustomId('settings_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary);
-
-    // ========== الإجازة ==========
-    if (type === 'leave') {
-      const l = cfg.leave;
-      embed.addFields(
-        { name: '🎯 رتبة الاستخدام', value: rl(l.allowedRoleId) },
-        { name: '📨 روم الطلبات', value: ch(l.requestChannelId) },
-        { name: '🎖️ رتبة الإجازة', value: rl(l.leaveRoleId) },
-        { name: '🗑️ الرتب المُزالة', value: lst(l.rolesToRemove) },
-        { name: '📝 روم اللوق', value: ch(l.logChannelId) },
-      );
-      return safeEdit(interaction, {
-        embeds: [embed],
-        components: [
-          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1)),
-          new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_leave_requestChannel').setPlaceholder('📨 روم الطلبات').setMaxValues(1), new ChannelSelectMenuBuilder().setCustomId('sl_leave_logChannel').setPlaceholder('📝 روم اللوق').setMaxValues(1)),
-          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_leaveRole').setPlaceholder('🎖️ رتبة الإجازة').setMaxValues(1), new RoleSelectMenuBuilder().setCustomId('sl_leave_rolesToRemove').setPlaceholder('🗑️ رتب للإزالة').setMaxValues(25)),
-          new ActionRowBuilder().addComponents(btnBack),
-        ]
-      });
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true });
+      trace('defer done');
     }
+  } catch (e) {
+    console.error('ERR-DEFER-001: defer failed', e.message);
+    return interaction.reply({ content: '⚠️ ERR-DEFER-001: ' + e.message, ephemeral: true }).catch(()=>{});
+  }
 
-    // ========== الدلائل ==========
-    if (type === 'daleel') {
+  // تحميل الكونفيج
+  let cfg;
+  try {
+    cfg = getConfig();
+    trace('config loaded');
+  } catch (e) {
+    console.error('ERR-CFG-001:', e.message);
+    return safeEdit(interaction, { content: '⚠️ ERR-CFG-001' });
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle(`⚙️ ${type === 'leave' ? '📋 الإجازات' : type === 'daleel' ? '📌 الدلائل' : type === 'report' ? '🛡️ البلاغات' : '📄 الاستقالات'}`)
+    .setColor(0x3498DB)
+    .setTimestamp();
+  trace('embed created');
+
+  const btnBack = new ButtonBuilder().setCustomId('settings_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary);
+
+  // ========== الإجازة ==========
+  if (type === 'leave') {
+    trace('leave start');
+    try {
+      const l = cfg.leave;
+      trace('leave cfg accessed');
+      
+      const f1 = { name: '🎯 رتبة الاستخدام', value: rl(l.allowedRoleId) };
+      const f2 = { name: '📨 روم الطلبات', value: ch(l.requestChannelId) };
+      const f3 = { name: '🎖️ رتبة الإجازة', value: rl(l.leaveRoleId) };
+      const f4 = { name: '🗑️ الرتب المُزالة', value: lst(l.rolesToRemove) };
+      const f5 = { name: '📝 روم اللوق', value: ch(l.logChannelId) };
+      trace('fields built');
+      
+      embed.addFields(f1, f2, f3, f4, f5);
+      trace('fields added');
+
+      const row1 = new ActionRowBuilder()
+        .addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1), new RoleSelectMenuBuilder().setCustomId('sl_leave_leaveRole').setPlaceholder('🎖️ رتبة الإجازة').setMaxValues(1));
+      const row2 = new ActionRowBuilder()
+        .addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_leave_requestChannel').setPlaceholder('📨 روم الطلبات').setMaxValues(1));
+      const row3 = new ActionRowBuilder()
+        .addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_leave_logChannel').setPlaceholder('📝 روم اللوق').setMaxValues(1));
+      const row4 = new ActionRowBuilder()
+        .addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_rolesToRemove').setPlaceholder('🗑️ رتب للإزالة').setMaxValues(25));
+      const row5 = new ActionRowBuilder()
+        .addComponents(btnBack);
+      trace('rows built');
+      
+      const r = await safeEdit(interaction, {
+        embeds: [embed],
+        components: [row1, row2, row3, row4, row5]
+      });
+      trace('leave done');
+      return r;
+    } catch (e) {
+      console.error('ERR-LEAVE-001:', e.message, e.stack);
+      return safeEdit(interaction, { content: `⚠️ ERR-LEAVE-001: ${e.message}` });
+    }
+  }
+
+  // ========== الدلائل ==========
+  if (type === 'daleel') {
+    trace('daleel start');
+    try {
       const d = cfg.daleel;
       embed.addFields(
         { name: '🎯 رتبة الاستخدام', value: rl(d.allowedRoleId) },
@@ -130,15 +136,22 @@ async function showSettingsPage(interaction, type, page) {
           new ActionRowBuilder().addComponents(btnBack),
         ]
       });
+    } catch (e) {
+      console.error('ERR-DALEEL-001:', e.message, e.stack);
+      return safeEdit(interaction, { content: `⚠️ ERR-DALEEL-001: ${e.message}` });
     }
+  }
 
-    // ========== البلاغات ==========
-    if (type === 'report') {
+  // ========== البلاغات ==========
+  if (type === 'report') {
+    trace('report start');
+    try {
       const r = cfg.report;
       const cdStatus = r.cooldownEnabled !== false ? '🟢 شغال' : '🔴 متوقف';
       const cdDur = r.cooldownDuration || 60;
 
       if (page === 1) {
+        trace('report page 1');
         embed.setDescription('🔄 اختر الرتب');
         embed.addFields(
           { name: '🎯 رتبة الاستخدام', value: rl(r.allowedRoleId) },
@@ -158,6 +171,7 @@ async function showSettingsPage(interaction, type, page) {
           ]
         });
       } else {
+        trace('report page 2');
         embed.setDescription('🔄 اختر القنوات والكولداون');
         embed.addFields(
           { name: '📨 روم الاستقبال', value: ch(r.channelId) },
@@ -174,10 +188,16 @@ async function showSettingsPage(interaction, type, page) {
           ]
         });
       }
+    } catch (e) {
+      console.error('ERR-REPORT-001:', e.message, e.stack);
+      return safeEdit(interaction, { content: `⚠️ ERR-REPORT-001: ${e.message}` });
     }
+  }
 
-    // ========== الاستقالة ==========
-    if (type === 'resign') {
+  // ========== الاستقالة ==========
+  if (type === 'resign') {
+    trace('resign start');
+    try {
       const r = cfg.resign;
       embed.addFields(
         { name: '🎯 رتبة الاستخدام', value: rl(r.allowedRoleId) },
@@ -194,19 +214,28 @@ async function showSettingsPage(interaction, type, page) {
           new ActionRowBuilder().addComponents(btnBack),
         ]
       });
+    } catch (e) {
+      console.error('ERR-RESIGN-001:', e.message, e.stack);
+      return safeEdit(interaction, { content: `⚠️ ERR-RESIGN-001: ${e.message}` });
     }
-
-    // إذا وصلنا هنا معنى الزر غير معروف
-    return safeEdit(interaction, { content: `⚠️ ${E('SET-UNK', 'زر غير معروف')}` });
-  } catch (e) {
-    console.error('SETTINGS_GLOBAL', e);
-    return safeEdit(interaction, { content: '⚠️ [ERR-999] خطأ عام' });
   }
+
+  // زر غير معروف
+  return safeEdit(interaction, { content: '⚠️ ERR-UNK: نوع غير معروف' });
 }
 
 // ------------------- اختيار القوائم -------------------
 async function handleSettingsSelect(interaction) {
-  await safeDefer(interaction);
+  // تأجيل
+  try {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true });
+    }
+  } catch (e) {
+    console.error('ERR-SEL-DEFER:', e.message);
+    return interaction.reply({ content: '⚠️ ERR-SEL-DEFER', ephemeral: true }).catch(()=>{});
+  }
+
   try {
     const id = interaction.customId;
     const cfg = getConfig();
@@ -263,8 +292,8 @@ async function handleSettingsSelect(interaction) {
     const valueStr = values.length ? values.map(v => `<@&${v}>`).join(', ') : 'بدون';
     return safeEdit(interaction, { content: `✅ تم تحديث **${label}** → ${valueStr}` });
   } catch (e) {
-    console.error(E(ERR.SELECT_SAVE), e);
-    return safeEdit(interaction, { content: `⚠️ ${E(ERR.SELECT_SAVE, 'خطأ في حفظ الإعداد')}` });
+    console.error('ERR-SEL-001:', e.message, e.stack);
+    return safeEdit(interaction, { content: `⚠️ ERR-SEL-001: ${e.message}` });
   }
 }
 
