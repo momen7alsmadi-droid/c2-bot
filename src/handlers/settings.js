@@ -4,239 +4,236 @@ const {
 } = require('discord.js');
 const { getConfig, saveConfig } = require('../utils/storage');
 
-// ------------------- أكواد الأخطاء -------------------
-const ERROR_CODES = {
-  HANDLE_SETTINGS: 'ERR-001',
-  SHOW_PAGE_MAIN: 'ERR-002',
-  SHOW_PAGE_LEAVE: 'ERR-003',
-  SHOW_PAGE_DALEEL: 'ERR-004',
-  SHOW_PAGE_REPORT_P1: 'ERR-005',
-  SHOW_PAGE_REPORT_P2: 'ERR-006',
-  SHOW_PAGE_RESIGN: 'ERR-007',
-  SELECT_COOLDOWN: 'ERR-008',
-  SELECT_ROLE_CHANNEL: 'ERR-009',
-  UPDATE_BACK: 'ERR-010',
-  UNKNOWN_BUTTON: 'ERR-011',
+// كل الأخطاء تسجل بكود مميز
+const E = (code, msg) => `[${code}] ${msg}`;
+const ERR = {
+  REPLY: 'SET-001',
+  DEFER_REPLY: 'SET-002',
+  EDIT_REPLY: 'SET-003',
+  LOAD_CONFIG: 'SET-004',
+  MAIN_PAGE: 'SET-005',
+  LEAVE_PAGE: 'SET-006',
+  DALEEL_PAGE: 'SET-007',
+  REPORT_P1: 'SET-008',
+  REPORT_P2: 'SET-009',
+  RESIGN_PAGE: 'SET-010',
+  SELECT_SAVE: 'SET-011',
+  COOLDOWN_SAVE: 'SET-012',
 };
 
-// ------------------- /اعدادات -------------------
+// دوال مساعدة
+const rl = (id) => id ? `<@&${id}>` : '❌ غير محدد';
+const ch = (id) => id ? `<#${id}>` : '❌ غير محدد';
+const lst = (arr) => Array.isArray(arr) && arr.length ? arr.map(i => `<@&${i}>`).join(', ') : 'لا يوجد';
 
+async function safeReply(interaction, payload) {
+  try {
+    if (interaction.deferred) return await interaction.editReply(payload);
+    if (interaction.replied) return await interaction.followUp(payload);
+    return await interaction.reply(payload);
+  } catch (e) {
+    console.error(E(ERR.REPLY, 'safeReply failed'), e.message);
+  }
+}
+
+async function safeDefer(interaction) {
+  try {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true });
+    }
+  } catch (e) {
+    console.error(E(ERR.DEFER_REPLY, 'defer failed'), e.message);
+  }
+}
+
+async function safeEdit(interaction, payload) {
+  try {
+    if (interaction.deferred) return await interaction.editReply(payload);
+    if (interaction.replied) return await interaction.followUp(payload);
+    return await interaction.reply(payload);
+  } catch (e) {
+    console.error(E(ERR.EDIT_REPLY, 'edit failed'), e.message);
+  }
+}
+
+// ------------------- عرض الصفحة الرئيسية -------------------
 async function handleSettings(interaction) {
+  await safeDefer(interaction);
   try {
     const embed = new EmbedBuilder()
       .setTitle('⚙️ لوحة الإعدادات')
       .setColor(0x2ECC71)
       .setDescription('اختر النظام الذي تريد تعديل إعداداته:')
       .setTimestamp();
-
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('set_leave').setLabel('📋 إجازة').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('set_daleel').setLabel('📌 دلائل').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('set_report').setLabel('🛡️ بلاغات').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('set_resign').setLabel('📄 استقالة').setStyle(ButtonStyle.Primary),
     );
-
-    return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+    return safeEdit(interaction, { embeds: [embed], components: [row] });
   } catch (e) {
-    console.error(ERROR_CODES.HANDLE_SETTINGS, e);
-    return interaction.reply({ content: `⚠️ [${ERROR_CODES.HANDLE_SETTINGS}] خطأ في فتح الإعدادات`, ephemeral: true }).catch(()=>{});
+    console.error(E(ERR.MAIN_PAGE, 'handleSettings'), e);
+    return safeEdit(interaction, { content: `⚠️ ${E(ERR.MAIN_PAGE, 'فشل فتح الإعدادات')}` });
   }
 }
 
-// ------------------- عرض صفحة الإعدادات -------------------
-
+// ------------------- عرض صفحة نظام -------------------
 async function showSettingsPage(interaction, type, page) {
+  await safeDefer(interaction);
   try {
     const cfg = getConfig();
-    const titles = { leave: '📋 الإجازات', daleel: '📌 الدلائل', report: '🛡️ البلاغات', resign: '📄 الاستقالات' };
-
-    // الصفحة الرئيسية (الأزرار الأربعة)
-    if (type === 'main') {
-      try {
-        const embed = new EmbedBuilder()
-          .setTitle('⚙️ لوحة الإعدادات')
-          .setColor(0x2ECC71)
-          .setDescription('اختر النظام الذي تريد تعديل إعداداته:')
-          .setTimestamp();
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId('set_leave').setLabel('📋 إجازة').setStyle(ButtonStyle.Primary),
-          new ButtonBuilder().setCustomId('set_daleel').setLabel('📌 دلائل').setStyle(ButtonStyle.Primary),
-          new ButtonBuilder().setCustomId('set_report').setLabel('🛡️ بلاغات').setStyle(ButtonStyle.Primary),
-          new ButtonBuilder().setCustomId('set_resign').setLabel('📄 استقالة').setStyle(ButtonStyle.Primary),
-        );
-        return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
-      } catch (e) { console.error(ERROR_CODES.SHOW_PAGE_MAIN, e); return interaction.reply({ content: `⚠️ [${ERROR_CODES.SHOW_PAGE_MAIN}] خطأ في عرض الصفحة الرئيسية`, ephemeral: true }).catch(()=>{}); }
-    }
+    if (!cfg) return safeEdit(interaction, { content: `⚠️ ${E(ERR.LOAD_CONFIG, 'فشل تحميل الإعدادات')}` });
 
     const embed = new EmbedBuilder()
-      .setTitle(`⚙️ إعدادات ${titles[type]}`)
+      .setTitle(`⚙️ ${type === 'leave' ? '📋 الإجازات' : type === 'daleel' ? '📌 الدلائل' : type === 'report' ? '🛡️ البلاغات' : '📄 الاستقالات'}`)
       .setColor(0x3498DB)
       .setTimestamp();
 
     const btnBack = new ButtonBuilder().setCustomId('settings_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary);
 
-    // لعرض القيم
-    const mentionRole = (id) => id ? `<@&${id}>` : '❌ غير محدد';
-    const mentionChan = (id) => id ? `<#${id}>` : '❌ غير محدد';
-    const showList = (arr) => Array.isArray(arr) && arr.length ? arr.map(i => `<@&${i}>`).join(', ') : 'لا يوجد';
-
-    // ------------------- الإجازات -------------------
+    // ========== الإجازة ==========
     if (type === 'leave') {
-      try {
-        const l = cfg.leave;
-        embed.addFields(
-          { name: '🎯 رتبة الاستخدام', value: mentionRole(l.allowedRoleId) },
-          { name: '📨 روم الطلبات', value: mentionChan(l.requestChannelId) },
-          { name: '🎖️ رتبة الإجازة', value: mentionRole(l.leaveRoleId) },
-          { name: '🗑️ الرتب المُزالة', value: showList(l.rolesToRemove) },
-          { name: '📝 روم اللوق', value: mentionChan(l.logChannelId) },
-        );
-        return interaction.reply({
-          embeds: [embed], ephemeral: true,
-          components: [
-            new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1)),
-            new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_leave_requestChannel').setPlaceholder('📨 روم الطلبات').setMaxValues(1), new ChannelSelectMenuBuilder().setCustomId('sl_leave_logChannel').setPlaceholder('📝 روم اللوق').setMaxValues(1)),
-            new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_leaveRole').setPlaceholder('🎖️ رتبة الإجازة').setMaxValues(1)),
-            new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_rolesToRemove').setPlaceholder('🗑️ رتب للإزالة').setMaxValues(25)),
-            new ActionRowBuilder().addComponents(btnBack),
-          ]
-        });
-      } catch (e) { console.error(ERROR_CODES.SHOW_PAGE_LEAVE, e); return interaction.reply({ content: `⚠️ [${ERROR_CODES.SHOW_PAGE_LEAVE}] خطأ في عرض إعدادات الإجازة`, ephemeral: true }).catch(()=>{}); }
+      const l = cfg.leave;
+      embed.addFields(
+        { name: '🎯 رتبة الاستخدام', value: rl(l.allowedRoleId) },
+        { name: '📨 روم الطلبات', value: ch(l.requestChannelId) },
+        { name: '🎖️ رتبة الإجازة', value: rl(l.leaveRoleId) },
+        { name: '🗑️ الرتب المُزالة', value: lst(l.rolesToRemove) },
+        { name: '📝 روم اللوق', value: ch(l.logChannelId) },
+      );
+      return safeEdit(interaction, {
+        embeds: [embed],
+        components: [
+          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1)),
+          new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_leave_requestChannel').setPlaceholder('📨 روم الطلبات').setMaxValues(1)),
+          new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_leave_logChannel').setPlaceholder('📝 روم اللوق').setMaxValues(1)),
+          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_leaveRole').setPlaceholder('🎖️ رتبة الإجازة').setMaxValues(1)),
+          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_rolesToRemove').setPlaceholder('🗑️ رتب للإزالة').setMaxValues(25), btnBack),
+        ]
+      });
     }
 
-    // ------------------- الدلائل -------------------
+    // ========== الدلائل ==========
     if (type === 'daleel') {
-      try {
-        const d = cfg.daleel;
-        embed.addFields(
-          { name: '🎯 رتبة الاستخدام', value: mentionRole(d.allowedRoleId) },
-          { name: '📨 روم الإرسال', value: mentionChan(d.channelId) },
-          { name: '📝 روم اللوق', value: mentionChan(d.logChannelId) },
-        );
-        return interaction.reply({
-          embeds: [embed], ephemeral: true,
-          components: [
-            new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_daleel_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1)),
-            new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_daleel_channel').setPlaceholder('📨 روم الإرسال').setMaxValues(1)),
-            new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_daleel_logChannel').setPlaceholder('📝 روم اللوق').setMaxValues(1)),
-            new ActionRowBuilder().addComponents(btnBack),
-          ]
-        });
-      } catch (e) { console.error(ERROR_CODES.SHOW_PAGE_DALEEL, e); return interaction.reply({ content: `⚠️ [${ERROR_CODES.SHOW_PAGE_DALEEL}] خطأ في عرض إعدادات الدلائل`, ephemeral: true }).catch(()=>{}); }
+      const d = cfg.daleel;
+      embed.addFields(
+        { name: '🎯 رتبة الاستخدام', value: rl(d.allowedRoleId) },
+        { name: '📨 روم الإرسال', value: ch(d.channelId) },
+        { name: '📝 روم اللوق', value: ch(d.logChannelId) },
+      );
+      return safeEdit(interaction, {
+        embeds: [embed],
+        components: [
+          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_daleel_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1)),
+          new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_daleel_channel').setPlaceholder('📨 روم الإرسال').setMaxValues(1)),
+          new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_daleel_logChannel').setPlaceholder('📝 روم اللوق').setMaxValues(1)),
+          new ActionRowBuilder().addComponents(btnBack),
+        ]
+      });
     }
 
-    // ------------------- البلاغات -------------------
+    // ========== البلاغات ==========
     if (type === 'report') {
       const r = cfg.report;
       const cdStatus = r.cooldownEnabled !== false ? '🟢 شغال' : '🔴 متوقف';
       const cdDur = r.cooldownDuration || 60;
 
       if (page === 1) {
-        try {
-          embed.setDescription('🔄 اختر الرتب');
-          embed.addFields(
-            { name: '🎯 رتبة الاستخدام', value: mentionRole(r.allowedRoleId) },
-            { name: '🎖️ رتبة الإدارة', value: mentionRole(r.adminRoleId) },
-            { name: '⚠️ تحذير أول', value: mentionRole(r.warning1RoleId) },
-            { name: '⚠️⚠️ تحذير ثاني', value: mentionRole(r.warning2RoleId) },
-            { name: '🚫 تحذير ثالث', value: mentionRole(r.warning3RoleId) },
-            { name: '👑 إدارة عليا', value: mentionRole(r.upperManagementRoleId) },
-          );
-          return interaction.reply({
-            embeds: [embed], ephemeral: true,
-            components: [
-              new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_report_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1), new RoleSelectMenuBuilder().setCustomId('sl_report_adminRole').setPlaceholder('🎖️ رتبة الإدارة').setMaxValues(1)),
-              new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_report_warning1').setPlaceholder('⚠️ تحذير أول').setMaxValues(1), new RoleSelectMenuBuilder().setCustomId('sl_report_warning2').setPlaceholder('⚠️⚠️ تحذير ثاني').setMaxValues(1)),
-              new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_report_warning3').setPlaceholder('🚫 فصل').setMaxValues(1), new RoleSelectMenuBuilder().setCustomId('sl_report_upperMgmt').setPlaceholder('👑 إدارة عليا').setMaxValues(1)),
-              new ActionRowBuilder().addComponents(btnBack, new ButtonBuilder().setCustomId('set_report_next').setLabel('📨 القنوات والكولداون ▶️').setStyle(ButtonStyle.Primary)),
-            ]
-          });
-        } catch (e) { console.error(ERROR_CODES.SHOW_PAGE_REPORT_P1, e); return interaction.reply({ content: `⚠️ [${ERROR_CODES.SHOW_PAGE_REPORT_P1}] خطأ في عرض الرتب`, ephemeral: true }).catch(()=>{}); }
+        embed.setDescription('🔄 اختر الرتب');
+        embed.addFields(
+          { name: '🎯 رتبة الاستخدام', value: rl(r.allowedRoleId) },
+          { name: '🎖️ رتبة الإدارة', value: rl(r.adminRoleId) },
+          { name: '⚠️ تحذير أول', value: rl(r.warning1RoleId) },
+          { name: '⚠️⚠️ تحذير ثاني', value: rl(r.warning2RoleId) },
+          { name: '🚫 تحذير ثالث', value: rl(r.warning3RoleId) },
+          { name: '👑 إدارة عليا', value: rl(r.upperManagementRoleId) },
+        );
+        return safeEdit(interaction, {
+          embeds: [embed],
+          components: [
+            new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_report_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1), new RoleSelectMenuBuilder().setCustomId('sl_report_adminRole').setPlaceholder('🎖️ رتبة الإدارة').setMaxValues(1)),
+            new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_report_warning1').setPlaceholder('⚠️ تحذير أول').setMaxValues(1), new RoleSelectMenuBuilder().setCustomId('sl_report_warning2').setPlaceholder('⚠️⚠️ تحذير ثاني').setMaxValues(1)),
+            new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_report_warning3').setPlaceholder('🚫 فصل').setMaxValues(1), new RoleSelectMenuBuilder().setCustomId('sl_report_upperMgmt').setPlaceholder('👑 إدارة عليا').setMaxValues(1)),
+            new ActionRowBuilder().addComponents(btnBack, new ButtonBuilder().setCustomId('set_report_next').setLabel('📨 القنوات والكولداون ▶️').setStyle(ButtonStyle.Primary)),
+          ]
+        });
       } else {
-        try {
-          embed.setDescription('🔄 اختر القنوات والكولداون');
-          embed.addFields(
-            { name: '📨 روم الاستقبال', value: mentionChan(r.channelId) },
-            { name: '📝 روم اللوق', value: mentionChan(r.logChannelId) },
-            { name: '📢 روم الإشعارات', value: mentionChan(r.upperManagementChannelId) },
-            { name: '⏱️ الكولداون', value: `${cdStatus} - المدة: ${cdDur} دقيقة` },
-          );
-          return interaction.reply({
-            embeds: [embed], ephemeral: true,
-            components: [
-              new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_report_channel').setPlaceholder('📨 روم الاستقبال').setMaxValues(1), new ChannelSelectMenuBuilder().setCustomId('sl_report_logChannel').setPlaceholder('📝 روم اللوق').setMaxValues(1), new ChannelSelectMenuBuilder().setCustomId('sl_report_upperMgmtChannel').setPlaceholder('📢 روم الإشعارات').setMaxValues(1)),
-              new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('sl_report_cd_toggle').setLabel(r.cooldownEnabled !== false ? '⏱️ إطفاء الكولداون' : '⏱️ تشغيل الكولداون').setStyle(r.cooldownEnabled !== false ? ButtonStyle.Danger : ButtonStyle.Success), new ButtonBuilder().setCustomId('sl_report_cd_15').setLabel('15د').setStyle(ButtonStyle.Secondary), new ButtonBuilder().setCustomId('sl_report_cd_30').setLabel('30د').setStyle(ButtonStyle.Secondary), new ButtonBuilder().setCustomId('sl_report_cd_60').setLabel('60د').setStyle(ButtonStyle.Primary), new ButtonBuilder().setCustomId('sl_report_cd_120').setLabel('120د').setStyle(ButtonStyle.Secondary)),
-              new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('set_report_prev').setLabel('◀️ الرتب').setStyle(ButtonStyle.Primary), btnBack),
-            ]
-          });
-        } catch (e) { console.error(ERROR_CODES.SHOW_PAGE_REPORT_P2, e); return interaction.reply({ content: `⚠️ [${ERROR_CODES.SHOW_PAGE_REPORT_P2}] خطأ في عرض القنوات`, ephemeral: true }).catch(()=>{}); }
+        embed.setDescription('🔄 اختر القنوات والكولداون');
+        embed.addFields(
+          { name: '📨 روم الاستقبال', value: ch(r.channelId) },
+          { name: '📝 روم اللوق', value: ch(r.logChannelId) },
+          { name: '📢 روم الإشعارات', value: ch(r.upperManagementChannelId) },
+          { name: '⏱️ الكولداون', value: `${cdStatus} - المدة: ${cdDur} دقيقة` },
+        );
+        return safeEdit(interaction, {
+          embeds: [embed],
+          components: [
+            new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_report_channel').setPlaceholder('📨 روم الاستقبال').setMaxValues(1), new ChannelSelectMenuBuilder().setCustomId('sl_report_logChannel').setPlaceholder('📝 روم اللوق').setMaxValues(1), new ChannelSelectMenuBuilder().setCustomId('sl_report_upperMgmtChannel').setPlaceholder('📢 روم الإشعارات').setMaxValues(1)),
+            new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('sl_report_cd_toggle').setLabel(r.cooldownEnabled !== false ? '⏱️ إطفاء الكولداون' : '⏱️ تشغيل الكولداون').setStyle(r.cooldownEnabled !== false ? ButtonStyle.Danger : ButtonStyle.Success), new ButtonBuilder().setCustomId('sl_report_cd_15').setLabel('15د').setStyle(ButtonStyle.Secondary), new ButtonBuilder().setCustomId('sl_report_cd_30').setLabel('30د').setStyle(ButtonStyle.Secondary), new ButtonBuilder().setCustomId('sl_report_cd_60').setLabel('60د').setStyle(ButtonStyle.Primary), new ButtonBuilder().setCustomId('sl_report_cd_120').setLabel('120د').setStyle(ButtonStyle.Secondary)),
+            new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('set_report_prev').setLabel('◀️ الرتب').setStyle(ButtonStyle.Primary), btnBack),
+          ]
+        });
       }
     }
 
-    // ------------------- الاستقالات -------------------
+    // ========== الاستقالة ==========
     if (type === 'resign') {
-      try {
-        const r = cfg.resign;
-        embed.addFields(
-          { name: '🎯 رتبة الاستخدام', value: mentionRole(r.allowedRoleId) },
-          { name: '📨 روم الاستقبال', value: mentionChan(r.logChannelId) },
-          { name: '🗑️ الرتب المُزالة', value: showList(r.rolesToRemove) },
-          { name: '🎖️ رتبة ما بعد الاستقالة', value: mentionRole(r.resignRoleId) },
-        );
-        return interaction.reply({
-          embeds: [embed], ephemeral: true,
-          components: [
-            new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1), new RoleSelectMenuBuilder().setCustomId('sl_resign_resignRole').setPlaceholder('🎖️ رتبة ما بعد الاستقالة').setMaxValues(1)),
-            new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_resign_logChannel').setPlaceholder('📨 روم الاستقبال').setMaxValues(1)),
-            new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_rolesToRemove').setPlaceholder('🗑️ رتب للإزالة').setMaxValues(25)),
-            new ActionRowBuilder().addComponents(btnBack),
-          ]
-        });
-      } catch (e) { console.error(ERROR_CODES.SHOW_PAGE_RESIGN, e); return interaction.reply({ content: `⚠️ [${ERROR_CODES.SHOW_PAGE_RESIGN}] خطأ في عرض إعدادات الاستقالة`, ephemeral: true }).catch(()=>{}); }
+      const r = cfg.resign;
+      embed.addFields(
+        { name: '🎯 رتبة الاستخدام', value: rl(r.allowedRoleId) },
+        { name: '📨 روم الاستقبال', value: ch(r.logChannelId) },
+        { name: '🗑️ الرتب المُزالة', value: lst(r.rolesToRemove) },
+        { name: '🎖️ رتبة ما بعد الاستقالة', value: rl(r.resignRoleId) },
+      );
+      return safeEdit(interaction, {
+        embeds: [embed],
+        components: [
+          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1), new RoleSelectMenuBuilder().setCustomId('sl_resign_resignRole').setPlaceholder('🎖️ رتبة ما بعد الاستقالة').setMaxValues(1)),
+          new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_resign_logChannel').setPlaceholder('📨 روم الاستقبال').setMaxValues(1)),
+          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_rolesToRemove').setPlaceholder('🗑️ رتب للإزالة').setMaxValues(25)),
+          new ActionRowBuilder().addComponents(btnBack),
+        ]
+      });
     }
 
-    // إذا وصلنا هنا، الزر غير معروف
-    return interaction.reply({ content: `⚠️ [${ERROR_CODES.UNKNOWN_BUTTON}] زر غير معروف: ${type}`, ephemeral: true }).catch(()=>{});
+    // إذا وصلنا هنا معنى الزر غير معروف
+    return safeEdit(interaction, { content: `⚠️ ${E('SET-UNK', 'زر غير معروف')}` });
   } catch (e) {
-    console.error('SHOW_PAGE_GLOBAL', e);
-    return interaction.reply({ content: '⚠️ [ERR-999] خطأ عام', ephemeral: true }).catch(()=>{});
+    console.error('SETTINGS_GLOBAL', e);
+    return safeEdit(interaction, { content: '⚠️ [ERR-999] خطأ عام' });
   }
 }
 
-// ------------------- اختيار القوائم (حفظ فوري) -------------------
-
+// ------------------- اختيار القوائم -------------------
 async function handleSettingsSelect(interaction) {
+  await safeDefer(interaction);
   try {
     const id = interaction.customId;
     const cfg = getConfig();
 
     // أزرار الكولداون
     if (id === 'sl_report_cd_toggle') {
-      try {
-        cfg.report.cooldownEnabled = cfg.report.cooldownEnabled === false ? true : false;
-        saveConfig(cfg);
-        return interaction.reply({ content: `✅ تم ${cfg.report.cooldownEnabled ? 'تشغيل' : 'إطفاء'} الكولداون.`, ephemeral: true });
-      } catch (e) { console.error(ERROR_CODES.SELECT_COOLDOWN, e); return interaction.reply({ content: `⚠️ [${ERROR_CODES.SELECT_COOLDOWN}] خطأ في تبديل الكولداون`, ephemeral: true }).catch(()=>{}); }
+      cfg.report.cooldownEnabled = cfg.report.cooldownEnabled === false ? true : false;
+      saveConfig(cfg);
+      return safeEdit(interaction, { content: `✅ تم ${cfg.report.cooldownEnabled ? 'تشغيل' : 'إطفاء'} الكولداون.` });
     }
     const cdMatch = id.match(/^sl_report_cd_(\d+)$/);
     if (cdMatch) {
-      try {
-        cfg.report.cooldownDuration = parseInt(cdMatch[1]);
-        saveConfig(cfg);
-        return interaction.reply({ content: `✅ تم تعيين مدة الكولداون إلى ${cdMatch[1]} دقيقة.`, ephemeral: true });
-      } catch (e) { console.error(ERROR_CODES.SELECT_COOLDOWN, e); return interaction.reply({ content: `⚠️ [${ERROR_CODES.SELECT_COOLDOWN}] خطأ في تعيين المدة`, ephemeral: true }).catch(()=>{}); }
+      cfg.report.cooldownDuration = parseInt(cdMatch[1]);
+      saveConfig(cfg);
+      return safeEdit(interaction, { content: `✅ تم تعيين مدة الكولداون إلى ${cdMatch[1]} دقيقة.` });
     }
 
-    // تحديد القيمة من القائمة
+    // اختيار رتبة/روم
     const parts = id.split('_');
     if (parts[0] !== 'sl') return;
     const system = parts[1];
     const field = parts.slice(2).join('_');
     const values = interaction.values;
+    if (!cfg[system]) return safeEdit(interaction, { content: `⚠️ النظام ${system} غير موجود` });
 
-    // ربط أسماء الحقول
     const roleFields = ['allowedRole', 'adminRole', 'leaveRole', 'resignRole', 'warning1', 'warning2', 'warning3', 'upperMgmt'];
-    const channelFields = ['channel', 'requestChannel', 'logChannel', 'upperMgmtChannel'];
     const listFields = ['rolesToRemove'];
 
     let mapKey = field;
@@ -265,10 +262,10 @@ async function handleSettingsSelect(interaction) {
 
     const label = fieldNames[field] || field;
     const valueStr = values.length ? values.map(v => `<@&${v}>`).join(', ') : 'بدون';
-    return interaction.reply({ content: `✅ تم تحديث **${label}** → ${valueStr}`, ephemeral: true });
+    return safeEdit(interaction, { content: `✅ تم تحديث **${label}** → ${valueStr}` });
   } catch (e) {
-    console.error(ERROR_CODES.SELECT_ROLE_CHANNEL, e);
-    return interaction.reply({ content: `⚠️ [${ERROR_CODES.SELECT_ROLE_CHANNEL}] خطأ في حفظ الإعداد`, ephemeral: true }).catch(()=>{});
+    console.error(E(ERR.SELECT_SAVE), e);
+    return safeEdit(interaction, { content: `⚠️ ${E(ERR.SELECT_SAVE, 'خطأ في حفظ الإعداد')}` });
   }
 }
 
