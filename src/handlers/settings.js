@@ -64,7 +64,7 @@ async function showSettingsPage(interaction, type, page) {
           new ButtonBuilder().setCustomId('set_report').setLabel('🛡️ بلاغات').setStyle(ButtonStyle.Primary),
           new ButtonBuilder().setCustomId('set_resign').setLabel('📄 استقالة').setStyle(ButtonStyle.Primary),
         );
-        return interaction.update({ embeds: [embed], components: [row], ephemeral: true });
+        return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
       } catch (e) { console.error(ERROR_CODES.SHOW_PAGE_MAIN, e); return interaction.reply({ content: `⚠️ [${ERROR_CODES.SHOW_PAGE_MAIN}] خطأ في عرض الصفحة الرئيسية`, ephemeral: true }).catch(()=>{}); }
     }
 
@@ -91,7 +91,7 @@ async function showSettingsPage(interaction, type, page) {
           { name: '🗑️ الرتب المُزالة', value: showList(l.rolesToRemove) },
           { name: '📝 روم اللوق', value: mentionChan(l.logChannelId) },
         );
-        return interaction.update({
+        return interaction.reply({
           embeds: [embed], ephemeral: true,
           components: [
             new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1)),
@@ -113,7 +113,7 @@ async function showSettingsPage(interaction, type, page) {
           { name: '📨 روم الإرسال', value: mentionChan(d.channelId) },
           { name: '📝 روم اللوق', value: mentionChan(d.logChannelId) },
         );
-        return interaction.update({
+        return interaction.reply({
           embeds: [embed], ephemeral: true,
           components: [
             new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_daleel_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1)),
@@ -142,7 +142,7 @@ async function showSettingsPage(interaction, type, page) {
             { name: '🚫 تحذير ثالث', value: mentionRole(r.warning3RoleId) },
             { name: '👑 إدارة عليا', value: mentionRole(r.upperManagementRoleId) },
           );
-          return interaction.update({
+          return interaction.reply({
             embeds: [embed], ephemeral: true,
             components: [
               new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_report_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1), new RoleSelectMenuBuilder().setCustomId('sl_report_adminRole').setPlaceholder('🎖️ رتبة الإدارة').setMaxValues(1)),
@@ -161,7 +161,7 @@ async function showSettingsPage(interaction, type, page) {
             { name: '📢 روم الإشعارات', value: mentionChan(r.upperManagementChannelId) },
             { name: '⏱️ الكولداون', value: `${cdStatus} - المدة: ${cdDur} دقيقة` },
           );
-          return interaction.update({
+          return interaction.reply({
             embeds: [embed], ephemeral: true,
             components: [
               new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_report_channel').setPlaceholder('📨 روم الاستقبال').setMaxValues(1), new ChannelSelectMenuBuilder().setCustomId('sl_report_logChannel').setPlaceholder('📝 روم اللوق').setMaxValues(1), new ChannelSelectMenuBuilder().setCustomId('sl_report_upperMgmtChannel').setPlaceholder('📢 روم الإشعارات').setMaxValues(1)),
@@ -183,7 +183,7 @@ async function showSettingsPage(interaction, type, page) {
           { name: '🗑️ الرتب المُزالة', value: showList(r.rolesToRemove) },
           { name: '🎖️ رتبة ما بعد الاستقالة', value: mentionRole(r.resignRoleId) },
         );
-        return interaction.update({
+        return interaction.reply({
           embeds: [embed], ephemeral: true,
           components: [
             new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1), new RoleSelectMenuBuilder().setCustomId('sl_resign_resignRole').setPlaceholder('🎖️ رتبة ما بعد الاستقالة').setMaxValues(1)),

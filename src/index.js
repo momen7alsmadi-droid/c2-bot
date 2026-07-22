@@ -105,7 +105,7 @@ async function handleButton(interaction) {
 
   // أزرار الإعدادات
   if (id === 'settings_back') {
-    return showSettingsPage(interaction, 'main', 0);
+    return handleSettings(interaction);
   }
   if (id === 'set_leave') return showSettingsPage(interaction, 'leave', 1);
   if (id === 'set_daleel') return showSettingsPage(interaction, 'daleel', 1);
