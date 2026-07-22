@@ -11,7 +11,7 @@ const { handleReportCommand, handleReportButton, handleReportSettings } = requir
 const { handleResign, handleResignButton, handleDevSettings } = require('./handlers/resign');
 const { handleMasterPanel, handleDevRefresh, handleDevDisable, handleDevEnable, handleDevToggle } = require('./handlers/master-panel');
 const { handleHelp } = require('./handlers/help');
-const { handleSettings, handleSettingsButton, handleSettingsSelect, handleSettingsButtonAction } = require('./handlers/settings');
+const { handleSettings, renderSettingsPage, handleSettingsSelect, handleSettingsButtonAction } = require('./handlers/settings');
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
@@ -97,11 +97,11 @@ async function handleButton(interaction) {
   }
 
   // أزرار الإعدادات
-  if (id.startsWith('sl_report_cooldown_') || id.startsWith('set_') && id.includes('_page_')) {
+  if (id.startsWith('sl_report_cooldown_') || id.startsWith('settings_save_') || id.startsWith('settings_refresh_') || id === 'settings_back' || (id.startsWith('set_') && id.includes('_page_'))) {
     return handleSettingsButtonAction(interaction);
   }
   if (prefix === 'settings' || prefix === 'set') {
-    return handleSettingsButton(interaction);
+    return renderSettingsPage(interaction);
   }
 
   // أزرار المطور
