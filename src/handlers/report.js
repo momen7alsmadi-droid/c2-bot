@@ -58,8 +58,29 @@ async function handleReportCommand(interaction, cfg) {
     }
   }
 
-  const evidenceList = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => interaction.options.getAttachment(`دليل_${n}`)).filter(Boolean);
-  const witnesses = [1, 2, 3].map(n => interaction.options.getUser(`شاهد_${n}`)).filter(Boolean);
+  // معالجة الشهود (نص منشنات)
+  const witnessesRaw = interaction.options.getString('شهود') || '';
+  const witnessIds = [...witnessesRaw.matchAll(/<@!?(\d+)>/g)].map(m => m[1]);
+  const witnesses = [];
+  for (const id of witnessIds) {
+    const user = await interaction.client.users.fetch(id).catch(() => null);
+    if (user) witnesses.push(user);
+  }
+  // إذا ما في منشنات، نجرب نقرأها كآيديات رقمية مفصولة بمسافات
+  if (!witnesses.length && witnessesRaw.trim()) {
+    const possibleIds = witnessesRaw.trim().split(/[\s,]+/);
+    for (const id of possibleIds) {
+      if (/^\d{15,20}$/.test(id)) {
+        const user = await interaction.client.users.fetch(id).catch(() => null);
+        if (user) witnesses.push(user);
+      }
+    }
+  }
+
+  // معالجة الدلائل (روابط صور)
+  const evidenceRaw = interaction.options.getString('دلائل') || '';
+  const evidenceList = evidenceRaw.split(/\n+|[ ,]+/).filter(url => url.match(/^https?:\/\//i)).slice(0, 10);
+
 
   if (target.id === interaction.user.id) {
     return interaction.reply({ content: '❌ لا يمكنك تقديم بلاغ على نفسك.', ephemeral: true });
@@ -96,11 +117,11 @@ async function handleReportCommand(interaction, cfg) {
       { name: '— الشهود', value: witnesses.length ? '🔒 مخفي — للإدارة فقط' : 'لا يوجد شهود' },
       { name: '— الحالة', value: '⏳ قيد المراجعة' },
     )
-    .setImage(evidenceList[0].url)
+    .setImage(evidenceList[0] || null)
     .setFooter({ text: `الإصدار: ${version} | رقم البلاغ: ${id}` })
     .setTimestamp();
 
-  const extraEmbeds = evidenceList.slice(1).map(a => new EmbedBuilder().setColor(REPORT_COLOR).setImage(a.url));
+  const extraEmbeds = evidenceList.slice(1).filter(Boolean).map(url => new EmbedBuilder().setColor(REPORT_COLOR).setImage(url));
 
   const witnessMentions = witnesses.length ? witnesses.join(' ') : null;
   const sentMessage = await channel.send({ content: witnessMentions, embeds: [mainEmbed, ...extraEmbeds], components: [buildReportButtons(id, false)] });
@@ -119,7 +140,7 @@ async function handleReportCommand(interaction, cfg) {
     whereChannelId: whereChannel.id,
     witnesses: witnesses.map(w => w.id),
     witnessTags: witnesses.map(w => w.tag),
-    evidence: evidenceList.map(a => a.url),
+    evidence: evidenceList.filter(Boolean),
     status: 'pending',
     decidedBy: null,
     decidedByTag: null,
@@ -154,10 +175,10 @@ async function handleReportCommand(interaction, cfg) {
       { name: 'عدد الأدلة', value: `${evidenceList.length}` },
       { name: 'الحالة', value: '⏳ قيد المراجعة' },
     )
-    .setImage(evidenceList[0].url)
+    .setImage(evidenceList[0] || null)
     .setTimestamp();
   await sendLog(interaction.guild, cfg.report.logChannelId, {
-    embeds: [logEmbed, ...evidenceList.slice(1).map(a => new EmbedBuilder().setColor(REPORT_COLOR).setImage(a.url))],
+    embeds: [logEmbed, ...evidenceList.slice(1).filter(Boolean).map(url => new EmbedBuilder().setColor(REPORT_COLOR).setImage(url))],
   });
 }
 
@@ -236,6 +257,23 @@ async function handleReportButton(interaction, action, reportId) {
 
     setFieldValue(newEmbed, '— الحالة', `✅ مقبول بواسطة ${interaction.user.tag} (⚠️ العضو غير موجود بالسيرفر، لم تُطبَّق أي رتبة)`);
     await interaction.update({ embeds: [newEmbed, ...otherEmbeds], components: [finalRow] });
+
+    // إرسال رسالة لمقدم البلاغ
+    try {
+      const reporterUser = await interaction.client.users.fetch(record.reporterId).catch(() => null);
+      if (reporterUser) {
+        const dmEmbed = new EmbedBuilder()
+          .setTitle('✅ تم قبول بلاغك')
+          .setColor(ACCEPT_COLOR)
+          .setDescription(`عزيزي ${reporterUser}، تم قبول بلاغك على ${record.targetTag}، لكن العضو غير موجود حالياً في السيرفر.`)
+          .addFields({ name: 'السبب', value: record.reason })
+          .setTimestamp();
+        await reporterUser.send({ embeds: [dmEmbed] });
+      }
+    } catch (e) {
+      console.error('فشل إرسال رسالة لمقدم البلاغ:', e.message);
+    }
+
     return;
   }
 
@@ -302,6 +340,25 @@ async function handleReportButton(interaction, action, reportId) {
     await member.send({ embeds: [dmEmbed] });
   } catch (e) {
     console.error('فشل إرسال رسالة خاصة للإداري:', e.message);
+  }
+
+  // إرسال رسالة خاصة لمقدّم البلاغ
+  try {
+    const reporterUser = await interaction.client.users.fetch(record.reporterId).catch(() => null);
+    if (reporterUser) {
+      const dmEmbed = new EmbedBuilder()
+        .setTitle('✅ تم قبول بلاغك')
+        .setColor(ACCEPT_COLOR)
+        .setDescription(`عزيزي ${reporterUser}، تم قبول بلاغك على ${member}.`)
+        .addFields(
+          { name: 'السبب', value: record.reason },
+          { name: 'النتيجة', value: `الإداري حصل على: ${levelName || resultText}` },
+        )
+        .setTimestamp();
+      await reporterUser.send({ embeds: [dmEmbed] });
+    }
+  } catch (e) {
+    console.error('فشل إرسال رسالة خاصة لمقدم البلاغ:', e.message);
   }
 
   const logEmbed = new EmbedBuilder()
