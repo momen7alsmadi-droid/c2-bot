@@ -136,8 +136,7 @@ async function handleReportCommand(interaction, cfg) {
 
   await interaction.reply({
     content:
-      '✅ تم إرسال بلاغك بسرية تامة، ولن يُكشف اسمك إلا لأصحاب صلاحية Administrator عبر زر مخصص.\n' +
-      '⚠️ تذكير للمستقبل: تأكد دائماً ألا تظهر نفسك أو أي شيء يكشف هويتك داخل الصور التي ترفقها كدليل.',
+      '✅ تم إرسال بلاغك بسرية تامة، ولن يُكشف اسمك إلا لأصحاب صلاحية Administrator عبر زر مخصص.',
     ephemeral: true,
   });
 
@@ -242,9 +241,11 @@ async function handleReportButton(interaction, action, reportId) {
 
   const level = getWarningLevel(member, cfg);
   let resultText;
+  let levelName = '';
 
   if (level >= 3) {
     resultText = '⚠️ العضو وصل مسبقاً لأقصى مستوى (الفصل من الإدارة)، لم تُضف أي رتبة جديدة.';
+    levelName = 'فصل من الإدارة 🚫';
   } else {
     const newLevel = level + 1;
     const roleToAdd = getWarningRoleId(cfg, newLevel);
@@ -258,7 +259,8 @@ async function handleReportButton(interaction, action, reportId) {
     }
 
     const levelNames = { 1: 'تحذير أول ⚠️', 2: 'تحذير ثاني ⚠️⚠️', 3: 'فصل من الإدارة 🚫' };
-    resultText = `تم إعطاء: **${levelNames[newLevel]}**`;
+    levelName = levelNames[newLevel];
+    resultText = `تم إعطاء: **${levelName}**`;
     record.warningLevelAssigned = newLevel;
 
     if (newLevel === 3) {
@@ -285,6 +287,22 @@ async function handleReportButton(interaction, action, reportId) {
 
   setFieldValue(newEmbed, '— الحالة', `✅ مقبول بواسطة ${interaction.user.tag} — ${resultText}`);
   await interaction.update({ embeds: [newEmbed, ...otherEmbeds], components: [finalRow] });
+
+  // إرسال رسالة خاصة للإداري المُبلَّغ عنه
+  try {
+    const dmEmbed = new EmbedBuilder()
+      .setTitle('📬 بلاغ على إداري')
+      .setColor(ACCEPT_COLOR)
+      .setDescription(`عزيزي ${member}، تم تقديم بلاغ بحقك وتم قبوله.`)
+      .addFields(
+        { name: 'السبب', value: record.reason },
+        { name: 'النتيجة', value: levelName || resultText },
+      )
+      .setTimestamp();
+    await member.send({ embeds: [dmEmbed] });
+  } catch (e) {
+    console.error('فشل إرسال رسالة خاصة للإداري:', e.message);
+  }
 
   const logEmbed = new EmbedBuilder()
     .setTitle('✅ تم قبول بلاغ')
