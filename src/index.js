@@ -31,7 +31,7 @@ app.listen(PORT, () => {
 });
 
 // ---------- وظيفة إرسال رسالة كل 14 دقيقة ----------
-const PING_INTERVAL_MS = 14 * 60 * 1000; // 14 دقيقة
+const PING_INTERVAL_MS = 30 * 60 * 1000; // 30 دقيقة
 
 async function sendPingMessage() {
   const channelId = process.env.PING_CHANNEL_ID;
