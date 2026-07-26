@@ -77,9 +77,11 @@ async function handleReportCommand(interaction, cfg) {
     }
   }
 
-  // معالجة الدلائل (روابط صور)
-  const evidenceRaw = interaction.options.getString('دلائل') || '';
-  const evidenceList = evidenceRaw.split(/\n+|[ ,]+/).filter(url => url.match(/^https?:\/\//i)).slice(0, 10);
+  // معالجة الدلائل (صور مرفوعة)
+  const evidenceList = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    .map(n => interaction.options.getAttachment(`دليل_${n}`))
+    .filter(Boolean)
+    .map(a => a.url);
 
 
   if (target.id === interaction.user.id) {
