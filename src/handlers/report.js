@@ -244,6 +244,25 @@ async function handleReportButton(interaction, action, reportId) {
       )
       .setTimestamp();
     await sendLog(guild, cfg.report.logChannelId, { embeds: [logEmbed] });
+
+    // إرسال رسالة لمقدم البلاغ بأن بلاغه رُفض
+    try {
+      const reporterUser = await interaction.client.users.fetch(record.reporterId).catch(() => null);
+      if (reporterUser) {
+        const dmEmbed = new EmbedBuilder()
+          .setTitle('❌ تم رفض بلاغك')
+          .setColor(REPORT_COLOR)
+          .setDescription(`عزيزي ${reporterUser}، تم رفض بلاغك على ${record.targetTag}.`)
+          .addFields(
+            { name: 'السبب', value: record.reason },
+          )
+          .setTimestamp();
+        await reporterUser.send({ embeds: [dmEmbed] });
+      }
+    } catch (e) {
+      console.error('فشل إرسال رسالة لمقدم البلاغ برفض البلاغ:', e.message);
+    }
+
     return;
   }
 
