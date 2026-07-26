@@ -1,0 +1,23 @@
+services:
+  - type: worker
+    name: c2-bot
+    runtime: node
+    repo: https://github.com/yourusername/your-repo-name
+    plan: free
+    env:
+      - key: BOT_TOKEN
+        sync: false
+      - key: CLIENT_ID
+        sync: false
+      - key: GUILD_ID
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: PING_CHANNEL_ID
+        sync: false
+      - key: PORT
+        value: 10000
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true

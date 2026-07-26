@@ -1,6 +1,8 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Partials } = require('discord.js');
-const { getConfig } = require('./utils/storage');
+const { Client, GatewayIntentBits, Partials, EmbedBuilder } = require('discord.js');
+const express = require('express');
+const { connectDatabase } = require('./utils/database');
+const { getConfig, ensureConfigLoaded, initModels } = require('./utils/storage');
 
 const {
   handleLeaveCommand, handleLeaveModalSubmit, handleLeaveButton,
@@ -18,17 +20,73 @@ const client = new Client({
   partials: [Partials.GuildMember]
 });
 
-client.once('ready', () => {
-  console.log(`✅ البوت شغّال باسم ${client.user.tag}`);
-  checkExpiredLeaves(client);
-  setInterval(() => checkExpiredLeaves(client), CHECK_INTERVAL_MS);
+// ---------- Express healthcheck server (لـ Render) ----------
+const app = express();
+app.get('/', (req, res) => res.send('Bot is alive! 🤖'));
+app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
+
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`🌐 Healthcheck server running on port ${PORT}`);
 });
+
+// ---------- وظيفة إرسال رسالة كل 14 دقيقة ----------
+const PING_INTERVAL_MS = 14 * 60 * 1000; // 14 دقيقة
+
+async function sendPingMessage() {
+  const channelId = process.env.PING_CHANNEL_ID;
+  if (!channelId) return;
+
+  try {
+    const channel = await client.channels.fetch(channelId).catch(() => null);
+    if (!channel) {
+      console.warn('⚠️ PING_CHANNEL_ID غير صحيح أو الروم غير موجود.');
+      return;
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle('✅ البوت شغال')
+      .setColor(0x2ECC71)
+      .setDescription(`آخر نشاط: <t:${Math.floor(Date.now() / 1000)}:R>`)
+      .setTimestamp();
+
+    await channel.send({ embeds: [embed] });
+    console.log('✅ تم إرسال رسالة البقاء شغالاً إلى الروم المحدد');
+  } catch (err) {
+    console.error('❌ فشل إرسال رسالة البقاء شغالاً:', err.message);
+  }
+}
+
+// ---------- الاتصال بقاعدة البيانات ----------
+async function initialize() {
+  const dbConnected = await connectDatabase();
+  initModels();
+  if (dbConnected) {
+    await ensureConfigLoaded();
+    console.log('📦 تم تحميل الإعدادات من MongoDB');
+  }
+
+  // بدء إرسال رسالة كل 14 دقيقة بعد ما البوت يشتغل
+  client.once('ready', () => {
+    console.log(`✅ البوت شغّال باسم ${client.user.tag}`);
+    
+    // إرسال أول رسالة فور التشغيل
+    setTimeout(() => sendPingMessage(), 5000);
+    // ثم كل 14 دقيقة
+    setInterval(sendPingMessage, PING_INTERVAL_MS);
+
+    // فحص الاجازات المنتهية
+    checkExpiredLeaves(client);
+    setInterval(() => checkExpiredLeaves(client), CHECK_INTERVAL_MS);
+  });
+}
+
+initialize();
 
 // ------------------- التفاعلات -------------------
 
 client.on('interactionCreate', async (interaction) => {
   try {
-    // فحص السيرفرات المعطلة (نسمح للمطور فقط)
     if (interaction.guild && interaction.user.id !== '1387331972094890036') {
       const cfg = getConfig();
       if (cfg.disabledGuilds.includes(interaction.guild.id)) return;
@@ -81,7 +139,6 @@ async function handleButton(interaction) {
   const parts = id.split('_');
   const prefix = parts[0];
 
-  // أزرار الإجازة
   if (prefix === 'leave') {
     const action = parts[1];
     const userId = parts[2];
@@ -89,21 +146,18 @@ async function handleButton(interaction) {
     return handleLeaveButton(interaction, action, userId, daysStr);
   }
 
-  // أزرار البلاغ
   if (prefix === 'blagh') {
     const action = parts[1];
     const reportId = parts[2];
     return handleReportButton(interaction, action, reportId);
   }
 
-  // أزرار الاستقالة
   if (prefix === 'resign') {
     const action = parts[1];
     const userId = parts[2];
     return handleResignButton(interaction, action, userId);
   }
 
-  // أزرار الإعدادات
   if (id === 'settings_back') {
     return handleSettings(interaction);
   }
@@ -122,7 +176,6 @@ async function handleButton(interaction) {
     return handleSettingsSelect(interaction);
   }
 
-  // أزرار المطور
   if (prefix === 'dev') {
     const action = parts[1];
     if (action === 'refresh') return handleDevRefresh(interaction);

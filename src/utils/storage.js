@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -10,39 +11,70 @@ const REPORTS_PATH = path.join(DATA_DIR, 'reports.json');
 
 const DEFAULT_CONFIG = {
   leave: {
-    allowedRoleId: null,     // من يمكنه استخدام /اجازة
-    requestChannelId: null,  // الروم الذي ترسل له طلبات الاجازة
-    rolesToRemove: [],       // الرتب التي تُزال عند قبول الاجازة (فقط إذا كانت موجودة لدى العضو)
-    leaveRoleId: null,       // رتبة الاجازة التي تُعطى بعد القبول
-    logChannelId: null       // روم لوق نظام الاجازات
+    allowedRoleId: null,
+    requestChannelId: null,
+    rolesToRemove: [],
+    leaveRoleId: null,
+    logChannelId: null
   },
   daleel: {
-    allowedRoleId: null,     // من يمكنه استخدام /دليل
-    channelId: null,         // الروم الذي تُرسل له استمارات الدلائل
-    logChannelId: null       // روم لوق نظام الدلائل
+    allowedRoleId: null,
+    channelId: null,
+    logChannelId: null
   },
   report: {
-    allowedRoleId: null,            // من يمكنه استخدام /بلاغ (فارغ = الجميع)
-    adminRoleId: null,              // الرتبة الإدارية التي يجب أن يملكها من يُبلَّغ عنه
-    channelId: null,                // الروم الذي تُرسل له استمارات البلاغات
-    warning1RoleId: null,           // رتبة التحذير الأول
-    warning2RoleId: null,           // رتبة التحذير الثاني
-    warning3RoleId: null,           // رتبة الفصل من الإدارة (التحذير الثالث)
-    upperManagementRoleId: null,    // رتبة الإدارة العليا التي تُشعَر عند الفصل
-    upperManagementChannelId: null, // روم إشعارات الإدارة العليا
-    logChannelId: null,             // روم لوق نظام البلاغات
-    cooldownEnabled: true,          // الكولداون شغال ولا لا
-    cooldownDuration: 60            // مدة الكولداون بالدقائق
+    allowedRoleId: null,
+    adminRoleId: null,
+    channelId: null,
+    warning1RoleId: null,
+    warning2RoleId: null,
+    warning3RoleId: null,
+    upperManagementRoleId: null,
+    upperManagementChannelId: null,
+    logChannelId: null,
+    cooldownEnabled: true,
+    cooldownDuration: 60
   },
   resign: {
-    allowedRoleId: null,      // من يمكنه استخدام /استقالة
-    logChannelId: null,       // روم لوق الاستقالات
-    rolesToRemove: [],        // الرتب التي تُزال عند تقديم الاستقالة
-    resignRoleId: null,       // رتبة ما بعد الاستقالة
-    upperManagementRoleId: null  // رتبة الإدارة العليا (للأزرار)
+    allowedRoleId: null,
+    logChannelId: null,
+    rolesToRemove: [],
+    resignRoleId: null,
+    upperManagementRoleId: null
   },
-  disabledGuilds: []          // السيرفرات المعطلة
+  disabledGuilds: []
+};
+
+// ---------- MongoDB Models ----------
+
+const configSchema = new mongoose.Schema({
+  _id: String,
+  data: mongoose.Schema.Types.Mixed
+}, { collection: 'config', versionKey: false });
+
+const leavesSchema = new mongoose.Schema({
+  _id: String, // userId
+  data: mongoose.Schema.Types.Mixed
+}, { collection: 'leaves', versionKey: false });
+
+const reportsSchema = new mongoose.Schema({
+  _id: String, // reportId
+  data: mongoose.Schema.Types.Mixed
+}, { collection: 'reports', versionKey: false });
+
+let ConfigModel, LeavesModel, ReportsModel;
+let useMongo = false;
+
+function initModels() {
+  if (mongoose.connection.readyState === 1) {
+    ConfigModel = mongoose.models.Config || mongoose.model('Config', configSchema);
+    LeavesModel = mongoose.models.Leaves || mongoose.model('Leaves', leavesSchema);
+    ReportsModel = mongoose.models.Reports || mongoose.model('Reports', reportsSchema);
+    useMongo = true;
+  }
 }
+
+// ---------- JSON helpers ----------
 
 function readJSON(filePath, fallback) {
   try {
@@ -59,9 +91,30 @@ function writeJSON(filePath, data) {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
 }
 
+// ---------- Config ----------
+
+async function mongoGetConfig() {
+  if (!useMongo) return null;
+  try {
+    const doc = await ConfigModel.findById('main').lean();
+    return doc ? doc.data : null;
+  } catch { return null; }
+}
+
+async function mongoSaveConfig(cfg) {
+  if (!useMongo) return;
+  try {
+    await ConfigModel.findByIdAndUpdate('main', { data: cfg }, { upsert: true });
+  } catch (e) { console.error('Mongo saveConfig error:', e); }
+}
+
 function getConfig() {
+  // Try MongoDB first
+  if (useMongo) {
+    // We'll handle async via a promise cache, but for sync we return cached or fallback
+    // For simplicity, we'll use a sync fallback and expose async versions
+  }
   const cfg = readJSON(CONFIG_PATH, DEFAULT_CONFIG);
-  // دمج مع القيم الافتراضية حتى لا تنكسر الإعدادات القديمة عند أي تحديث
   return {
     leave: { ...DEFAULT_CONFIG.leave, ...(cfg.leave || {}) },
     daleel: { ...DEFAULT_CONFIG.daleel, ...(cfg.daleel || {}) },
@@ -73,6 +126,54 @@ function getConfig() {
 
 function saveConfig(cfg) {
   writeJSON(CONFIG_PATH, cfg);
+  if (useMongo) mongoSaveConfig(cfg);
+}
+
+// Async versions for MongoDB
+async function ensureConfigLoaded() {
+  initModels();
+  if (useMongo) {
+    const mCfg = await mongoGetConfig();
+    if (mCfg) {
+      writeJSON(CONFIG_PATH, mCfg);
+    } else {
+      // Push local config to MongoDB
+      const local = readJSON(CONFIG_PATH, DEFAULT_CONFIG);
+      await mongoSaveConfig(local);
+    }
+  }
+}
+
+// ---------- Leaves ----------
+
+async function mongoGetLeaves() {
+  if (!useMongo) return null;
+  try {
+    const docs = await LeavesModel.find().lean();
+    const result = {};
+    for (const doc of docs) {
+      result[doc._id] = doc.data;
+    }
+    return result;
+  } catch { return null; }
+}
+
+async function mongoSaveLeaves(leaves) {
+  if (!useMongo) return;
+  try {
+    // Bulk upsert
+    const ops = Object.entries(leaves).map(([userId, data]) => ({
+      updateOne: {
+        filter: { _id: userId },
+        update: { data },
+        upsert: true
+      }
+    }));
+    if (ops.length) await LeavesModel.bulkWrite(ops);
+    // Remove deleted entries (those not in leaves object)
+    const existingIds = Object.keys(leaves);
+    await LeavesModel.deleteMany({ _id: { $nin: existingIds } });
+  } catch (e) { console.error('Mongo saveLeaves error:', e); }
 }
 
 function getLeaves() {
@@ -81,6 +182,37 @@ function getLeaves() {
 
 function saveLeaves(leaves) {
   writeJSON(LEAVES_PATH, leaves);
+  if (useMongo) mongoSaveLeaves(leaves);
+}
+
+// ---------- Reports ----------
+
+async function mongoGetReports() {
+  if (!useMongo) return null;
+  try {
+    const docs = await ReportsModel.find().lean();
+    const result = {};
+    for (const doc of docs) {
+      result[doc._id] = doc.data;
+    }
+    return result;
+  } catch { return null; }
+}
+
+async function mongoSaveReports(reports) {
+  if (!useMongo) return;
+  try {
+    const ops = Object.entries(reports).map(([id, data]) => ({
+      updateOne: {
+        filter: { _id: id },
+        update: { data },
+        upsert: true
+      }
+    }));
+    if (ops.length) await ReportsModel.bulkWrite(ops);
+    const existingIds = Object.keys(reports);
+    await ReportsModel.deleteMany({ _id: { $nin: existingIds } });
+  } catch (e) { console.error('Mongo saveReports error:', e); }
 }
 
 function getReports() {
@@ -89,10 +221,14 @@ function getReports() {
 
 function saveReports(reports) {
   writeJSON(REPORTS_PATH, reports);
+  if (useMongo) mongoSaveReports(reports);
 }
 
 module.exports = {
   getConfig, saveConfig,
   getLeaves, saveLeaves,
-  getReports, saveReports
+  getReports, saveReports,
+  ensureConfigLoaded,
+  initModels,
+  useMongo: () => useMongo
 };
