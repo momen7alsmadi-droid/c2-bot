@@ -99,22 +99,50 @@ async function getAllEmbeds() {
 }
 
 async function getEmbed(name) {
+  if (!name) return null;
   if (isMongoReady()) {
-    try { const data = await EmbedModel.findById(name).lean(); if (data) return data; } catch {}
+    try {
+      const data = await EmbedModel.findById(name).lean();
+      if (data) {
+        // التأكد من أن البيانات تحتوي على الخصائص الأساسية
+        if (!data.title) data.title = '';
+        if (!data.color) data.color = '#5865F2';
+        if (!Array.isArray(data.fields)) data.fields = [];
+        if (!data.footer) data.footer = {};
+        if (typeof data.footer === 'string') data.footer = { text: data.footer };
+        return data;
+      }
+    } catch {}
   }
-  return readJSON()[name] || null;
+  const raw = readJSON()[name] || null;
+  if (raw) {
+    if (!raw.title) raw.title = '';
+    if (!raw.color) raw.color = '#5865F2';
+    if (!Array.isArray(raw.fields)) raw.fields = [];
+    if (!raw.footer) raw.footer = {};
+    if (typeof raw.footer === 'string') raw.footer = { text: raw.footer };
+  }
+  return raw;
 }
 
 async function createEmbed(name, data) {
+  if (!name || typeof name !== 'string') {
+    console.error('❌ createEmbed: name مطلوب وهو سلسلة نصية', { name, data });
+    return null;
+  }
+  const safeData = data || {};
   const now = new Date();
   const doc = {
     _id: name, name,
-    title: data.title || '', description: data.description || '',
-    color: data.color || '#5865F2', footer: data.footer || '',
-    image: data.image || '', thumbnail: data.thumbnail || '',
-    author: data.author || '',
-    fields: data.fields || ['','','','','','','','','',''],
-    timestamp: data.timestamp || false,
+    title: (safeData.title || '') + '',
+    description: (safeData.description || '') + '',
+    color: (safeData.color || '#5865F2') + '',
+    footer: safeData.footer || '',
+    image: safeData.image || '',
+    thumbnail: safeData.thumbnail || '',
+    author: safeData.author || '',
+    fields: Array.isArray(safeData.fields) ? safeData.fields : ['','','','','','','','','',''],
+    timestamp: safeData.timestamp || false,
     createdAt: now, updatedAt: now
   };
 
@@ -152,7 +180,14 @@ async function deleteEmbed(name) {
 
 async function getEmbedsList() {
   const all = await getAllEmbeds();
-  return all.map(r => ({ name: r.name || r._id, title: (r.title || '').slice(0, 50), color: r.color || '#5865F2' }));
+  if (!Array.isArray(all)) return [];
+  return all
+    .filter(r => r && typeof r === 'object')
+    .map(r => ({
+      name: (r.name || r._id || 'بدون اسم').toString(),
+      title: ((r.title || '') + '').slice(0, 50),
+      color: (r.color || '#5865F2') + ''
+    }));
 }
 
 module.exports = {

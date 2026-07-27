@@ -146,8 +146,8 @@ async function showEmbedControlPanel(interaction, embedName, editMode = false) {
   // سلامة البيانات
   const safe = data || {};
   const title = safe.title || embedName;
-  const color = safe.color || '#5865F2';
-  const desc = safe.description || '(بدون محتوى)';
+  const color = (safe.color || '#5865F2') + '';
+  const desc = (safe.description || '(بدون محتوى)') + '';
   const fields = Array.isArray(safe.fields) ? safe.fields : [];
   const footer = safe.footer || {};
 
@@ -271,8 +271,8 @@ async function handleEmbViewShow(interaction, embedName) {
 
   const safe = data || {};
   const safeTitle = safe.title || '(بدون عنوان)';
-  const safeColor = safe.color || '#5865F2';
-  const safeDesc = safe.description || '(بدون محتوى)';
+  const safeColor = (safe.color || '#5865F2') + '';
+  const safeDesc = (safe.description || '(بدون محتوى)') + '';
   const safeFields = Array.isArray(safe.fields) ? safe.fields : [];
   const safeFooter = safe.footer || {};
 
@@ -478,8 +478,8 @@ async function handleEmbSendChannel(interaction, embedName) {
 
   const safe = data || {};
   const safeTitle = safe.title || '(بدون عنوان)';
-  const safeColor = safe.color || '#5865F2';
-  const safeDesc = safe.description || '(بدون محتوى)';
+  const safeColor = (safe.color || '#5865F2') + '';
+  const safeDesc = (safe.description || '(بدون محتوى)') + '';
   const safeFields = Array.isArray(safe.fields) ? safe.fields : [];
   const safeFooter = safe.footer || {};
 
@@ -651,7 +651,7 @@ async function sendEmbedToChannel(client, guild, embedName, channelId, senderTag
     if (!channel) return { success: false, error: 'القناة غير موجودة.' };
 
     const safe = data || {};
-    const safeColor = safe.color || '#5865F2';
+    const safeColor = (safe.color || '#5865F2') + '';
     const safeFields = Array.isArray(safe.fields) ? safe.fields : [];
     const safeFooter = safe.footer || {};
 
