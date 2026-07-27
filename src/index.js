@@ -15,6 +15,7 @@ const { handleMasterPanel, handleDevRefresh, handleDevDisable, handleDevEnable, 
 const { handleHelp } = require('./handlers/help');
 const { handleBroadcast } = require('./handlers/broadcast');
 const { handleSettings, showSettingsPage, handleSettingsSelect } = require('./handlers/settings');
+const { handleColorAutocomplete } = require('./handlers/broadcast');
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
@@ -99,6 +100,10 @@ client.on('interactionCreate', async (interaction) => {
       await handleModalSubmit(interaction);
     } else if (interaction.isButton()) {
       await handleButton(interaction);
+    } else if (interaction.isAutocomplete()) {
+      if (interaction.commandName === 'broadcast' && interaction.options.getFocused(true).name === 'color') {
+        await handleColorAutocomplete(interaction);
+      }
     } else if (interaction.isStringSelectMenu() || interaction.isRoleSelectMenu() || interaction.isChannelSelectMenu()) {
       await handleSettingsSelect(interaction);
     }

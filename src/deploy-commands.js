@@ -95,34 +95,7 @@ const commands = [
         { name: '❌ لا', value: 'no' },
       ))
     .addRoleOption(o => o.setName('role').setDescription('الرتبة المستهدفة (اختياري) - إذا تركت فارغة ترسل للكل').setRequired(false))
-    .addStringOption(o => o.setName('color').setDescription('لون الإيمبد (اختياري) - إذا تركت فارغة يختار لون عشوائي').setRequired(false)
-      .addChoices(
-        { name: '🔴 أحمر (Red)', value: '#FF0000' },
-        { name: '🟠 برتقالي (Orange)', value: '#FFA500' },
-        { name: '🟡 أصفر (Yellow)', value: '#FFFF00' },
-        { name: '🟢 أخضر (Green)', value: '#00FF00' },
-        { name: '🔵 أزرق (Blue)', value: '#0000FF' },
-        { name: '🟣 بنفسجي (Purple)', value: '#800080' },
-        { name: '💗 وردي (Pink)', value: '#FF69B4' },
-        { name: '⚫ أسود (Black)', value: '#000000' },
-        { name: '⚪ أبيض (White)', value: '#FFFFFF' },
-        { name: '🔘 رمادي (Gray)', value: '#808080' },
-        { name: '🟤 نيلي (Indigo)', value: '#4B0082' },
-        { name: '⭐ ذهبي (Gold)', value: '#FFD700' },
-        { name: '🥈 فضي (Silver)', value: '#C0C0C0' },
-        { name: '💙 كحلي (Navy)', value: '#000080' },
-        { name: '🫒 زيتي (Olive)', value: '#808000' },
-        { name: '🩵 تركواز (Teal)', value: '#008080' },
-        { name: '🩸 مارون (Maroon)', value: '#800000' },
-        { name: '🩵 سماوي (Cyan)', value: '#00FFFF' },
-        { name: '💚 ليموني (Lime)', value: '#32CD32' },
-        { name: '🩷 وردي غامق (HotPink)', value: '#FF1493' },
-        { name: '🔮 بنفسجي فاتح (Violet)', value: '#EE82EE' },
-        { name: '🟥 أحمر داكن (DarkRed)', value: '#8B0000' },
-        { name: '🟦 أزرق داكن (DarkBlue)', value: '#00008B' },
-        { name: '🟩 أخضر داكن (DarkGreen)', value: '#006400' },
-        { name: '🟧 برتقالي داكن (DarkOrange)', value: '#FF8C00' },
-      ))
+    .addStringOption(o => o.setName('color').setDescription('لون الإيمبد (اختياري) - اكتب للبحث أو اتركه فارغاً للون عشوائي').setRequired(false).setAutocomplete(true))
     .toJSON(),
 ];
 

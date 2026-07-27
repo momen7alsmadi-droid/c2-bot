@@ -1,4 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
+const { COLORS } = require('../utils/colors');
 
 /**
  * /broadcast - إرسال رسالة خاصة (DM) إلى أعضاء السيرفر
@@ -7,7 +8,7 @@ const { EmbedBuilder } = require('discord.js');
  * - required: format (embed/plain)
  * - required: show_sender (yes/no)
  * - optional: role (role)
- * - optional: color (string) - hex colour للإيمبد
+ * - optional: color (autocomplete) - لون الإيمبد
  */
 async function handleBroadcast(interaction) {
   // 1) التحقق من صلاحية Administrator
@@ -123,10 +124,27 @@ async function handleBroadcast(interaction) {
 }
 
 /**
- * توليد لون عشوائي ساطع (bright random hex colour)
+ * معالج الأوتوكومبليت لخيار اللون
+ */
+async function handleColorAutocomplete(interaction) {
+  const focusedValue = interaction.options.getFocused().toLowerCase();
+
+  // تصفية الألوان حسب ما يكتبه المستخدم
+  const filtered = COLORS.filter(c =>
+    c.name.toLowerCase().includes(focusedValue) ||
+    c.value.toLowerCase().includes(focusedValue)
+  ).slice(0, 25); // الحد الأقصى 25 اقتراح
+
+  await interaction.respond(
+    filtered.map(c => ({ name: c.name, value: c.value }))
+  );
+}
+
+/**
+ * توليد لون عشوائي
  */
 function randomColor() {
   return Math.floor(Math.random() * 0xFFFFFF);
 }
 
-module.exports = { handleBroadcast };
+module.exports = { handleBroadcast, handleColorAutocomplete };
