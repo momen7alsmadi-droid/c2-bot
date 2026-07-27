@@ -1,10 +1,11 @@
 const {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder,
-  StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle
+  StringSelectMenuBuilder, RoleSelectMenuBuilder, ChannelSelectMenuBuilder,
+  ModalBuilder, TextInputBuilder, TextInputStyle, ChannelType
 } = require('discord.js');
 const {
   createReact, updateReact, deleteReact, getReact,
-  getAllReacts, getReactsList, getEnabledReacts, incrementReactCount
+  getReactsList, getEnabledReacts, incrementReactCount
 } = require('../utils/reactionReplyStorage');
 
 // ---------- دالة مساعدة ----------
@@ -43,30 +44,23 @@ async function handleRrCreate(interaction) {
     new ActionRowBuilder().addComponents(
       new TextInputBuilder()
         .setCustomId('rr_name')
-        .setLabel('الاسم الداخلي')
+        .setLabel('🏷️ الاسم الداخلي')
         .setPlaceholder('مثال: ترحيب_قلب')
         .setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(50)
     ),
     new ActionRowBuilder().addComponents(
       new TextInputBuilder()
         .setCustomId('rr_trigger')
-        .setLabel('الكلمة المفتاحية')
+        .setLabel('🔑 الكلمة المفتاحية (Trigger)')
         .setPlaceholder('مثال: مرحبا')
         .setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(500)
     ),
     new ActionRowBuilder().addComponents(
       new TextInputBuilder()
         .setCustomId('rr_emoji')
-        .setLabel('الإيموجي (مثال: ❤️ أو 👍)')
+        .setLabel('😊 الإيموجي (مثال: ❤️ أو 👍)')
         .setPlaceholder('❤️')
         .setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100)
-    ),
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('rr_trigger_type')
-        .setLabel('نوع المطابقة (exact/contains/starts/ends/regex)')
-        .setPlaceholder('contains')
-        .setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(20)
     ),
   );
 
@@ -77,67 +71,82 @@ async function handleRrCreateModal(interaction) {
   const name = interaction.fields.getTextInputValue('rr_name').trim();
   const trigger = interaction.fields.getTextInputValue('rr_trigger').trim();
   const emoji = interaction.fields.getTextInputValue('rr_emoji').trim();
-  const triggerType = interaction.fields.getTextInputValue('rr_trigger_type').trim().toLowerCase() || 'contains';
-
-  const validTypes = ['exact', 'contains', 'starts', 'ends', 'regex'];
-  if (!validTypes.includes(triggerType)) {
-    return interaction.reply({ content: `⚠️ نوع مطابقة غير صالح. الأنواع: ${validTypes.join(', ')}`, ephemeral: true });
-  }
 
   const existing = await getReact(name);
   if (existing) {
     return interaction.reply({ content: `⚠️ التفاعل "${name}" موجود مسبقاً.`, ephemeral: true });
   }
 
-  const created = await createReact({ name, trigger, triggerType, emoji });
+  const created = await createReact({
+    name, trigger, emoji,
+    triggerType: 'contains',
+    roleWhitelist: [], roleBlacklist: [],
+    channelWhitelist: [], channelBlacklist: []
+  });
+
   if (!created) {
     return interaction.reply({ content: '❌ فشل إنشاء التفاعل.', ephemeral: true });
   }
 
-  return showRrControlPanel(interaction, name, false);
+  return showRrControlPanel(interaction, name);
 }
 
-// ================== لوحة التحكم ==================
+// ================== لوحة التحكم الشاملة ==================
 
-async function showRrControlPanel(interaction, reactName, editMode = false) {
+async function showRrControlPanel(interaction, reactName) {
   const data = await getReact(reactName);
   if (!data) return respondOrUpdate(interaction, { content: '⚠️ التفاعل غير موجود.' });
 
+  const rolesW = data.roleWhitelist || [];
+  const rolesB = data.roleBlacklist || [];
+  const chansW = data.channelWhitelist || [];
+  const chansB = data.channelBlacklist || [];
+
   const infoEmbed = new EmbedBuilder()
-    .setTitle('ℹ️ معلومات التفاعل')
+    .setTitle(`ℹ️ ${data.name}`)
     .setColor(0x5865F2)
     .addFields(
-      { name: '🏷️ الاسم', value: `\`${data.name}\``, inline: true },
       { name: '🔑 الكلمة المفتاحية', value: `\`${data.trigger}\``, inline: true },
-      { name: '🔍 نوع المطابقة', value: data.triggerType, inline: true },
       { name: '😊 الإيموجي', value: data.emoji, inline: true },
-      { name: '📨 مرات الاستخدام', value: `${data.useCount || 0}`, inline: true },
       { name: '✅ مفعل', value: data.enabled !== false ? '🟢 نعم' : '🔴 لا', inline: true },
+      { name: '📨 مرات الاستخدام', value: `${data.useCount || 0}`, inline: true },
+      { name: '🔍 بحث ضمني', value: data.triggerType === 'contains' ? '🟢 مفعل' : '🔴 معطل', inline: true },
+      { name: '🛡️ الرتب المسموحة', value: rolesW.length > 0 ? rolesW.map(r => `<@&${r}>`).join(' ') : '*(الكل)*', inline: false },
+      { name: '🚫 الرتب الممنوعة', value: rolesB.length > 0 ? rolesB.map(r => `<@&${r}>`).join(' ') : '*(لا يوجد)*', inline: false },
+      { name: '📢 الرومات المسموحة', value: chansW.length > 0 ? chansW.map(c => `<#${c}>`).join(' ') : '*(الكل)*', inline: false },
+      { name: '⛔ الرومات الممنوعة', value: chansB.length > 0 ? chansB.map(c => `<#${c}>`).join(' ') : '*(لا يوجد)*', inline: false },
     )
     .setTimestamp();
 
-  if (data.channelId) {
-    infoEmbed.addFields({ name: '📌 مقيد بروم', value: `<#${data.channelId}>`, inline: false });
-  }
-
-  const btnBack = new ButtonBuilder().setCustomId('rr_main').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary);
-
+  // الصف الأول
   const row1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('rr_main').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`rr_toggle_${reactName}`).setLabel(data.enabled !== false ? '🟢 تعطيل' : '🔴 تفعيل').setStyle(data.enabled !== false ? ButtonStyle.Danger : ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`rr_edit_trigger_${reactName}`).setLabel('✏️ الكلمة المفتاحية').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`rr_edit_emoji_${reactName}`).setLabel('✏️ الإيموجي').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`rr_edit_trigger_${reactName}`).setLabel('✏️ الكلمة المفتاحية').setStyle(ButtonStyle.Primary),
   );
 
+  // الصف الثاني
   const row2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`rr_edit_type_${reactName}`).setLabel('🔍 نوع المطابقة').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`rr_channel_${reactName}`).setLabel(data.channelId ? '📌 تغيير الروم' : '📌 تحديد روم').setStyle(ButtonStyle.Secondary),
-    btnBack,
+    new ButtonBuilder().setCustomId(`rr_edit_emoji_${reactName}`).setLabel('✏️ الإيموجي').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`rr_implicit_${reactName}`).setLabel(data.triggerType === 'contains' ? '🔍 ضمني 🟢' : '🔍 تام 🔴').setStyle(data.triggerType === 'contains' ? ButtonStyle.Success : ButtonStyle.Danger),
   );
 
-  return respondOrUpdate(interaction, { embeds: [infoEmbed], components: [row1, row2] });
+  // الصف الثالث
+  const row3 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`rr_roles_whitelist_${reactName}`).setLabel('🛡️ الرتب المسموحة').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`rr_roles_blacklist_${reactName}`).setLabel('🚫 الرتب الممنوعة').setStyle(ButtonStyle.Secondary),
+  );
+
+  // الصف الرابع
+  const row4 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`rr_chans_whitelist_${reactName}`).setLabel('📢 الرومات المسموحة').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`rr_chans_blacklist_${reactName}`).setLabel('⛔ الرومات الممنوعة').setStyle(ButtonStyle.Secondary),
+  );
+
+  return respondOrUpdate(interaction, { embeds: [infoEmbed], components: [row1, row2, row3, row4] });
 }
 
-// ================== 2. عرض التفاعلات المسجلة ==================
+// ================== 2. عرض التفاعلات المسجلة (سجل + معاينة) ==================
 
 async function handleRrList(interaction) {
   const list = await getReactsList();
@@ -150,37 +159,88 @@ async function handleRrList(interaction) {
     });
   }
 
-  const lines = list.map(r =>
-    `${r.enabled ? '🟢' : '🔴'} **${r.name}** — ${r.emoji} \`${r.trigger}\` (${r.triggerType}) — استخدم ${r.useCount} مرة`
-  );
+  const options = list.map(r => ({
+    label: r.name,
+    description: `${r.emoji} \`${r.trigger}\` | ${r.useCount} استخدام`,
+    value: `rr_view_${r.name}`,
+    emoji: r.enabled ? '🟢' : '🔴'
+  }));
 
   const embed = new EmbedBuilder()
     .setTitle('📋 التفاعلات المسجلة')
     .setColor(0x5865F2)
-    .setDescription(lines.join('\n'))
+    .setDescription('اختر تفاعلاً من القائمة لعرض التفاصيل الكاملة.')
     .setFooter({ text: `إجمالي ${list.length} تفاعل` })
     .setTimestamp();
 
   return respondOrUpdate(interaction, {
     embeds: [embed],
-    components: [new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('rr_main').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary)
-    )]
+    components: [
+      new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId('rr_view_select')
+          .setPlaceholder('📋 اختر تفاعلاً للعرض')
+          .addOptions(options.slice(0, 25))
+      ),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('rr_main').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary)
+      )
+    ]
   });
 }
 
-// ================== 3. تعديل تفاعل ==================
+// عرض تفاصيل تفاعل
+async function handleRrView(interaction, reactName) {
+  const data = await getReact(reactName);
+  if (!data) return respondOrUpdate(interaction, { content: '⚠️ التفاعل غير موجود.' });
+
+  const rolesW = data.roleWhitelist || [];
+  const rolesB = data.roleBlacklist || [];
+  const chansW = data.channelWhitelist || [];
+  const chansB = data.channelBlacklist || [];
+
+  const infoEmbed = new EmbedBuilder()
+    .setTitle(`📋 ${data.name}`)
+    .setColor(0x5865F2)
+    .addFields(
+      { name: '🔑 الكلمة المفتاحية', value: `\`${data.trigger}\``, inline: true },
+      { name: '😊 الإيموجي', value: data.emoji, inline: true },
+      { name: '✅ مفعل', value: data.enabled !== false ? '🟢 نعم' : '🔴 لا', inline: true },
+      { name: '📨 مرات الاستخدام', value: `${data.useCount || 0}`, inline: true },
+      { name: '🔍 بحث ضمني', value: data.triggerType === 'contains' ? '🟢 مفعل' : '🔴 معطل', inline: true },
+      { name: '🛡️ الرتب المسموحة', value: rolesW.length > 0 ? rolesW.map(r => `<@&${r}>`).join(' ') : '*(الكل)*', inline: false },
+      { name: '🚫 الرتب الممنوعة', value: rolesB.length > 0 ? rolesB.map(r => `<@&${r}>`).join(' ') : '*(لا يوجد)*', inline: false },
+      { name: '📢 الرومات المسموحة', value: chansW.length > 0 ? chansW.map(c => `<#${c}>`).join(' ') : '*(الكل)*', inline: false },
+      { name: '⛔ الرومات الممنوعة', value: chansB.length > 0 ? chansB.map(c => `<#${c}>`).join(' ') : '*(لا يوجد)*', inline: false },
+    )
+    .setTimestamp();
+
+  return respondOrUpdate(interaction, {
+    embeds: [infoEmbed],
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('rr_list').setLabel('📋 العودة للسجل').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`rr_edit_${reactName}`).setLabel('✏️ فتح لوحة التحكم').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('rr_main').setLabel('🔙 الرجوع للرئيسية').setStyle(ButtonStyle.Secondary)
+      )
+    ]
+  });
+}
+
+// ================== 3. تعديل تفاعل (اختيار) ==================
 
 async function handleRrEdit(interaction) {
   const list = await getReactsList();
   if (list.length === 0) {
     return respondOrUpdate(interaction, {
       content: '📭 لا يوجد تفاعلات للتعديل.',
-      components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('rr_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary))]
+      components: [new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('rr_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
+      )]
     });
   }
   const options = list.map(r => ({
-    label: r.name, description: `${r.emoji} "${r.trigger}" (${r.useCount})`,
+    label: r.name, description: `${r.emoji} "${r.trigger}" — ${r.useCount} استخدام`,
     value: `rr_edit_${r.name}`, emoji: r.enabled ? '🟢' : '🔴'
   }));
   return respondOrUpdate(interaction, {
@@ -189,7 +249,9 @@ async function handleRrEdit(interaction) {
       new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder().setCustomId('rr_edit_select').setPlaceholder('✏️ اختر تفاعلاً').addOptions(options.slice(0, 25))
       ),
-      new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('rr_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary))
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('rr_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
+      )
     ]
   });
 }
@@ -201,7 +263,9 @@ async function handleRrDelete(interaction) {
   if (list.length === 0) {
     return respondOrUpdate(interaction, {
       content: '📭 لا يوجد تفاعلات للحذف.',
-      components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('rr_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary))]
+      components: [new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('rr_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
+      )]
     });
   }
   const options = list.map(r => ({
@@ -214,7 +278,9 @@ async function handleRrDelete(interaction) {
       new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder().setCustomId('rr_delete_select').setPlaceholder('🗑️ اختر تفاعلاً للحذف').addOptions(options.slice(0, 25))
       ),
-      new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('rr_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary))
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('rr_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
+      )
     ]
   });
 }
@@ -225,16 +291,20 @@ async function handleRrDeleteConfirm(interaction, reactName) {
   const embed = new EmbedBuilder()
     .setTitle('🗑️ تأكيد الحذف').setColor(0xFF0000)
     .setDescription(`هل أنت متأكد من حذف التفاعل **${reactName}**؟`)
-    .addFields({ name: 'الكلمة المفتاحية', value: `\`${data.trigger}\``, inline: true },
-              { name: 'الإيموجي', value: data.emoji, inline: true },
-              { name: 'مرات الاستخدام', value: `${data.useCount || 0}`, inline: true })
+    .addFields(
+      { name: 'الكلمة المفتاحية', value: `\`${data.trigger}\``, inline: true },
+      { name: 'الإيموجي', value: data.emoji, inline: true },
+      { name: 'مرات الاستخدام', value: `${data.useCount || 0}`, inline: true }
+    )
     .setTimestamp();
   return respondOrUpdate(interaction, {
     embeds: [embed],
-    components: [new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`rr_delete_yes_${reactName}`).setLabel('✅ نعم، احذف').setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId('rr_delete').setLabel('❌ لا، تراجع').setStyle(ButtonStyle.Secondary)
-    )]
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`rr_delete_yes_${reactName}`).setLabel('✅ نعم، احذف').setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId('rr_delete').setLabel('❌ لا، تراجع').setStyle(ButtonStyle.Secondary)
+      )
+    ]
   });
 }
 
@@ -242,19 +312,23 @@ async function handleRrDeleteExecute(interaction, reactName) {
   const success = await deleteReact(reactName);
   return respondOrUpdate(interaction, {
     content: success ? `✅ تم حذف التفاعل **${reactName}** بنجاح.` : '❌ فشل حذف التفاعل.',
-    components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('rr_main').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary))]
+    components: [new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('rr_main').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary)
+    )]
   });
 }
 
-// ================== معالجات التعديل ==================
+// ================== معالجات الأزرار (Toggle & Edit) ==================
 
+// تبديل التفعيل
 async function handleRrToggle(interaction, reactName) {
   const data = await getReact(reactName);
   if (!data) return respondOrUpdate(interaction, { content: '⚠️ التفاعل غير موجود.' });
   await updateReact(reactName, { enabled: data.enabled === false });
-  return showRrControlPanel(interaction, reactName, true);
+  return showRrControlPanel(interaction, reactName);
 }
 
+// تعديل الكلمة المفتاحية
 async function handleRrEditTrigger(interaction, reactName) {
   const data = await getReact(reactName);
   const modal = new ModalBuilder().setCustomId(`modal_rr_trigger_${reactName}`).setTitle('✏️ تعديل الكلمة المفتاحية');
@@ -265,6 +339,7 @@ async function handleRrEditTrigger(interaction, reactName) {
   await interaction.showModal(modal);
 }
 
+// تعديل الإيموجي
 async function handleRrEditEmoji(interaction, reactName) {
   const data = await getReact(reactName);
   const modal = new ModalBuilder().setCustomId(`modal_rr_emoji_${reactName}`).setTitle('✏️ تعديل الإيموجي');
@@ -275,126 +350,211 @@ async function handleRrEditEmoji(interaction, reactName) {
   await interaction.showModal(modal);
 }
 
-async function handleRrEditType(interaction, reactName) {
+// تبديل البحث الضمني (contains ↔ exact)
+async function handleRrImplicit(interaction, reactName) {
   const data = await getReact(reactName);
-  const types = [
-    { label: 'يحتوي على (contains)', value: `rr_settype_${reactName}_contains`, emoji: '🔍', default: data?.triggerType === 'contains' },
-    { label: 'يطابق تماماً (exact)', value: `rr_settype_${reactName}_exact`, emoji: '✅', default: data?.triggerType === 'exact' },
-    { label: 'يبدأ بـ (starts)', value: `rr_settype_${reactName}_starts`, emoji: '▶️', default: data?.triggerType === 'starts' },
-    { label: 'ينتهي بـ (ends)', value: `rr_settype_${reactName}_ends`, emoji: '⏹️', default: data?.triggerType === 'ends' },
-    { label: 'تعبير منتظم (regex)', value: `rr_settype_${reactName}_regex`, emoji: '🔣', default: data?.triggerType === 'regex' },
-  ];
-  const embed = new EmbedBuilder().setTitle('🔍 اختر نوع المطابقة').setColor(0x5865F2).setDescription(`الحالي: **${data?.triggerType}**`).setTimestamp();
+  if (!data) return respondOrUpdate(interaction, { content: '⚠️ التفاعل غير موجود.' });
+  const newType = data.triggerType === 'contains' ? 'exact' : 'contains';
+  await updateReact(reactName, { triggerType: newType });
+  return showRrControlPanel(interaction, reactName);
+}
+
+// ================== قوائم الرتب (RoleSelectMenu) ==================
+
+async function handleRrRolesWhitelist(interaction, reactName) {
+  const data = await getReact(reactName);
   return respondOrUpdate(interaction, {
-    embeds: [embed],
-    components: [new ActionRowBuilder().addComponents(
-      new StringSelectMenuBuilder().setCustomId('rr_settype_select').setPlaceholder('🔍 اختر نوع المطابقة').addOptions(types)
-    ), new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`rr_edit_${reactName}`).setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary))]
+    content: `🛡️ **الرتب المسموحة** (${(data?.roleWhitelist||[]).length})\nالحالية: ${(data?.roleWhitelist||[]).length > 0 ? data.roleWhitelist.map(r => `<@&${r}>`).join(' ') : '*(الكل)*'}\n\nاختر الرتب المسموح لها بالتفاعل:`,
+    components: [
+      new ActionRowBuilder().addComponents(
+        new RoleSelectMenuBuilder()
+          .setCustomId(`rr_roles_w_set_${reactName}`)
+          .setPlaceholder('🛡️ اختر الرتب المسموحة')
+          .setMinValues(0).setMaxValues(25)
+      ),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`rr_edit_${reactName}`).setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
+      )
+    ]
   });
 }
 
-async function handleRrChannel(interaction, reactName) {
+async function handleRrRolesBlacklist(interaction, reactName) {
   const data = await getReact(reactName);
   return respondOrUpdate(interaction, {
-    content: data?.channelId ? `📌 الروم الحالي: <#${data.channelId}>` : '📌 اختر الروم (اختياري)',
-    components: [new ActionRowBuilder().addComponents(
-      new StringSelectMenuBuilder().setCustomId(`rr_setchannel_${reactName}`).setPlaceholder('📌 اختر الروم').addOptions([
-        { label: 'بدون تحديد (كل الرومات)', value: `rr_ch_none_${reactName}`, emoji: '🌐' }
-      ])
-    ), new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`rr_edit_${reactName}`).setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary))]
+    content: `🚫 **الرتب الممنوعة** (${(data?.roleBlacklist||[]).length})\nالحالية: ${(data?.roleBlacklist||[]).length > 0 ? data.roleBlacklist.map(r => `<@&${r}>`).join(' ') : '*(لا يوجد)*'}\n\nاختر الرتب الممنوعة من التفاعل:`,
+    components: [
+      new ActionRowBuilder().addComponents(
+        new RoleSelectMenuBuilder()
+          .setCustomId(`rr_roles_b_set_${reactName}`)
+          .setPlaceholder('🚫 اختر الرتب الممنوعة')
+          .setMinValues(0).setMaxValues(25)
+      ),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`rr_edit_${reactName}`).setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
+      )
+    ]
   });
 }
 
-async function handleRrSetType(interaction) {
-  const value = interaction.values[0];
-  const parts = value.split('_');
-  const type = parts[parts.length - 1];
-  const name = parts.slice(2, -1).join('_');
-  await updateReact(name, { triggerType: type });
-  return showRrControlPanel(interaction, name, true);
+// ================== قوائم الرومات (ChannelSelectMenu) ==================
+
+async function handleRrChansWhitelist(interaction, reactName) {
+  const data = await getReact(reactName);
+  return respondOrUpdate(interaction, {
+    content: `📢 **الرومات المسموحة** (${(data?.channelWhitelist||[]).length})\nالحالية: ${(data?.channelWhitelist||[]).length > 0 ? data.channelWhitelist.map(c => `<#${c}>`).join(' ') : '*(الكل)*'}\n\nاختر الرومات التي يعمل فيها التفاعل:`,
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ChannelSelectMenuBuilder()
+          .setCustomId(`rr_chans_w_set_${reactName}`)
+          .setPlaceholder('📢 اختر الرومات المسموحة')
+          .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+          .setMinValues(0).setMaxValues(25)
+      ),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`rr_edit_${reactName}`).setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
+      )
+    ]
+  });
 }
 
-async function handleRrSetChannel(interaction) {
-  const value = interaction.values[0];
-  const parts = value.split('_');
-  if (parts[2] === 'none') {
-    const name = parts.slice(3).join('_');
-    await updateReact(name, { channelId: null });
-    return showRrControlPanel(interaction, name, true);
-  }
-  return respondOrUpdate(interaction, { content: '⚠️ خيار غير معروف.' });
+async function handleRrChansBlacklist(interaction, reactName) {
+  const data = await getReact(reactName);
+  return respondOrUpdate(interaction, {
+    content: `⛔ **الرومات الممنوعة** (${(data?.channelBlacklist||[]).length})\nالحالية: ${(data?.channelBlacklist||[]).length > 0 ? data.channelBlacklist.map(c => `<#${c}>`).join(' ') : '*(لا يوجد)*'}\n\nاختر الرومات الممنوعة من التفاعل:`,
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ChannelSelectMenuBuilder()
+          .setCustomId(`rr_chans_b_set_${reactName}`)
+          .setPlaceholder('⛔ اختر الرومات الممنوعة')
+          .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+          .setMinValues(0).setMaxValues(25)
+      ),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`rr_edit_${reactName}`).setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
+      )
+    ]
+  });
 }
 
-// ================== معالجات Modal ==================
+// ================== معالجات القوائم المنسدلة ==================
 
-async function handleRrEditTriggerModal(interaction, reactName) {
-  const trigger = interaction.fields.getTextInputValue('rr_trigger').trim();
-  await updateReact(reactName, { trigger });
-  return showRrControlPanel(interaction, reactName, true);
+async function handleRrRolesWSet(interaction) {
+  const name = interaction.customId.replace('rr_roles_w_set_', '');
+  await updateReact(name, { roleWhitelist: interaction.values || [] });
+  return showRrControlPanel(interaction, name);
 }
 
-async function handleRrEditEmojiModal(interaction, reactName) {
-  const emoji = interaction.fields.getTextInputValue('rr_emoji').trim();
-  await updateReact(reactName, { emoji });
-  return showRrControlPanel(interaction, reactName, true);
+async function handleRrRolesBSet(interaction) {
+  const name = interaction.customId.replace('rr_roles_b_set_', '');
+  await updateReact(name, { roleBlacklist: interaction.values || [] });
+  return showRrControlPanel(interaction, name);
 }
 
-// ================== الموزع الرئيسي ==================
+async function handleRrChansWSet(interaction) {
+  const name = interaction.customId.replace('rr_chans_w_set_', '');
+  await updateReact(name, { channelWhitelist: interaction.values || [] });
+  return showRrControlPanel(interaction, name);
+}
 
-async function handleReactInteraction(interaction) {
-  const id = interaction.customId;
-  const parts = id.split('_');
-  const prefix = parts[0];
-
-  if (id === 'rr_main') return handleReactMain(interaction);
-  if (id === 'rr_create') return handleRrCreate(interaction);
-  if (id === 'rr_list') return handleRrList(interaction);
-  if (id === 'rr_edit') return handleRrEdit(interaction);
-  if (id === 'rr_delete') return handleRrDelete(interaction);
-
-  if (id === 'rr_edit_select') {
-    const name = interaction.values[0].replace('rr_edit_', '');
-    return showRrControlPanel(interaction, name, true);
-  }
-  if (id === 'rr_delete_select') {
-    const name = interaction.values[0].replace('rr_del_', '');
-    return handleRrDeleteConfirm(interaction, name);
-  }
-  if (prefix === 'rr' && parts[1] === 'delete' && parts[2] === 'yes') {
-    return handleRrDeleteExecute(interaction, parts.slice(3).join('_'));
-  }
-  if (prefix === 'rr' && parts[1] === 'toggle') {
-    return handleRrToggle(interaction, parts.slice(2).join('_'));
-  }
-  if (prefix === 'rr' && parts[1] === 'edit' && parts[2] === 'trigger') {
-    return handleRrEditTrigger(interaction, parts.slice(3).join('_'));
-  }
-  if (prefix === 'rr' && parts[1] === 'edit' && parts[2] === 'emoji') {
-    return handleRrEditEmoji(interaction, parts.slice(3).join('_'));
-  }
-  if (prefix === 'rr' && parts[1] === 'edit' && parts[2] === 'type') {
-    return handleRrEditType(interaction, parts.slice(3).join('_'));
-  }
-  if (prefix === 'rr' && parts[1] === 'channel') {
-    return handleRrChannel(interaction, parts.slice(2).join('_'));
-  }
-  if (id === 'rr_settype_select') return handleRrSetType(interaction);
-  if (id.startsWith('rr_setchannel_')) return handleRrSetChannel(interaction);
-
-  return respondOrUpdate(interaction, { content: `⚠️ أمر غير معروف: ${id}` });
+async function handleRrChansBSet(interaction) {
+  const name = interaction.customId.replace('rr_chans_b_set_', '');
+  await updateReact(name, { channelBlacklist: interaction.values || [] });
+  return showRrControlPanel(interaction, name);
 }
 
 // ================== معالجات Modal ==================
 
 async function handleReactModal(interaction) {
   const id = interaction.customId;
+
   if (id === 'modal_rr_create') return handleRrCreateModal(interaction);
-  if (id.startsWith('modal_rr_trigger_')) return handleRrEditTriggerModal(interaction, id.replace('modal_rr_trigger_', ''));
-  if (id.startsWith('modal_rr_emoji_')) return handleRrEditEmojiModal(interaction, id.replace('modal_rr_emoji_', ''));
+
+  if (id.startsWith('modal_rr_trigger_')) {
+    const name = id.replace('modal_rr_trigger_', '');
+    const trigger = interaction.fields.getTextInputValue('rr_trigger').trim();
+    await updateReact(name, { trigger });
+    return showRrControlPanel(interaction, name);
+  }
+
+  if (id.startsWith('modal_rr_emoji_')) {
+    const name = id.replace('modal_rr_emoji_', '');
+    const emoji = interaction.fields.getTextInputValue('rr_emoji').trim();
+    await updateReact(name, { emoji });
+    return showRrControlPanel(interaction, name);
+  }
+
   return interaction.reply({ content: '⚠️ Modal غير معروف.', ephemeral: true });
 }
 
-// ================== محرك معالجة الرسائل (messageCreate) للتفاعلات ==================
+// ================== الموزع الرئيسي ==================
+
+async function handleReactInteraction(interaction) {
+  const id = interaction.customId;
+
+  // الأزرار الرئيسية
+  if (id === 'rr_main') return handleReactMain(interaction);
+  if (id === 'rr_create') return handleRrCreate(interaction);
+  if (id === 'rr_list') return handleRrList(interaction);
+  if (id === 'rr_edit') return handleRrEdit(interaction);
+  if (id === 'rr_delete') return handleRrDelete(interaction);
+
+  // اختيار للعرض
+  if (id === 'rr_view_select') {
+    const name = interaction.values[0].replace('rr_view_', '');
+    return handleRrView(interaction, name);
+  }
+
+  // اختيار للتعديل
+  if (id === 'rr_edit_select') {
+    const name = interaction.values[0].replace('rr_edit_', '');
+    return showRrControlPanel(interaction, name);
+  }
+
+  // اختيار للحذف
+  if (id === 'rr_delete_select') {
+    const name = interaction.values[0].replace('rr_del_', '');
+    return handleRrDeleteConfirm(interaction, name);
+  }
+
+  // تأكيد الحذف
+  if (id.startsWith('rr_delete_yes_')) {
+    return handleRrDeleteExecute(interaction, id.replace('rr_delete_yes_', ''));
+  }
+
+  // ---- أزرار التبديل ----
+  if (id.startsWith('rr_toggle_')) return handleRrToggle(interaction, id.replace('rr_toggle_', ''));
+  if (id.startsWith('rr_implicit_')) return handleRrImplicit(interaction, id.replace('rr_implicit_', ''));
+
+  // تعديل
+  if (id.startsWith('rr_edit_trigger_')) return handleRrEditTrigger(interaction, id.replace('rr_edit_trigger_', ''));
+  if (id.startsWith('rr_edit_emoji_')) return handleRrEditEmoji(interaction, id.replace('rr_edit_emoji_', ''));
+
+  // الرجوع للوحة التحكم (rr_edit_xxx) — بعد الأنماط الأكثر تحديداً
+  if (id.startsWith('rr_edit_') && !id.startsWith('rr_edit_trigger_') && !id.startsWith('rr_edit_emoji_')) {
+    return showRrControlPanel(interaction, id.replace('rr_edit_', ''));
+  }
+
+  // الرتب
+  if (id.startsWith('rr_roles_whitelist_')) return handleRrRolesWhitelist(interaction, id.replace('rr_roles_whitelist_', ''));
+  if (id.startsWith('rr_roles_blacklist_')) return handleRrRolesBlacklist(interaction, id.replace('rr_roles_blacklist_', ''));
+
+  // الرومات
+  if (id.startsWith('rr_chans_whitelist_')) return handleRrChansWhitelist(interaction, id.replace('rr_chans_whitelist_', ''));
+  if (id.startsWith('rr_chans_blacklist_')) return handleRrChansBlacklist(interaction, id.replace('rr_chans_blacklist_', ''));
+
+  // اختيار الرتب (RoleSelectMenu)
+  if (id.startsWith('rr_roles_w_set_')) return handleRrRolesWSet(interaction);
+  if (id.startsWith('rr_roles_b_set_')) return handleRrRolesBSet(interaction);
+
+  // اختيار الرومات (ChannelSelectMenu)
+  if (id.startsWith('rr_chans_w_set_')) return handleRrChansWSet(interaction);
+  if (id.startsWith('rr_chans_b_set_')) return handleRrChansBSet(interaction);
+
+  return respondOrUpdate(interaction, { content: `⚠️ أمر غير معروف: ${id}` });
+}
+
+// ================== محرك معالجة الرسائل للتفاعلات ==================
 
 async function handleReactMessage(message) {
   if (message.author.bot) return;
@@ -404,38 +564,52 @@ async function handleReactMessage(message) {
   if (reacts.length === 0) return;
 
   const content = message.content;
+  const member = message.member;
+  const channel = message.channel;
 
   for (const react of reacts) {
-    if (react.channelId && message.channel.id !== react.channelId) continue;
+    // فحص الرومات (Whitelist / Blacklist)
+    const chW = react.channelWhitelist || [];
+    const chB = react.channelBlacklist || [];
+    if (chW.length > 0 && !chW.includes(channel.id)) continue;
+    if (chB.length > 0 && chB.includes(channel.id)) continue;
+    if (react.channelId && channel.id !== react.channelId) continue;
 
+    // فحص الرتب (Whitelist / Blacklist)
+    if (member) {
+      const roles = member.roles.cache.map(r => r.id);
+      const rW = react.roleWhitelist || [];
+      const rB = react.roleBlacklist || [];
+
+      if (rW.length > 0 && !member.permissions.has('Administrator')) {
+        if (!roles.some(r => rW.includes(r))) continue;
+      }
+      if (rB.length > 0 && !member.permissions.has('Administrator')) {
+        if (roles.some(r => rB.includes(r))) continue;
+      }
+    }
+
+    // المطابقة
     let matched = false;
     const msg = react.caseSensitive ? content : content.toLowerCase();
     const trigger = react.caseSensitive ? react.trigger : react.trigger.toLowerCase();
 
-    switch (react.triggerType) {
-      case 'exact': matched = msg === trigger; break;
-      case 'contains': matched = msg.includes(trigger); break;
-      case 'starts': matched = msg.startsWith(trigger); break;
-      case 'ends': matched = msg.endsWith(trigger); break;
-      case 'regex':
-        try {
-          const flags = react.caseSensitive ? 'g' : 'gi';
-          matched = new RegExp(trigger, flags).test(msg);
-        } catch { /* ignore */ }
-        break;
+    if (react.triggerType === 'contains') {
+      matched = msg.includes(trigger);
+    } else {
+      matched = msg === trigger;
     }
 
-    if (matched) {
-      try {
-        await incrementReactCount(react.name);
-        // محاولة وضع التفاعل (الإيموجي)
-        await message.react(react.emoji);
-        console.log(`✅ reactReply: "${react.trigger}" ← ${message.author.tag} ← ${react.emoji}`);
-      } catch (e) {
-        console.error(`❌ reactReply error for "${react.name}":`, e.message);
-      }
-      break;
+    if (!matched) continue;
+
+    try {
+      await incrementReactCount(react.name);
+      await message.react(react.emoji);
+      console.log(`✅ reactReply: "${react.trigger}" ← ${message.author.tag} ← ${react.emoji}`);
+    } catch (e) {
+      console.error(`❌ reactReply error for "${react.name}":`, e.message);
     }
+    break;
   }
 }
 
