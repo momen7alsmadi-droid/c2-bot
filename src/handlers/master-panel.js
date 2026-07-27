@@ -48,8 +48,11 @@ async function handleMasterPanel(interaction) {
     new ButtonBuilder().setCustomId('dev_disable_all').setLabel('🔴🔴 إطفاء الكل').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId('dev_enable_all').setLabel('🟢🟢 تشغيل الكل').setStyle(ButtonStyle.Success),
   );
+  const row4 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('dev_check_db').setLabel('🗄️ فحص MongoDB').setStyle(ButtonStyle.Secondary),
+  );
 
-  return interaction.reply({ embeds: [embed], components: [row1, row2, row3], ephemeral: true });
+  return interaction.reply({ embeds: [embed], components: [row1, row2, row3, row4], ephemeral: true });
 }
 
 // ------------------- التحديث -------------------
@@ -201,8 +204,59 @@ async function handleDevRefreshPanel(interaction) {
     new ButtonBuilder().setCustomId('dev_disable_all').setLabel('🔴🔴 إطفاء الكل').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId('dev_enable_all').setLabel('🟢🟢 تشغيل الكل').setStyle(ButtonStyle.Success),
   );
+  const row4 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('dev_check_db').setLabel('🗄️ فحص MongoDB').setStyle(ButtonStyle.Secondary),
+  );
 
-  return interaction.update({ embeds: [embed], components: [row1, row2, row3] });
+  return interaction.update({ embeds: [embed], components: [row1, row2, row3, row4] });
 }
 
-module.exports = { handleMasterPanel, handleDevRefresh, handleDevRefreshPanel, handleDevDisable, handleDevEnable, handleDevToggle, DEV_BOT_ID };
+// ------------------- فحص MongoDB -------------------
+
+async function handleDevCheckDb(interaction) {
+  if (interaction.user.id !== DEV_BOT_ID) return;
+  await interaction.deferReply({ ephemeral: true });
+
+  const mongoose = require('mongoose');
+  const os = require('os');
+
+  let status = '';
+  const readyState = mongoose.connection.readyState;
+  const stateNames = { 0: '❌ disconnected', 1: '✅ connected', 2: '⏳ connecting', 3: '⚠️ disconnecting' };
+  status += `**الحالة:** ${stateNames[readyState] || '❓ غير معروف'}\n\n`;
+
+  if (readyState === 1) {
+    // اختبار كتابة/قراءة
+    try {
+      const testCollection = mongoose.connection.db.collection('_diag_test');
+      const testDoc = { test: true, timestamp: new Date(), host: os.hostname(), pid: process.pid };
+      await testCollection.insertOne(testDoc);
+      const readBack = await testCollection.findOne({ _id: testDoc._id });
+      await testCollection.deleteOne({ _id: testDoc._id });
+      status += '✅ **اختبار الكتابة/القراءة:** ناجح ✅\n';
+      status += `📊 **عدد قواعد البيانات:** ${(await mongoose.connection.db.admin().listDatabases()).databases.length}\n`;
+      status += `🗄️ **قاعدة البيانات الحالية:** ${mongoose.connection.db.databaseName}\n`;
+    } catch (e) {
+      status += `❌ **اختبار الكتابة فشل:** \`${e.message}\`\n`;
+    }
+  } else {
+    status += '⚠️ **غير متصل.** لا يمكن إجراء اختبارات.\n';
+    status += '🔧 **حلول:**\n';
+    status += '1. تأكد من متغير MONGODB_URI في Railway Dashboard\n';
+    status += '2. أضف 0.0.0.0/0 في MongoDB Atlas → Network Access\n';
+    status += '3. أعد تشغيل البوت من Railway\n';
+  }
+
+  status += `\n🖥️ **المضيف:** ${os.hostname()} | **PID:** ${process.pid}`;
+  status += `\n⏰ **آخر فحص:** <t:${Math.floor(Date.now() / 1000)}:R>`;
+
+  const embed = new EmbedBuilder()
+    .setTitle('🗄️ تشخيص قاعدة البيانات')
+    .setColor(readyState === 1 ? 0x2ECC71 : 0xE74C3C)
+    .setDescription(status)
+    .setTimestamp();
+
+  return interaction.editReply({ embeds: [embed] });
+}
+
+module.exports = { handleMasterPanel, handleDevRefresh, handleDevRefreshPanel, handleDevDisable, handleDevEnable, handleDevToggle, handleDevCheckDb, DEV_BOT_ID };

@@ -1,4 +1,5 @@
 require('dotenv').config();
+const mongoose = require('mongoose');
 const { Client, GatewayIntentBits, Partials, EmbedBuilder } = require('discord.js');
 const express = require('express');
 const { connectDatabase } = require('./utils/database');
@@ -11,7 +12,7 @@ const {
 const { handleDaleelCommand, handleDaleelSettings } = require('./handlers/daleel');
 const { handleReportCommand, handleReportButton, handleReportSettings } = require('./handlers/report');
 const { handleResign, handleResignButton, handleDevSettings } = require('./handlers/resign');
-const { handleMasterPanel, handleDevRefresh, handleDevRefreshPanel, handleDevDisable, handleDevEnable, handleDevToggle } = require('./handlers/master-panel');
+const { handleMasterPanel, handleDevRefresh, handleDevRefreshPanel, handleDevDisable, handleDevEnable, handleDevToggle, handleDevCheckDb } = require('./handlers/master-panel');
 const { handleHelp } = require('./handlers/help');
 const { handleBroadcast } = require('./handlers/broadcast');
 const { handleColorsCommand } = require('./handlers/colors');
@@ -99,7 +100,29 @@ async function initialize() {
     if (rrReady) { await syncRr(); }
   } else {
     console.log('⚠️ MongoDB غير متصل. التخزين عبر JSON فقط.');
-    console.log('⚠️ إذا كنت على Railway، تأكد من متغير MONGODB_URI');
+    console.log('⚠️ سيتم إعادة محاولة الاتصال كل 30 ثانية...');
+    // محاولة إعادة الاتصال بشكل دوري
+    const retryInterval = setInterval(async () => {
+      if (mongoose.connection.readyState === 1) {
+        clearInterval(retryInterval);
+        console.log('✅ تم استعادة الاتصال بقاعدة البيانات!');
+        // إعادة تهيئة النماذج
+        initModels();
+        initEmbedModel();
+        initAutoReplyModel();
+        initReactModel();
+        await ensureConfigLoaded();
+        const { syncJsonToMongo: syncEmbeds } = require('./utils/embedStorage');
+        await syncEmbeds();
+        await syncAr();
+        await syncRr();
+      } else {
+        try {
+          const { connectDatabase } = require('./utils/database');
+          await connectDatabase();
+        } catch(e) { /* ignore */ }
+      }
+    }, 30000);
   }
 
   // تعطيل البوت تلقائياً عند دخوله سيرفر جديد
@@ -294,6 +317,7 @@ async function handleButton(interaction) {
 
   if (prefix === 'dev') {
     const action = parts[1];
+    if (id === 'dev_check_db') return handleDevCheckDb(interaction);
     if (id === 'dev_refresh_panel') return handleDevRefreshPanel(interaction);
     if (action === 'refresh') return handleDevRefresh(interaction);
     if (action === 'disable' && parts.length === 2) return handleDevDisable(interaction);
