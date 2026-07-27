@@ -15,10 +15,27 @@ const autoReplySchema = new mongoose.Schema({
   _id: String,
   name: { type: String, required: true },
   trigger: { type: String, required: true },
-  triggerType: { type: String, default: 'contains' }, // exact, contains, starts, ends, regex
-  responseType: { type: String, default: 'text' },    // text, embed
-  responseText: { type: String, default: '' },
-  embedName: { type: String, default: '' },
+  // contains = بحث ضمني (ON), exact = مطابقة تامة (OFF)
+  triggerType: { type: String, default: 'contains' },
+  // نصوص الرد المتعددة
+  responses: { type: [String], default: [] },
+  randomReply: { type: Boolean, default: false },
+  // طريقة الإرسال
+  sendStyle: { type: String, default: 'reply_mention' }, // reply_mention, reply_no_mention, normal
+  // حذف رد البوت تلقائياً
+  autoDelete: { type: Boolean, default: false },
+  autoDeleteTime: { type: Number, default: 0 }, // milliseconds
+  // حذف رسالة العضو
+  deleteUserMsg: { type: Boolean, default: false },
+  // تأخير الإرسال
+  replyDelay: { type: Boolean, default: false },
+  replyDelayTime: { type: Number, default: 0 }, // milliseconds
+  // القوائم البيضاء والسوداء
+  roleWhitelist: { type: [String], default: [] },
+  roleBlacklist: { type: [String], default: [] },
+  channelWhitelist: { type: [String], default: [] },
+  channelBlacklist: { type: [String], default: [] },
+  // الحقول القديمة للتوافق
   channelId: { type: String, default: null },
   ignoreBots: { type: Boolean, default: true },
   caseSensitive: { type: Boolean, default: false },
@@ -99,9 +116,18 @@ async function mongoCreate(data) {
     const doc = new AutoReplyModel({
       _id: data.name, name: data.name,
       trigger: data.trigger, triggerType: data.triggerType || 'contains',
-      responseType: data.responseType || 'text',
-      responseText: data.responseText || '',
-      embedName: data.embedName || '',
+      responses: data.responses || [],
+      randomReply: data.randomReply || false,
+      sendStyle: data.sendStyle || 'reply_mention',
+      autoDelete: data.autoDelete || false,
+      autoDeleteTime: data.autoDeleteTime || 0,
+      deleteUserMsg: data.deleteUserMsg || false,
+      replyDelay: data.replyDelay || false,
+      replyDelayTime: data.replyDelayTime || 0,
+      roleWhitelist: data.roleWhitelist || [],
+      roleBlacklist: data.roleBlacklist || [],
+      channelWhitelist: data.channelWhitelist || [],
+      channelBlacklist: data.channelBlacklist || [],
       channelId: data.channelId || null,
       ignoreBots: data.ignoreBots !== false,
       caseSensitive: data.caseSensitive || false,
@@ -164,14 +190,17 @@ async function createReply(data) {
   json[data.name] = {
     _id: data.name, name: data.name,
     trigger: data.trigger, triggerType: data.triggerType || 'contains',
-    responseType: data.responseType || 'text',
-    responseText: data.responseText || '',
-    embedName: data.embedName || '',
+    responses: data.responses || [],
+    randomReply: data.randomReply || false,
+    sendStyle: data.sendStyle || 'reply_mention',
+    autoDelete: data.autoDelete || false, autoDeleteTime: data.autoDeleteTime || 0,
+    deleteUserMsg: data.deleteUserMsg || false,
+    replyDelay: data.replyDelay || false, replyDelayTime: data.replyDelayTime || 0,
+    roleWhitelist: data.roleWhitelist || [], roleBlacklist: data.roleBlacklist || [],
+    channelWhitelist: data.channelWhitelist || [], channelBlacklist: data.channelBlacklist || [],
     channelId: data.channelId || null,
-    ignoreBots: data.ignoreBots !== false,
-    caseSensitive: data.caseSensitive || false,
-    enabled: data.enabled !== false,
-    useCount: 0,
+    ignoreBots: data.ignoreBots !== false, caseSensitive: data.caseSensitive || false,
+    enabled: data.enabled !== false, useCount: 0,
     createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
   };
   writeJSON(json);
@@ -230,7 +259,8 @@ async function getRepliesList() {
     name: r.name,
     trigger: r.trigger,
     triggerType: r.triggerType,
-    responseType: r.responseType,
+    responsesCount: (r.responses || []).length,
+    sendStyle: r.sendStyle || 'reply_mention',
     enabled: r.enabled !== false,
     useCount: r.useCount || 0
   }));

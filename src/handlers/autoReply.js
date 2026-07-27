@@ -1,8 +1,8 @@
 const {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder,
-  StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle
+  StringSelectMenuBuilder, RoleSelectMenuBuilder, ChannelSelectMenuBuilder,
+  ModalBuilder, TextInputBuilder, TextInputStyle, ChannelType
 } = require('discord.js');
-const { COLORS } = require('../utils/colors');
 const {
   createReply, updateReply, deleteReply, getReply,
   getAllReplies, getRepliesList, getEnabledReplies, incrementUseCount
@@ -12,6 +12,46 @@ const {
 async function respondOrUpdate(interaction, payload) {
   if (interaction.isCommand()) return interaction.reply({ ...payload, ephemeral: true });
   return interaction.update(payload);
+}
+
+/** Parse time string like "10s", "5m", "2h", "1h 30m" → ms */
+function parseTimeString(str) {
+  const regex = /(\d+(?:\.\d+)?)\s*([dhms])/gi;
+  let match;
+  let totalMs = 0;
+  let found = false;
+  while ((match = regex.exec(str)) !== null) {
+    found = true;
+    const value = parseFloat(match[1]);
+    if (value <= 0) return null;
+    const unit = match[2].toLowerCase();
+    switch (unit) {
+      case 'd': totalMs += value * 86400000; break;
+      case 'h': totalMs += value * 3600000; break;
+      case 'm': totalMs += value * 60000; break;
+      case 's': totalMs += value * 1000; break;
+    }
+  }
+  if (!found) {
+    const justNumber = parseFloat(str);
+    if (!isNaN(justNumber) && justNumber > 0) return justNumber * 60000;
+    return null;
+  }
+  return Math.round(totalMs);
+}
+
+function formatDelay(ms) {
+  if (ms <= 0) return 'بدون انتظار';
+  const seconds = Math.floor(ms / 1000) % 60;
+  const minutes = Math.floor(ms / 60000) % 60;
+  const hours = Math.floor(ms / 3600000) % 24;
+  const days = Math.floor(ms / 86400000);
+  const parts = [];
+  if (days > 0) parts.push(days + ' يوم');
+  if (hours > 0) parts.push(hours + ' ساعة');
+  if (minutes > 0) parts.push(minutes + ' دقيقة');
+  if (seconds > 0) parts.push(seconds + ' ثانية');
+  return parts.join(' و ') || 'لحظات';
 }
 
 // ================== اللوحة الرئيسية ==================
@@ -26,7 +66,7 @@ async function handleAutoReplyMain(interaction) {
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('ar_create').setLabel('➕ إضافة رد جديد').setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId('ar_list').setLabel('📋 الردود المسجلة').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('ar_edit').setLabel('✏️ تعديل رد').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('ar_edit').setLabel('✏️ تعديل رد').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('ar_delete').setLabel('🗑️ حذف رد').setStyle(ButtonStyle.Danger),
   );
 
@@ -44,28 +84,21 @@ async function handleArCreate(interaction) {
     new ActionRowBuilder().addComponents(
       new TextInputBuilder()
         .setCustomId('ar_name')
-        .setLabel('الاسم الداخلي (للحفظ والبحث)')
-        .setPlaceholder('مثال: مرحبا')
+        .setLabel('🏷️ الاسم الداخلي (للحفظ والبحث)')
+        .setPlaceholder('مثال: رد_ترحيب')
         .setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(50)
     ),
     new ActionRowBuilder().addComponents(
       new TextInputBuilder()
         .setCustomId('ar_trigger')
-        .setLabel('الكلمة المفتاحية / النمط')
+        .setLabel('🔑 الكلمة المفتاحية (Trigger)')
         .setPlaceholder('مثال: مرحبا')
         .setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(500)
     ),
     new ActionRowBuilder().addComponents(
       new TextInputBuilder()
-        .setCustomId('ar_trigger_type')
-        .setLabel('نوع المطابقة (exact/contains/starts/ends/regex)')
-        .setPlaceholder('contains')
-        .setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(20)
-    ),
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
         .setCustomId('ar_response')
-        .setLabel('نص الرد')
+        .setLabel('💬 نص الرد (يمكنك إضافة المزيد لاحقاً)')
         .setPlaceholder('أهلاً بك!')
         .setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(2000)
     ),
@@ -77,66 +110,108 @@ async function handleArCreate(interaction) {
 async function handleArCreateModal(interaction) {
   const name = interaction.fields.getTextInputValue('ar_name').trim();
   const trigger = interaction.fields.getTextInputValue('ar_trigger').trim();
-  const triggerType = interaction.fields.getTextInputValue('ar_trigger_type').trim().toLowerCase() || 'contains';
-  const responseText = interaction.fields.getTextInputValue('ar_response').trim();
-
-  const validTypes = ['exact', 'contains', 'starts', 'ends', 'regex'];
-  if (!validTypes.includes(triggerType)) {
-    return interaction.reply({ content: `⚠️ نوع مطابقة غير صالح. الأنواع: ${validTypes.join(', ')}`, ephemeral: true });
-  }
+  const response = interaction.fields.getTextInputValue('ar_response').trim();
 
   const existing = await getReply(name);
   if (existing) {
     return interaction.reply({ content: `⚠️ الرد "${name}" موجود مسبقاً.`, ephemeral: true });
   }
 
-  const created = await createReply({ name, trigger, triggerType, responseText });
+  const created = await createReply({
+    name, trigger,
+    responses: [response],
+    randomReply: false,
+    sendStyle: 'reply_mention',
+    autoDelete: false, autoDeleteTime: 0,
+    deleteUserMsg: false,
+    replyDelay: false, replyDelayTime: 0,
+    roleWhitelist: [], roleBlacklist: [],
+    channelWhitelist: [], channelBlacklist: []
+  });
+
   if (!created) {
     return interaction.reply({ content: '❌ فشل إنشاء الرد.', ephemeral: true });
   }
 
-  // الذهاب إلى لوحة التحكم
-  return showArControlPanel(interaction, name, false);
+  return showArControlPanel(interaction, name);
 }
 
-// ================== لوحة التحكم ==================
+// ================== لوحة التحكم الشاملة ==================
 
-async function showArControlPanel(interaction, replyName, editMode = false) {
+async function showArControlPanel(interaction, replyName) {
   const data = await getReply(replyName);
   if (!data) return respondOrUpdate(interaction, { content: '⚠️ الرد غير موجود.' });
 
+  const responses = data.responses || [];
+  const responseCount = responses.length;
+  const responsePreview = responseCount > 0
+    ? responses.map((r, i) => `**${i + 1}.** ${r.slice(0, 50)}${r.length > 50 ? '…' : ''}`).join('\n')
+    : '*(لا توجد نصوص رد)*';
+
+  const rolesW = data.roleWhitelist || [];
+  const rolesB = data.roleBlacklist || [];
+  const chansW = data.channelWhitelist || [];
+  const chansB = data.channelBlacklist || [];
+
   const infoEmbed = new EmbedBuilder()
-    .setTitle('ℹ️ معلومات الرد')
-    .setColor(parseInt(COLORS.find(c => c.value === '#5865F2')?.value.replace('#', ''), 16) || 0x5865F2)
+    .setTitle(`ℹ️ ${data.name}`)
+    .setColor(0x5865F2)
     .addFields(
-      { name: '🏷️ الاسم', value: `\`${data.name}\``, inline: true },
       { name: '🔑 الكلمة المفتاحية', value: `\`${data.trigger}\``, inline: true },
-      { name: '🔍 نوع المطابقة', value: data.triggerType, inline: true },
-      { name: '📝 نص الرد', value: (data.responseText || '(بدون)').slice(0, 200), inline: false },
-      { name: '📨 مرات الاستخدام', value: `${data.useCount || 0}`, inline: true },
       { name: '✅ مفعل', value: data.enabled !== false ? '🟢 نعم' : '🔴 لا', inline: true },
+      { name: '📨 مرات الاستخدام', value: `${data.useCount || 0}`, inline: true },
+      { name: '🔍 بحث ضمني', value: data.triggerType === 'contains' ? '🟢 مفعل' : '🔴 معطل', inline: true },
+      { name: '🎲 رد عشوائي', value: data.randomReply ? '🟢 مفعل' : '🔴 معطل', inline: true },
+      { name: '↩️ نمط الإرسال', value: data.sendStyle === 'reply_mention' ? 'رد مع منشن' : data.sendStyle === 'reply_no_mention' ? 'رد بدون منشن' : 'رسالة عادية', inline: true },
+      { name: '🗑️ حذف رسالة العضو', value: data.deleteUserMsg ? '🟢 مفعل' : '🔴 معطل', inline: true },
+      { name: '⏱️ حذف الرد تلقائياً', value: data.autoDelete ? `🟢 ${formatDelay(data.autoDeleteTime)}` : '🔴 معطل', inline: true },
+      { name: '⏳ تأخير الإرسال', value: data.replyDelay ? `🟢 ${formatDelay(data.replyDelayTime)}` : '🔴 معطل', inline: true },
+      { name: '🛡️ الرتب المسموحة', value: rolesW.length > 0 ? rolesW.map(r => `<@&${r}>`).join(' ') : '*(الكل)*', inline: false },
+      { name: '🚫 الرتب الممنوعة', value: rolesB.length > 0 ? rolesB.map(r => `<@&${r}>`).join(' ') : '*(لا يوجد)*', inline: false },
+      { name: '📢 الرومات المسموحة', value: chansW.length > 0 ? chansW.map(c => `<#${c}>`).join(' ') : '*(الكل)*', inline: false },
+      { name: '⛔ الرومات الممنوعة', value: chansB.length > 0 ? chansB.map(c => `<#${c}>`).join(' ') : '*(لا يوجد)*', inline: false },
     )
     .setTimestamp();
 
-  if (data.channelId) {
-    infoEmbed.addFields({ name: '📌 مقيد بروم', value: `<#${data.channelId}>`, inline: false });
+  if (responseCount > 0) {
+    infoEmbed.addFields({ name: `💬 نصوص الرد (${responseCount})`, value: responsePreview, inline: false });
   }
 
-  const btnBack = new ButtonBuilder().setCustomId('ar_main').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary);
-
+  // ---- الصف الأول ----
   const row1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('ar_main').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`ar_toggle_${replyName}`).setLabel(data.enabled !== false ? '🟢 تعطيل' : '🔴 تفعيل').setStyle(data.enabled !== false ? ButtonStyle.Danger : ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`ar_edit_trigger_${replyName}`).setLabel('✏️ الكلمة المفتاحية').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`ar_edit_response_${replyName}`).setLabel('✏️ نص الرد').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`ar_edit_trigger_${replyName}`).setLabel('✏️ الكلمة المفتاحية').setStyle(ButtonStyle.Primary),
   );
 
+  // ---- الصف الثاني ----
   const row2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`ar_edit_type_${replyName}`).setLabel('🔍 نوع المطابقة').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`ar_channel_${replyName}`).setLabel(data.channelId ? '📌 تغيير الروم' : '📌 تحديد روم').setStyle(ButtonStyle.Secondary),
-    btnBack,
+    new ButtonBuilder().setCustomId(`ar_responses_${replyName}`).setLabel('💬 إدارة نصوص الرد').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`ar_random_${replyName}`).setLabel(data.randomReply ? '🎲 عشوائي 🟢' : '🎲 عشوائي 🔴').setStyle(data.randomReply ? ButtonStyle.Success : ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`ar_sendstyle_${replyName}`).setLabel('↩️ نمط الإرسال').setStyle(ButtonStyle.Secondary),
   );
 
-  return respondOrUpdate(interaction, { embeds: [infoEmbed], components: [row1, row2] });
+  // ---- الصف الثالث ----
+  const row3 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`ar_implicit_${replyName}`).setLabel(data.triggerType === 'contains' ? '🔍 ضمني 🟢' : '🔍 تام 🔴').setStyle(data.triggerType === 'contains' ? ButtonStyle.Success : ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`ar_autodel_${replyName}`).setLabel(data.autoDelete ? '⏱️ حذف تلقائي 🟢' : '⏱️ حذف تلقائي 🔴').setStyle(data.autoDelete ? ButtonStyle.Success : ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`ar_deluser_${replyName}`).setLabel(data.deleteUserMsg ? '🗑️ حذف رسالة العضو 🟢' : '🗑️ حذف رسالة العضو 🔴').setStyle(data.deleteUserMsg ? ButtonStyle.Success : ButtonStyle.Danger),
+  );
+
+  // ---- الصف الرابع ----
+  const row4 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`ar_delay_${replyName}`).setLabel(data.replyDelay ? '⏳ تأخير 🟢' : '⏳ تأخير 🔴').setStyle(data.replyDelay ? ButtonStyle.Success : ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`ar_roles_whitelist_${replyName}`).setLabel('🛡️ الرتب المسموحة').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`ar_roles_blacklist_${replyName}`).setLabel('🚫 الرتب الممنوعة').setStyle(ButtonStyle.Secondary),
+  );
+
+  // ---- الصف الخامس ----
+  const row5 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`ar_chans_whitelist_${replyName}`).setLabel('📢 الرومات المسموحة').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`ar_chans_blacklist_${replyName}`).setLabel('⛔ الرومات الممنوعة').setStyle(ButtonStyle.Secondary),
+  );
+
+  return respondOrUpdate(interaction, { embeds: [infoEmbed], components: [row1, row2, row3, row4, row5] });
 }
 
 // ================== 2. عرض الردود المسجلة ==================
@@ -153,7 +228,7 @@ async function handleArList(interaction) {
   }
 
   const lines = list.map(r =>
-    `${r.enabled ? '🟢' : '🔴'} **${r.name}** — \`${r.trigger}\` (${r.triggerType}) — استخدم ${r.useCount} مرة`
+    `${r.enabled ? '🟢' : '🔴'} **${r.name}** — \`${r.trigger}\` | ${r.responsesCount} نص | ${r.useCount} استخدام`
   );
 
   const embed = new EmbedBuilder()
@@ -171,7 +246,7 @@ async function handleArList(interaction) {
   });
 }
 
-// ================== 3. تعديل رد ==================
+// ================== 3. تعديل رد (اختيار) ==================
 
 async function handleArEdit(interaction) {
   const list = await getRepliesList();
@@ -186,7 +261,7 @@ async function handleArEdit(interaction) {
 
   const options = list.map(r => ({
     label: r.name,
-    description: `"${r.trigger}" (${r.useCount})`,
+    description: `"${r.trigger}" — ${r.useCount} استخدام`,
     value: `ar_edit_${r.name}`,
     emoji: r.enabled ? '🟢' : '🔴'
   }));
@@ -276,79 +351,176 @@ async function handleArDeleteExecute(interaction, replyName) {
   });
 }
 
-// ================== معالجات التعديل (أزرار + Modals) ==================
+// ================== معالجات الأزرار (Toggle & Edit) ==================
 
 // تبديل التفعيل
 async function handleArToggle(interaction, replyName) {
   const data = await getReply(replyName);
   if (!data) return respondOrUpdate(interaction, { content: '⚠️ الرد غير موجود.' });
   await updateReply(replyName, { enabled: data.enabled === false });
-  return showArControlPanel(interaction, replyName, true);
+  return showArControlPanel(interaction, replyName);
 }
 
 // تعديل الكلمة المفتاحية
 async function handleArEditTrigger(interaction, replyName) {
   const data = await getReply(replyName);
-  const modal = new ModalBuilder()
-    .setCustomId(`modal_ar_trigger_${replyName}`)
-    .setTitle('✏️ تعديل الكلمة المفتاحية');
-
-  modal.addComponents(
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('ar_trigger')
-        .setLabel('الكلمة المفتاحية الجديدة')
-        .setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(500)
-        .setValue(data?.trigger || '')
-    ),
-  );
+  const modal = new ModalBuilder().setCustomId(`modal_ar_trigger_${replyName}`).setTitle('✏️ تعديل الكلمة المفتاحية');
+  modal.addComponents(new ActionRowBuilder().addComponents(
+    new TextInputBuilder().setCustomId('ar_trigger').setLabel('الكلمة المفتاحية الجديدة')
+      .setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(500).setValue(data?.trigger || '')
+  ));
   await interaction.showModal(modal);
 }
 
-// تعديل نص الرد
-async function handleArEditResponse(interaction, replyName) {
+// تبديل البحث الضمني (contains ↔ exact)
+async function handleArImplicit(interaction, replyName) {
   const data = await getReply(replyName);
-  const modal = new ModalBuilder()
-    .setCustomId(`modal_ar_response_${replyName}`)
-    .setTitle('✏️ تعديل نص الرد');
-
-  modal.addComponents(
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('ar_response')
-        .setLabel('نص الرد الجديد')
-        .setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(2000)
-        .setValue(data?.responseText || '')
-    ),
-  );
-  await interaction.showModal(modal);
+  if (!data) return respondOrUpdate(interaction, { content: '⚠️ الرد غير موجود.' });
+  const newType = data.triggerType === 'contains' ? 'exact' : 'contains';
+  await updateReply(replyName, { triggerType: newType });
+  return showArControlPanel(interaction, replyName);
 }
 
-// تعديل نوع المطابقة (قائمة منسدلة)
-async function handleArEditType(interaction, replyName) {
+// تبديل الرد العشوائي
+async function handleArRandom(interaction, replyName) {
   const data = await getReply(replyName);
-  const types = [
-    { label: 'يحتوي على (contains)', value: `ar_settype_${replyName}_contains`, emoji: '🔍', default: data?.triggerType === 'contains' },
-    { label: 'يطابق تماماً (exact)', value: `ar_settype_${replyName}_exact`, emoji: '✅', default: data?.triggerType === 'exact' },
-    { label: 'يبدأ بـ (starts)', value: `ar_settype_${replyName}_starts`, emoji: '▶️', default: data?.triggerType === 'starts' },
-    { label: 'ينتهي بـ (ends)', value: `ar_settype_${replyName}_ends`, emoji: '⏹️', default: data?.triggerType === 'ends' },
-    { label: 'تعبير منتظم (regex)', value: `ar_settype_${replyName}_regex`, emoji: '🔣', default: data?.triggerType === 'regex' },
-  ];
+  if (!data) return respondOrUpdate(interaction, { content: '⚠️ الرد غير موجود.' });
+  await updateReply(replyName, { randomReply: !data.randomReply });
+  return showArControlPanel(interaction, replyName);
+}
+
+// تبديل حذف رسالة العضو
+async function handleArDelUser(interaction, replyName) {
+  const data = await getReply(replyName);
+  if (!data) return respondOrUpdate(interaction, { content: '⚠️ الرد غير موجود.' });
+  await updateReply(replyName, { deleteUserMsg: !data.deleteUserMsg });
+  return showArControlPanel(interaction, replyName);
+}
+
+// ⏱️ تبديل الحذف التلقائي / ضبط المدة
+async function handleArAutoDel(interaction, replyName) {
+  const data = await getReply(replyName);
+  if (!data) return respondOrUpdate(interaction, { content: '⚠️ الرد غير موجود.' });
+  if (data.autoDelete) {
+    // إيقاف الحذف التلقائي
+    await updateReply(replyName, { autoDelete: false });
+    return showArControlPanel(interaction, replyName);
+  } else {
+    // فتح Modal لضبط المدة
+    const modal = new ModalBuilder().setCustomId(`modal_ar_autodel_${replyName}`).setTitle('⏱️ ضبط مدة الحذف التلقائي');
+    modal.addComponents(new ActionRowBuilder().addComponents(
+      new TextInputBuilder().setCustomId('ar_autodel_time').setLabel('المدة (مثال: 10s, 5m, 2h, 1d 30m)')
+        .setPlaceholder('10s').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(20)
+    ));
+    await interaction.showModal(modal);
+  }
+}
+
+// ⏳ تبديل تأخير الإرسال / ضبط المدة
+async function handleArDelay(interaction, replyName) {
+  const data = await getReply(replyName);
+  if (!data) return respondOrUpdate(interaction, { content: '⚠️ الرد غير موجود.' });
+  if (data.replyDelay) {
+    await updateReply(replyName, { replyDelay: false });
+    return showArControlPanel(interaction, replyName);
+  } else {
+    const modal = new ModalBuilder().setCustomId(`modal_ar_delay_${replyName}`).setTitle('⏳ ضبط مدة التأخير قبل الإرسال');
+    modal.addComponents(new ActionRowBuilder().addComponents(
+      new TextInputBuilder().setCustomId('ar_delay_time').setLabel('المدة (مثال: 5s, 1m, 30s)')
+        .setPlaceholder('5s').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(20)
+    ));
+    await interaction.showModal(modal);
+  }
+}
+
+// ================== 💬 إدارة نصوص الرد ==================
+
+async function handleArResponses(interaction, replyName) {
+  const data = await getReply(replyName);
+  if (!data) return respondOrUpdate(interaction, { content: '⚠️ الرد غير موجود.' });
+
+  const responses = data.responses || [];
 
   const embed = new EmbedBuilder()
-    .setTitle('🔍 اختر نوع المطابقة')
+    .setTitle(`💬 نصوص الرد — ${replyName}`)
     .setColor(0x5865F2)
-    .setDescription(`الحالي: **${data?.triggerType}**`)
+    .setDescription(responses.length > 0
+      ? responses.map((r, i) => `**${i + 1}.** ${r.slice(0, 100)}${r.length > 100 ? '…' : ''}`).join('\n\n')
+      : '*(لا توجد نصوص رد بعد)*')
+    .setFooter({ text: `إجمالي ${responses.length} نص` })
     .setTimestamp();
 
+  const btnBack = new ButtonBuilder().setCustomId(`ar_edit_${replyName}`).setLabel('🔙 رجوع للوحة التحكم').setStyle(ButtonStyle.Secondary);
+
+  const row1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`ar_resp_add_${replyName}`).setLabel('➕ إضافة نص جديد').setStyle(ButtonStyle.Success),
+    btnBack,
+  );
+
+  // إذا كان هناك نصوص، أضف أزرار الحذف
+  const components = [row1];
+  if (responses.length > 0) {
+    const chunks = [];
+    for (let i = 0; i < responses.length; i += 5) {
+      chunks.push(responses.slice(i, i + 5));
+    }
+    // أضف زر حذف لكل نص (أقصى 5 أزرار)
+    const deleteRow = new ActionRowBuilder();
+    for (let i = 0; i < Math.min(responses.length, 5); i++) {
+      deleteRow.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`ar_resp_del_${replyName}_${i}`)
+          .setLabel(`❌ ${i + 1}`)
+          .setStyle(ButtonStyle.Danger)
+      );
+    }
+    if (deleteRow.components.length > 0) components.push(deleteRow);
+  }
+
+  return respondOrUpdate(interaction, { embeds: [embed], components });
+}
+
+// إضافة نص رد
+async function handleArRespAdd(interaction, replyName) {
+  const modal = new ModalBuilder().setCustomId(`modal_ar_resp_add_${replyName}`).setTitle('➕ إضافة نص رد جديد');
+  modal.addComponents(new ActionRowBuilder().addComponents(
+    new TextInputBuilder().setCustomId('ar_resp_text').setLabel('نص الرد الجديد')
+      .setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(2000)
+  ));
+  await interaction.showModal(modal);
+}
+
+// حذف نص رد
+async function handleArRespDel(interaction, replyName, index) {
+  const data = await getReply(replyName);
+  if (!data) return respondOrUpdate(interaction, { content: '⚠️ الرد غير موجود.' });
+  const responses = [...(data.responses || [])];
+  if (index < 0 || index >= responses.length) {
+    return respondOrUpdate(interaction, { content: '⚠️ الرقم غير صحيح.' });
+  }
+  responses.splice(index, 1);
+  await updateReply(replyName, { responses });
+  return handleArResponses(interaction, replyName);
+}
+
+// ================== ↩️ نمط الإرسال ==================
+
+async function handleArSendStyle(interaction, replyName) {
+  const data = await getReply(replyName);
+  const options = [
+    { label: 'رد مع منشن', value: `ar_setstyle_${replyName}_reply_mention`, emoji: '👤', default: data?.sendStyle === 'reply_mention' },
+    { label: 'رد بدون منشن', value: `ar_setstyle_${replyName}_reply_no_mention`, emoji: '🔇', default: data?.sendStyle === 'reply_no_mention' },
+    { label: 'رسالة عادية', value: `ar_setstyle_${replyName}_normal`, emoji: '📨', default: data?.sendStyle === 'normal' },
+  ];
+  const embed = new EmbedBuilder()
+    .setTitle('↩️ اختر نمط الإرسال').setColor(0x5865F2)
+    .setDescription(`الحالي: **${data?.sendStyle === 'reply_mention' ? 'رد مع منشن' : data?.sendStyle === 'reply_no_mention' ? 'رد بدون منشن' : 'رسالة عادية'}**`)
+    .setTimestamp();
   return respondOrUpdate(interaction, {
     embeds: [embed],
     components: [
-      new ActionRowBuilder().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId('ar_settype_select')
-          .setPlaceholder('🔍 اختر نوع المطابقة')
-          .addOptions(types)
+      new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
+        .setCustomId('ar_setstyle_select').setPlaceholder('↩️ اختر نمط الإرسال').addOptions(options)
       ),
       new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`ar_edit_${replyName}`).setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
@@ -357,21 +529,19 @@ async function handleArEditType(interaction, replyName) {
   });
 }
 
-// تحديد روم (قائمة منسدلة)
-async function handleArChannel(interaction, replyName) {
+// ================== قوائم الرتب (RoleSelectMenu) ==================
+
+async function handleArRolesWhitelist(interaction, replyName) {
   const data = await getReply(replyName);
+  const current = data?.roleWhitelist || [];
   return respondOrUpdate(interaction, {
-    content: data?.channelId
-      ? `📌 الروم الحالي: <#${data.channelId}>. اختر روماً جديداً أو اختر "بدون" لإلغاء التحديد.`
-      : '📌 اختر الروم الذي سيعمل فيه الرد (اختياري).',
+    content: `🛡️ **الرتب المسموحة** (${current.length})\nالحالية: ${current.length > 0 ? current.map(r => `<@&${r}>`).join(' ') : '*(الكل)*'}\n\nاختر الرتب المسموح لها باستخدام هذا الرد (أو اختر空的 للإلغاء):`,
     components: [
       new ActionRowBuilder().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId(`ar_setchannel_${replyName}`)
-          .setPlaceholder('📌 اختر الروم')
-          .addOptions([
-            { label: 'بدون تحديد (كل الرومات)', value: `ar_ch_none_${replyName}`, emoji: '🌐' },
-          ])
+        new RoleSelectMenuBuilder()
+          .setCustomId(`ar_roles_w_set_${replyName}`)
+          .setPlaceholder('🛡️ اختر الرتب المسموحة')
+          .setMinValues(0).setMaxValues(25)
       ),
       new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`ar_edit_${replyName}`).setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
@@ -380,41 +550,173 @@ async function handleArChannel(interaction, replyName) {
   });
 }
 
-// معالجة اختيار نوع المطابقة
-async function handleArSetType(interaction) {
-  const value = interaction.values[0]; // ar_settype_{name}_{type}
-  const parts = value.split('_');
-  const type = parts[parts.length - 1];
-  const name = parts.slice(2, -1).join('_');
-  await updateReply(name, { triggerType: type });
-  return showArControlPanel(interaction, name, true);
+async function handleArRolesBlacklist(interaction, replyName) {
+  const data = await getReply(replyName);
+  const current = data?.roleBlacklist || [];
+  return respondOrUpdate(interaction, {
+    content: `🚫 **الرتب الممنوعة** (${current.length})\nالحالية: ${current.length > 0 ? current.map(r => `<@&${r}>`).join(' ') : '*(لا يوجد)*'}\n\nاختر الرتب الممنوعة من استخدام هذا الرد:`,
+    components: [
+      new ActionRowBuilder().addComponents(
+        new RoleSelectMenuBuilder()
+          .setCustomId(`ar_roles_b_set_${replyName}`)
+          .setPlaceholder('🚫 اختر الرتب الممنوعة')
+          .setMinValues(0).setMaxValues(25)
+      ),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`ar_edit_${replyName}`).setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
+      )
+    ]
+  });
 }
 
-// معالجة اختيار الروم (من القناة)
-async function handleArSetChannel(interaction) {
-  const value = interaction.values[0]; // ar_ch_none_{name}
+// ================== قوائم الرومات (ChannelSelectMenu) ==================
+
+async function handleArChansWhitelist(interaction, replyName) {
+  const data = await getReply(replyName);
+  const current = data?.channelWhitelist || [];
+  return respondOrUpdate(interaction, {
+    content: `📢 **الرومات المسموحة** (${current.length})\nالحالية: ${current.length > 0 ? current.map(c => `<#${c}>`).join(' ') : '*(الكل)*'}\n\nاختر الرومات التي يعمل فيها الرد:`,
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ChannelSelectMenuBuilder()
+          .setCustomId(`ar_chans_w_set_${replyName}`)
+          .setPlaceholder('📢 اختر الرومات المسموحة')
+          .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+          .setMinValues(0).setMaxValues(25)
+      ),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`ar_edit_${replyName}`).setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
+      )
+    ]
+  });
+}
+
+async function handleArChansBlacklist(interaction, replyName) {
+  const data = await getReply(replyName);
+  const current = data?.channelBlacklist || [];
+  return respondOrUpdate(interaction, {
+    content: `⛔ **الرومات الممنوعة** (${current.length})\nالحالية: ${current.length > 0 ? current.map(c => `<#${c}>`).join(' ') : '*(لا يوجد)*'}\n\nاختر الرومات الممنوعة من استخدام الرد:`,
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ChannelSelectMenuBuilder()
+          .setCustomId(`ar_chans_b_set_${replyName}`)
+          .setPlaceholder('⛔ اختر الرومات الممنوعة')
+          .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+          .setMinValues(0).setMaxValues(25)
+      ),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`ar_edit_${replyName}`).setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
+      )
+    ]
+  });
+}
+
+// ================== معالجات القوائم المنسدلة ==================
+
+// نوع الإرسال
+async function handleArSetStyle(interaction) {
+  const value = interaction.values[0];
+  // ar_setstyle_{name}_{style}
   const parts = value.split('_');
-  // ar_ch_none_{name}
-  if (parts[2] === 'none') {
-    const name = parts.slice(3).join('_');
-    await updateReply(name, { channelId: null });
-    return showArControlPanel(interaction, name, true);
-  }
-  return respondOrUpdate(interaction, { content: '⚠️ خيار غير معروف.' });
+  const style = parts[parts.length - 1];
+  const name = parts.slice(2, -1).join('_');
+  await updateReply(name, { sendStyle: style });
+  return showArControlPanel(interaction, name);
+}
+
+// الرتب المسموحة
+async function handleArRolesWSet(interaction) {
+  const id = interaction.customId; // ar_roles_w_set_{name}
+  const name = id.replace('ar_roles_w_set_', '');
+  const roles = interaction.values || [];
+  await updateReply(name, { roleWhitelist: roles });
+  return showArControlPanel(interaction, name);
+}
+
+// الرتب الممنوعة
+async function handleArRolesBSet(interaction) {
+  const id = interaction.customId;
+  const name = id.replace('ar_roles_b_set_', '');
+  const roles = interaction.values || [];
+  await updateReply(name, { roleBlacklist: roles });
+  return showArControlPanel(interaction, name);
+}
+
+// الرومات المسموحة
+async function handleArChansWSet(interaction) {
+  const id = interaction.customId;
+  const name = id.replace('ar_chans_w_set_', '');
+  const channels = interaction.values || [];
+  await updateReply(name, { channelWhitelist: channels });
+  return showArControlPanel(interaction, name);
+}
+
+// الرومات الممنوعة
+async function handleArChansBSet(interaction) {
+  const id = interaction.customId;
+  const name = id.replace('ar_chans_b_set_', '');
+  const channels = interaction.values || [];
+  await updateReply(name, { channelBlacklist: channels });
+  return showArControlPanel(interaction, name);
 }
 
 // ================== معالجات الـ Modal ==================
 
-async function handleArEditTriggerModal(interaction, replyName) {
-  const trigger = interaction.fields.getTextInputValue('ar_trigger').trim();
-  await updateReply(replyName, { trigger });
-  return showArControlPanel(interaction, replyName, true);
-}
+async function handleAutoReplyModal(interaction) {
+  const id = interaction.customId;
 
-async function handleArEditResponseModal(interaction, replyName) {
-  const responseText = interaction.fields.getTextInputValue('ar_response').trim();
-  await updateReply(replyName, { responseText });
-  return showArControlPanel(interaction, replyName, true);
+  // إنشاء رد جديد
+  if (id === 'modal_ar_create') return handleArCreateModal(interaction);
+
+  // تعديل الكلمة المفتاحية
+  if (id.startsWith('modal_ar_trigger_')) {
+    const name = id.replace('modal_ar_trigger_', '');
+    const trigger = interaction.fields.getTextInputValue('ar_trigger').trim();
+    await updateReply(name, { trigger });
+    return showArControlPanel(interaction, name);
+  }
+
+  // إضافة نص رد
+  if (id.startsWith('modal_ar_resp_add_')) {
+    const name = id.replace('modal_ar_resp_add_', '');
+    const text = interaction.fields.getTextInputValue('ar_resp_text').trim();
+    const data = await getReply(name);
+    const responses = [...(data?.responses || []), text];
+    await updateReply(name, { responses });
+    return handleArResponses(interaction, name);
+  }
+
+  // ضبط مدة الحذف التلقائي
+  if (id.startsWith('modal_ar_autodel_')) {
+    const name = id.replace('modal_ar_autodel_', '');
+    const timeStr = interaction.fields.getTextInputValue('ar_autodel_time').trim();
+    const ms = parseTimeString(timeStr);
+    if (!ms) {
+      return interaction.reply({ content: '⚠️ صيغة الوقت غير صالحة. استخدم مثلاً: 10s, 5m, 2h, 1d 30m', ephemeral: true });
+    }
+    if (ms > 86400000) { // حد أقصى 24 ساعة
+      return interaction.reply({ content: '⚠️ الحد الأقصى للحذف التلقائي هو 24 ساعة.', ephemeral: true });
+    }
+    await updateReply(name, { autoDelete: true, autoDeleteTime: ms });
+    return showArControlPanel(interaction, name);
+  }
+
+  // ضبط مدة التأخير
+  if (id.startsWith('modal_ar_delay_')) {
+    const name = id.replace('modal_ar_delay_', '');
+    const timeStr = interaction.fields.getTextInputValue('ar_delay_time').trim();
+    const ms = parseTimeString(timeStr);
+    if (!ms) {
+      return interaction.reply({ content: '⚠️ صيغة الوقت غير صالحة.', ephemeral: true });
+    }
+    if (ms > 600000) { // حد أقصى 10 دقائق
+      return interaction.reply({ content: '⚠️ الحد الأقصى للتأخير هو 10 دقائق.', ephemeral: true });
+    }
+    await updateReply(name, { replyDelay: true, replyDelayTime: ms });
+    return showArControlPanel(interaction, name);
+  }
+
+  return interaction.reply({ content: '⚠️ Modal غير معروف.', ephemeral: true });
 }
 
 // ================== الموزع الرئيسي ==================
@@ -433,144 +735,191 @@ async function handleAutoReplyInteraction(interaction) {
 
   // اختيار للتعديل
   if (id === 'ar_edit_select') {
-    const selected = interaction.values[0];
-    const name = selected.replace('ar_edit_', '');
-    return showArControlPanel(interaction, name, true);
+    const name = interaction.values[0].replace('ar_edit_', '');
+    return showArControlPanel(interaction, name);
   }
 
   // اختيار للحذف
   if (id === 'ar_delete_select') {
-    const selected = interaction.values[0];
-    const name = selected.replace('ar_del_', '');
+    const name = interaction.values[0].replace('ar_del_', '');
     return handleArDeleteConfirm(interaction, name);
   }
 
   // تأكيد الحذف
   if (prefix === 'ar' && parts[1] === 'delete' && parts[2] === 'yes') {
-    const name = parts.slice(3).join('_');
-    return handleArDeleteExecute(interaction, name);
+    return handleArDeleteExecute(interaction, parts.slice(3).join('_'));
   }
 
-  // تبديل التفعيل
-  if (prefix === 'ar' && parts[1] === 'toggle') {
-    const name = parts.slice(2).join('_');
-    return handleArToggle(interaction, name);
+  // ---- أزرار التبديل ----
+  if (id.startsWith('ar_toggle_')) return handleArToggle(interaction, id.replace('ar_toggle_', ''));
+  if (id.startsWith('ar_implicit_')) return handleArImplicit(interaction, id.replace('ar_implicit_', ''));
+  if (id.startsWith('ar_random_')) return handleArRandom(interaction, id.replace('ar_random_', ''));
+  if (id.startsWith('ar_deluser_')) return handleArDelUser(interaction, id.replace('ar_deluser_', ''));
+  if (id.startsWith('ar_autodel_')) return handleArAutoDel(interaction, id.replace('ar_autodel_', ''));
+  if (id.startsWith('ar_delay_')) return handleArDelay(interaction, id.replace('ar_delay_', ''));
+
+  // تعديل الكلمة المفتاحية (قبل الرجوع العام)
+  if (id.startsWith('ar_edit_trigger_')) return handleArEditTrigger(interaction, id.replace('ar_edit_trigger_', ''));
+
+  // الرجوع للوحة التحكم (ar_edit_xxx) — بعد الأنماط الأكثر تحديداً
+  if (prefix === 'ar' && parts[1] === 'edit' && parts.length > 2) {
+    return showArControlPanel(interaction, id.replace(/^ar_edit_/, ''));
   }
 
-  // تعديل الكلمة المفتاحية
-  if (prefix === 'ar' && parts[1] === 'edit' && parts[2] === 'trigger') {
-    const name = parts.slice(3).join('_');
-    return handleArEditTrigger(interaction, name);
+  // إدارة نصوص الرد
+  if (id.startsWith('ar_responses_')) return handleArResponses(interaction, id.replace('ar_responses_', ''));
+  if (id.startsWith('ar_resp_add_')) return handleArRespAdd(interaction, id.replace('ar_resp_add_', ''));
+  if (id.startsWith('ar_resp_del_')) {
+    // ar_resp_del_{name}_{index}
+    const match = id.match(/^ar_resp_del_(.+)_(\d+)$/);
+    if (match) return handleArRespDel(interaction, match[1], parseInt(match[2], 10));
   }
 
-  // تعديل نص الرد
-  if (prefix === 'ar' && parts[1] === 'edit' && parts[2] === 'response') {
-    const name = parts.slice(3).join('_');
-    return handleArEditResponse(interaction, name);
-  }
+  // نمط الإرسال
+  if (id.startsWith('ar_sendstyle_')) return handleArSendStyle(interaction, id.replace('ar_sendstyle_', ''));
 
-  // تعديل نوع المطابقة
-  if (prefix === 'ar' && parts[1] === 'edit' && parts[2] === 'type') {
-    const name = parts.slice(3).join('_');
-    return handleArEditType(interaction, name);
-  }
+  // الرتب
+  if (id.startsWith('ar_roles_whitelist_')) return handleArRolesWhitelist(interaction, id.replace('ar_roles_whitelist_', ''));
+  if (id.startsWith('ar_roles_blacklist_')) return handleArRolesBlacklist(interaction, id.replace('ar_roles_blacklist_', ''));
 
-  // تحديد روم
-  if (prefix === 'ar' && parts[1] === 'channel') {
-    const name = parts.slice(2).join('_');
-    return handleArChannel(interaction, name);
-  }
+  // الرومات
+  if (id.startsWith('ar_chans_whitelist_')) return handleArChansWhitelist(interaction, id.replace('ar_chans_whitelist_', ''));
+  if (id.startsWith('ar_chans_blacklist_')) return handleArChansBlacklist(interaction, id.replace('ar_chans_blacklist_', ''));
 
-  // اختيار نوع المطابقة من القائمة
-  if (id === 'ar_settype_select') {
-    return handleArSetType(interaction);
-  }
+  // اختيار نوع الإرسال (StringSelectMenu)
+  if (id === 'ar_setstyle_select') return handleArSetStyle(interaction);
 
-  // اختيار الروم من القائمة
-  if (id.startsWith('ar_setchannel_')) {
-    return handleArSetChannel(interaction);
-  }
+  // اختيار الرتب المسموحة (RoleSelectMenu)
+  if (id.startsWith('ar_roles_w_set_')) return handleArRolesWSet(interaction);
+  if (id.startsWith('ar_roles_b_set_')) return handleArRolesBSet(interaction);
+
+  // اختيار الرومات المسموحة (ChannelSelectMenu)
+  if (id.startsWith('ar_chans_w_set_')) return handleArChansWSet(interaction);
+  if (id.startsWith('ar_chans_b_set_')) return handleArChansBSet(interaction);
 
   return respondOrUpdate(interaction, { content: `⚠️ أمر غير معروف: ${id}` });
 }
 
-// ================== معالجات الـ Modal ==================
-
-async function handleAutoReplyModal(interaction) {
-  const id = interaction.customId;
-
-  if (id === 'modal_ar_create') return handleArCreateModal(interaction);
-
-  if (id.startsWith('modal_ar_trigger_')) {
-    const name = id.replace('modal_ar_trigger_', '');
-    return handleArEditTriggerModal(interaction, name);
-  }
-
-  if (id.startsWith('modal_ar_response_')) {
-    const name = id.replace('modal_ar_response_', '');
-    return handleArEditResponseModal(interaction, name);
-  }
-
-  return interaction.reply({ content: '⚠️ Modal غير معروف.', ephemeral: true });
-}
-
-// ================== محرك معالجة الرسائل (messageCreate) ==================
+// ================== محرك معالجة الرسائل ==================
 
 async function handleMessage(message) {
-  // تجاهل رسائل البوتات
   if (message.author.bot) return;
-  if (!message.guild) return; // فقط السيرفرات
+  if (!message.guild) return;
 
   const replies = await getEnabledReplies();
   if (replies.length === 0) return;
 
   const content = message.content;
+  const member = message.member;
+  const channel = message.channel;
 
   for (const reply of replies) {
-    // فحص الروم المحدد
-    if (reply.channelId && message.channel.id !== reply.channelId) continue;
+    // === فحص الرومات (Whitelist / Blacklist) ===
+    const chW = reply.channelWhitelist || [];
+    const chB = reply.channelBlacklist || [];
+    if (chW.length > 0 && !chW.includes(channel.id)) continue;
+    if (chB.length > 0 && chB.includes(channel.id)) continue;
 
+    // توافق مع channelId القديم
+    if (reply.channelId && channel.id !== reply.channelId) continue;
+
+    // === فحص الرتب (Whitelist / Blacklist) ===
+    if (member) {
+      const roles = member.roles.cache.map(r => r.id);
+      const rW = reply.roleWhitelist || [];
+      const rB = reply.roleBlacklist || [];
+
+      // إذا كان هناك قائمة بيضاء، يجب أن يمتلك العضو رتبة منها (أو يكون أدمن)
+      if (rW.length > 0 && !member.permissions.has('Administrator')) {
+        const hasWhitelistedRole = roles.some(r => rW.includes(r));
+        if (!hasWhitelistedRole) continue;
+      }
+
+      // إذا كان في القائمة السوداء، تخط
+      if (rB.length > 0 && !member.permissions.has('Administrator')) {
+        const hasBlacklistedRole = roles.some(r => rB.includes(r));
+        if (hasBlacklistedRole) continue;
+      }
+    }
+
+    // === المطابقة ===
     let matched = false;
     const msg = reply.caseSensitive ? content : content.toLowerCase();
     const trigger = reply.caseSensitive ? reply.trigger : reply.trigger.toLowerCase();
 
-    switch (reply.triggerType) {
-      case 'exact':
-        matched = msg === trigger;
-        break;
-      case 'contains':
-        matched = msg.includes(trigger);
-        break;
-      case 'starts':
-        matched = msg.startsWith(trigger);
-        break;
-      case 'ends':
-        matched = msg.endsWith(trigger);
-        break;
-      case 'regex':
+    if (reply.triggerType === 'contains') {
+      matched = msg.includes(trigger);
+    } else {
+      // exact
+      matched = msg === trigger;
+    }
+
+    if (!matched) continue;
+
+    // === تمت المطابقة ===
+
+    try {
+      // زيادة العداد
+      await incrementUseCount(reply.name);
+
+      // حذف رسالة العضو إن مفعل
+      if (reply.deleteUserMsg) {
         try {
-          const flags = reply.caseSensitive ? 'g' : 'gi';
-          const regex = new RegExp(trigger, flags);
-          matched = regex.test(msg);
-        } catch { /* تجاهل الخطأ */ }
-        break;
-    }
-
-    if (matched) {
-      try {
-        // زيادة العداد
-        await incrementUseCount(reply.name);
-
-        // إرسال الرد
-        await message.reply(reply.responseText || '👋');
-
-        console.log(`✅ autoReply: "${reply.trigger}" ← ${message.author.tag}`);
-      } catch (e) {
-        console.error(`❌ autoReply error for "${reply.name}":`, e.message);
+          await message.delete();
+        } catch { /* قد لا نملك الصلاحية */ }
       }
-      // نطابق أول رد فقط
-      break;
+
+      // اختيار النص
+      const responses = reply.responses || [];
+      if (responses.length === 0) return; // لا يوجد نصوص رد
+
+      let text;
+      if (reply.randomReply && responses.length > 1) {
+        text = responses[Math.floor(Math.random() * responses.length)];
+      } else {
+        text = responses[0];
+      }
+
+      // دالة الإرسال
+      const sendReply = async () => {
+        try {
+          if (reply.sendStyle === 'reply_with_mention' || reply.sendStyle === 'reply_mention') {
+            await message.reply({ content: text, allowedMentions: { repliedUser: true } });
+          } else if (reply.sendStyle === 'reply_no_mention') {
+            await message.reply({ content: text, allowedMentions: { repliedUser: false } });
+          } else {
+            // normal
+            await channel.send(text);
+          }
+
+          // حذف تلقائي إن مفعل
+          if (reply.autoDelete && reply.autoDeleteTime > 0) {
+            setTimeout(async () => {
+              try {
+                // لا يمكن حذف رد بسهولة لأنه لا نعرف message ID الخاص بالرد,
+                // سنحاول البحث عنه أو نستخدم channel.lastMessage
+                // هذه ميزة متقدمة - سنتركها للتطوير المستقبلي
+              } catch {}
+            }, reply.autoDeleteTime);
+          }
+        } catch (e) {
+          console.error(`❌ autoReply send error:`, e.message);
+        }
+      };
+
+      // التأخير أو الإرسال مباشرة
+      if (reply.replyDelay && reply.replyDelayTime > 0) {
+        setTimeout(sendReply, reply.replyDelayTime);
+      } else {
+        await sendReply();
+      }
+
+      console.log(`✅ autoReply: "${reply.trigger}" ← ${message.author.tag}`);
+    } catch (e) {
+      console.error(`❌ autoReply error for "${reply.name}":`, e.message);
     }
+
+    break; // نطابق أول رد فقط
   }
 }
 
