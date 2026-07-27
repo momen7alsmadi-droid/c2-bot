@@ -70,7 +70,12 @@ async function initialize() {
   if (dbConnected) {
     await ensureConfigLoaded();
     console.log('📦 تم تحميل الإعدادات من MongoDB');
-    if (embedReady) console.log('📦 تم تهيئة نموذج الإيمبدات');
+    if (embedReady) {
+      console.log('📦 تم تهيئة نموذج الإيمبدات');
+      // مزامنة أي إيمبدات مخزنة في JSON إلى MongoDB
+      const { syncJsonToMongo } = require('./utils/embedStorage');
+      await syncJsonToMongo();
+    }
   }
 
   // تعطيل البوت تلقائياً عند دخوله سيرفر جديد
