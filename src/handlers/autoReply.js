@@ -8,8 +8,24 @@ const {
   getAllReplies, getRepliesList, getEnabledReplies, incrementUseCount
 } = require('../utils/autoReplyStorage');
 
-// سجل لمنع إرسال الرد أكثر من مرة لنفس الرسالة
+// أنظمة منع التكرار:
+// 1- سجل لمنع معالجة نفس الرسالة مرتين
 const processedMessages = new Set();
+// 2- كولدون لكل رد (ثانية بين كل إرسال)
+const replyCooldowns = new Map();
+const COOLDOWN_MS = 2000;
+
+/** التحقق من كولدون الرد */
+function checkCooldown(replyName, userId) {
+  const key = replyName + ':' + userId;
+  const now = Date.now();
+  if (replyCooldowns.has(key)) {
+    const last = replyCooldowns.get(key);
+    if (now - last < COOLDOWN_MS) return false;
+  }
+  replyCooldowns.set(key, now);
+  return true;
+}
 const {
   createReact, updateReact, deleteReact, getReact,
   getReactsList, getEnabledReacts, incrementReactCount
@@ -1008,6 +1024,18 @@ async function handleMessage(message) {
     // === تمت المطابقة ===
 
     try {
+      // ✅ كولدون: منع إرسال نفس الرد لنفس المستخدم خلال ثانيتين
+      const cooldownKey = reply.name + ':' + message.author.id;
+      const now = Date.now();
+      if (replyCooldowns.has(cooldownKey)) {
+        const last = replyCooldowns.get(cooldownKey);
+        if (now - last < COOLDOWN_MS) {
+          console.log(`⏳ كولدون: "${reply.name}" ← ${message.author.tag} (${now - last}ms)`);
+          continue;
+        }
+      }
+      replyCooldowns.set(cooldownKey, now);
+
       // زيادة العداد
       await incrementUseCount(reply.name);
 
@@ -1020,7 +1048,7 @@ async function handleMessage(message) {
 
       // اختيار النص
       const responses = reply.responses || [];
-      if (responses.length === 0) return; // لا يوجد نصوص رد
+      if (responses.length === 0) continue; // لا يوجد نصوص رد
 
       let text;
       if (reply.randomReply && responses.length > 1) {
