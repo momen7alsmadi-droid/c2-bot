@@ -114,6 +114,11 @@ async function handleBroadcast(interaction) {
       { name: '👤 إظهار المرسل', value: showSender === 'yes' ? '✅ نعم' : '❌ لا', inline: true },
     );
 
+    if (colorInput) {
+      const colorName = COLORS.find(c => c.value === colorInput)?.name || colorInput;
+      summaryEmbed.addFields({ name: '🎨 اللون', value: colorName, inline: false });
+    }
+
     return interaction.editReply({ embeds: [summaryEmbed] });
   } catch (err) {
     console.error('❌ خطأ في /broadcast:', err.message, err.stack);
@@ -130,10 +135,17 @@ async function handleColorAutocomplete(interaction) {
   const focusedValue = interaction.options.getFocused().toLowerCase();
 
   // تصفية الألوان حسب ما يكتبه المستخدم
-  const filtered = COLORS.filter(c =>
-    c.name.toLowerCase().includes(focusedValue) ||
-    c.value.toLowerCase().includes(focusedValue)
-  ).slice(0, 25); // الحد الأقصى 25 اقتراح
+  // ترتيب: الألوان التي تبدأ بالنص المبحوث أولاً
+  const filtered = COLORS
+    .filter(c => c.name.toLowerCase().includes(focusedValue) || c.value.toLowerCase().includes(focusedValue))
+    .sort((a, b) => {
+      const aStarts = a.name.toLowerCase().startsWith(focusedValue);
+      const bStarts = b.name.toLowerCase().startsWith(focusedValue);
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+      return 0;
+    })
+    .slice(0, 25); // الحد الأقصى 25 اقتراح
 
   await interaction.respond(
     filtered.map(c => ({ name: c.name, value: c.value }))
