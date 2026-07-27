@@ -77,6 +77,15 @@ const commands = [
     .setName('لوحة_المطور')
     .setDescription('🛠️ لوحة تحكم المطور')
     .toJSON(),
+
+  // ------------------- /broadcast -------------------
+  new SlashCommandBuilder()
+    .setName('broadcast')
+    .setDescription('📩 إرسال رسالة خاصة للأعضاء عبر DM (أدمن فقط)')
+    .setDefaultMemberPermissions(8) // Administrator
+    .addStringOption(o => o.setName('message').setDescription('نص الرسالة').setRequired(true))
+    .addRoleOption(o => o.setName('role').setDescription('الرتبة المستهدفة (اختياري) - إذا تركت فارغة ترسل للكل').setRequired(false))
+    .toJSON(),
 ];
 
 const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);

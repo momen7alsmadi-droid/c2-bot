@@ -13,6 +13,7 @@ const { handleReportCommand, handleReportButton, handleReportSettings } = requir
 const { handleResign, handleResignButton, handleDevSettings } = require('./handlers/resign');
 const { handleMasterPanel, handleDevRefresh, handleDevDisable, handleDevEnable, handleDevToggle } = require('./handlers/master-panel');
 const { handleHelp } = require('./handlers/help');
+const { handleBroadcast } = require('./handlers/broadcast');
 const { handleSettings, showSettingsPage, handleSettingsSelect } = require('./handlers/settings');
 
 const client = new Client({
@@ -127,6 +128,7 @@ async function handleSlashCommand(interaction) {
     case 'مساعدة': return handleHelp(interaction);
     case 'اعدادات': return handleSettings(interaction);
     case 'لوحة_المطور': return handleMasterPanel(interaction);
+    case 'broadcast': return handleBroadcast(interaction);
   }
 }
 
