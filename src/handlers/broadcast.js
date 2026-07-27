@@ -22,7 +22,7 @@ async function handleBroadcast(interaction) {
   const format = interaction.options.getString('format', true);
   const showSender = interaction.options.getString('show_sender', true);
   const targetRole = interaction.options.getRole('role');
-  let colorInput = interaction.options.getString('color');
+  const colorInput = interaction.options.getString('color');
 
   await interaction.deferReply({ ephemeral: true });
 
@@ -51,20 +51,7 @@ async function handleBroadcast(interaction) {
       // ========== إرسال كايمبد ==========
 
       // تحديد لون الإيمبد
-      let embedColor;
-      if (colorInput) {
-        // محاولة تحويل الإدخال إلى رقم لون صالح
-        let hex = colorInput.trim();
-        if (hex.startsWith('#')) hex = hex.slice(1);
-        const parsed = parseInt(hex, 16);
-        if (!isNaN(parsed) && hex.length >= 3 && hex.length <= 8) {
-          embedColor = parsed;
-        } else {
-          embedColor = randomColor();
-        }
-      } else {
-        embedColor = randomColor();
-      }
+      const embedColor = colorInput ? parseInt(colorInput.replace('#', ''), 16) : randomColor();
 
       const embed = new EmbedBuilder()
         .setTitle(`📩 رسالة من ${guild.name}`)
