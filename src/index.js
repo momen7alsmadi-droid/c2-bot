@@ -184,6 +184,26 @@ ID: ${guild.id}
 
 initialize();
 
+// ========== نظام تسجيل الأخطاء (Error Log) ==========
+const ERROR_LOG_PATH = path.join(__dirname, '..', 'data', 'error-log.json');
+const MAX_LOG = 50;
+
+function logError(type, id, err) {
+  try {
+    const entry = { ts: Date.now(), type, id, msg: err.message, stack: (err.stack || '').split('\n').slice(0, 5).join('\n') };
+    let log = [];
+    try {
+      if (fs.existsSync(ERROR_LOG_PATH)) {
+        log = JSON.parse(fs.readFileSync(ERROR_LOG_PATH, 'utf8'));
+        if (!Array.isArray(log)) log = [];
+      }
+    } catch { log = []; }
+    log.unshift(entry);
+    if (log.length > MAX_LOG) log = log.slice(0, MAX_LOG);
+    fs.writeFileSync(ERROR_LOG_PATH, JSON.stringify(log, null, 2), 'utf8');
+  } catch { /* ignore */ }
+}
+
 // ------------------- التفاعلات -------------------
 
 /** دالة آمنة لجلب الإعدادات - لا ترمي أخطاء أبداً */
@@ -242,8 +262,10 @@ client.on('interactionCreate', async (interaction) => {
   } catch (err) {
     const type = interaction.isChatInputCommand() ? 'CMD' : interaction.isModalSubmit() ? 'MODAL' : interaction.isButton() ? 'BTN' : interaction.isAutocomplete() ? 'AC' : 'SELECT';
     const id = interaction.customId || interaction.commandName || '?';
+    const shortId = id.length > 30 ? id.slice(0, 30) + '…' : id;
     console.error(`❌ ERROR [${type}] [${id}]: ${err.message}`);
     console.error(err.stack?.split('\n').slice(0, 5).join('\n'));
+    logError(type, id, err);
     try {
       if (interaction.isRepliable()) {
         if (interaction.deferred) {

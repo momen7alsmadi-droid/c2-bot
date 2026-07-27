@@ -1,6 +1,8 @@
 const {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder
 } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
 const { version } = require('../../package.json');
 const { getLeaves, saveLeaves, getConfig, saveConfig } = require('../utils/storage');
 
@@ -220,6 +222,23 @@ async function handleDevCheckDb(interaction) {
   const mongoose = require('mongoose');
   const os = require('os');
 
+  // قراءة آخر الأخطاء المسجلة
+  const errorLogPath = path.join(__dirname, '..', '..', 'data', 'error-log.json');
+  let recentErrors = '';
+  try {
+    if (fs.existsSync(errorLogPath)) {
+      const log = JSON.parse(fs.readFileSync(errorLogPath, 'utf8'));
+      if (Array.isArray(log) && log.length > 0) {
+        const latest = log.slice(0, 5);
+        recentErrors = '\n\n**🆘 آخر الأخطاء:**\n';
+        recentErrors += latest.map(e => {
+          const date = new Date(e.ts).toLocaleString('ar-EG');
+          return `\`${date}\` [${e.type}] ${e.id}\n└ ${e.msg}`;
+        }).join('\n');
+      }
+    }
+  } catch { /* ignore */ }
+
   let status = '';
   const readyState = mongoose.connection.readyState;
   const stateNames = { 0: '❌ disconnected', 1: '✅ connected', 2: '⏳ connecting', 3: '⚠️ disconnecting' };
@@ -247,6 +266,7 @@ async function handleDevCheckDb(interaction) {
     status += '3. أعد تشغيل البوت من Railway\n';
   }
 
+  status += `${recentErrors}`;
   status += `\n🖥️ **المضيف:** ${os.hostname()} | **PID:** ${process.pid}`;
   status += `\n⏰ **آخر فحص:** <t:${Math.floor(Date.now() / 1000)}:R>`;
 
