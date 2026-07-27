@@ -489,12 +489,12 @@ async function handleEmbSendChannel(interaction, embedName) {
   });
 }
 
-/** إرسال فوري */
+/** إرسال فوري - تبقى اللوحة مفتوحة */
 async function handleEmbSendNow(interaction, embedName, channelId) {
   // منع الإرسال المزدوج
   const sendKey = `send_${embedName}_${channelId}_${interaction.user.id}`;
   if (global.__emb_send_lock?.has(sendKey)) {
-    return respondOrUpdate(interaction, { content: '⏳ الإرسال قيد التنفيذ...' });
+    return interaction.reply({ content: '⏳ الإرسال قيد التنفيذ...', ephemeral: true });
   }
   if (!global.__emb_send_lock) global.__emb_send_lock = new Set();
   global.__emb_send_lock.add(sendKey);
@@ -504,22 +504,19 @@ async function handleEmbSendNow(interaction, embedName, channelId) {
     global.__emb_send_lock.delete(sendKey);
 
     if (result.success) {
-      return respondOrUpdate(interaction, {
-        content: `✅ تم إرسال الإيمبد **${embedName}** فورياً إلى ${result.channel}.`,
-        components: [new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId('emb_main').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary)
-        )]
+      // رد عادي (مخفي) → اللوحة الأصلية تبقى مفتوحة بدون تغيير
+      return interaction.reply({
+        content: `✅ تم إرسال **${embedName}** إلى ${result.channel}.`,
+        ephemeral: true
       });
     }
-    return respondOrUpdate(interaction, {
+    return interaction.reply({
       content: `❌ ${result.error}`,
-      components: [new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('emb_main').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary)
-      )]
+      ephemeral: true
     });
   } catch (e) {
     global.__emb_send_lock?.delete(sendKey);
-    return respondOrUpdate(interaction, { content: `❌ ${e.message}` });
+    return interaction.reply({ content: `❌ ${e.message}`, ephemeral: true });
   }
 }
 
