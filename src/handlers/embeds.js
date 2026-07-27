@@ -506,7 +506,7 @@ async function handleEmbSendNow(interaction, embedName, channelId) {
     if (result.success) {
       // رد عادي (مخفي) → اللوحة الأصلية تبقى مفتوحة بدون تغيير
       return interaction.reply({
-        content: `✅ تم إرسال **${embedName}** إلى ${result.channel}.`,
+        content: `✅ تم إرسال إيمبد **${embedName}** إلى روم ${result.channel} بنجاح.`,
         ephemeral: true
       });
     }
