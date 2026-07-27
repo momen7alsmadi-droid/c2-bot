@@ -170,11 +170,12 @@ async function showEmbedControlPanel(interaction, embedName, editMode = false) {
   // الصف الثالث: إعدادات الفوتر والتايمستامب
   const footerStatus = data.footer?.text ? '🟢' : '🔴';
   const timeStatus = data.timestamp !== false ? '🟢' : '🔴';
+  const senderStatus = data.showSender ? '🟢' : '🔴';
 
   const row3 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`emb_footer_${embedName}`).setLabel(`${footerStatus} تذييل (Footer)`).setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`emb_toggle_time_${embedName}`).setLabel(`${timeStatus} Timestamp`).setStyle(timeStatus === '🟢' ? ButtonStyle.Success : ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId(`emb_show_sender_${embedName}`).setLabel('👤 إظهار المرسل').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`emb_show_sender_${embedName}`).setLabel(`${senderStatus} إظهار المرسل`).setStyle(senderStatus === '🟢' ? ButtonStyle.Success : ButtonStyle.Danger),
   );
 
   const row4 = new ActionRowBuilder().addComponents(
@@ -490,7 +491,7 @@ async function handleEmbSendChannel(interaction, embedName) {
 
 /** إرسال فوري */
 async function handleEmbSendNow(interaction, embedName, channelId) {
-  const result = await sendEmbedToChannel(interaction.client, interaction.guild, embedName, channelId);
+  const result = await sendEmbedToChannel(interaction.client, interaction.guild, embedName, channelId, interaction.user.tag);
   if (result.success) {
     return respondOrUpdate(interaction, {
       content: `✅ تم إرسال الإيمبد **${embedName}** فورياً إلى ${result.channel}.`,
@@ -564,6 +565,10 @@ async function handleEmbSchedModal(interaction) {
     return interaction.reply({ content: '⚠️ المدة كبيرة جداً. الحد الأقصى 7 أيام.', ephemeral: true });
   }
 
+  const senderTag = interaction.user.tag;
+  const client = interaction.client;
+  const guildId = interaction.guildId;
+
   await interaction.reply({
     content: `⏳ تم جدولة إرسال الإيمبد **${embedName}** بعد ${formatDelay(delayMs)}.`,
     ephemeral: true,
@@ -575,21 +580,17 @@ async function handleEmbSchedModal(interaction) {
   // جدولة الإرسال
   setTimeout(async () => {
     try {
-      const guild = await interaction.client.guilds.fetch(interaction.guildId);
-      const result = await sendEmbedToChannel(interaction.client, guild, embedName, channelId);
-      if (result.success) {
-        console.log(`✅ إرسال مجدول: ${embedName} إلى ${result.channel?.name || channelId}`);
-      } else {
-        console.error(`❌ فشل إرسال مجدول: ${embedName} - ${result.error}`);
-      }
+      const guild = await client.guilds.fetch(guildId);
+      await sendEmbedToChannel(client, guild, embedName, channelId, senderTag);
+      console.log(`✅ إرسال مجدول: ${embedName} إلى القناة ${channelId}`);
     } catch (e) {
-      console.error(`❌ خطأ في الإرسال المجدول:`, e.message);
+      console.error(`❌ خطأ في الإرسال المجدول: ${embedName}`, e.message);
     }
   }, delayMs);
 }
 
 /** دالة مساعدة لإرسال الإيمبد (تستخدم فورياً أو مجدولاً) */
-async function sendEmbedToChannel(client, guild, embedName, channelId) {
+async function sendEmbedToChannel(client, guild, embedName, channelId, senderTag = null) {
   try {
     const data = await getEmbed(embedName);
     if (!data) return { success: false, error: 'الإيمبد غير موجود.' };
@@ -608,9 +609,20 @@ async function sendEmbedToChannel(client, guild, embedName, channelId) {
         if (f.name) embed.addFields({ name: f.name, value: f.value || '⠀', inline: f.inline || false });
       });
     }
+
+    // بناء التذييل تلقائياً: اسم السيرفر + اسم المرسل (اختياري)
+    const footerParts = [];
     if (data.footer?.text) {
-      embed.setFooter({ text: data.footer.text, iconURL: data.footer.iconURL || undefined });
+      footerParts.push(data.footer.text);
     }
+    footerParts.push(guild.name);
+    if (data.showSender && senderTag) {
+      footerParts.push(`من: ${senderTag}`);
+    }
+    embed.setFooter({
+      text: footerParts.join(' | '),
+      iconURL: data.footer?.iconURL || undefined
+    });
 
     await channel.send({ embeds: [embed] });
     await incrementSendCount(embedName);
@@ -943,15 +955,13 @@ async function handleEmbedsInteraction(interaction) {
     return handleEmbSave(interaction, name);
   }
 
-  // إظهار المرسل (لم ننفذه بعد - معاينة بسيطة)
+  // تبديل إظهار المرسل
   if (prefix === 'emb' && parts[1] === 'show' && parts[2] === 'sender') {
     const name = parts.slice(3).join('_');
-    return respondOrUpdate(interaction, {
-      content: `👤 إظهار اسم المرسل غير متاح حالياً في وضع المعاينة. استخدم /broadcast للإرسال مع إظهار المرسل.`,
-      components: [new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('emb_main').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary)
-      )]
-    });
+    const data = await getEmbed(name);
+    if (!data) return respondOrUpdate(interaction, { content: '⚠️ الإيمبد غير موجود.' });
+    await updateEmbed(name, { showSender: !data.showSender });
+    return showEmbedControlPanel(interaction, name, true);
   }
 
   // إذا ما وصلنا هنا → خطأ

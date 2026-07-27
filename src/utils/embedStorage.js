@@ -22,6 +22,7 @@ const embedSchema = new mongoose.Schema({
     iconURL: { type: String, default: '' }
   },
   timestamp: { type: Boolean, default: true },
+  showSender: { type: Boolean, default: false },
   sendCount: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
@@ -76,6 +77,7 @@ async function createEmbed(data) {
       image: data.image || '',
       author: data.author || { name: '', iconURL: '' },
       timestamp: data.timestamp !== undefined ? data.timestamp : true,
+      showSender: data.showSender || false,
       sendCount: 0,
       createdAt: new Date(),
       updatedAt: new Date()
