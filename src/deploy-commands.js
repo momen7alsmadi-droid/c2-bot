@@ -95,6 +95,7 @@ const commands = [
         { name: '❌ لا', value: 'no' },
       ))
     .addRoleOption(o => o.setName('role').setDescription('الرتبة المستهدفة (اختياري) - إذا تركت فارغة ترسل للكل').setRequired(false))
+    .addStringOption(o => o.setName('color').setDescription('لون الإيمبد (اختياري) - مثلاً #FF0000 للأحمر، إذا تركت فارغة يكون لون عشوائي').setRequired(false))
     .toJSON(),
 ];
 

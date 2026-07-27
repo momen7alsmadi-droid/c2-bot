@@ -4,9 +4,10 @@ const { EmbedBuilder } = require('discord.js');
  * /broadcast - إرسال رسالة خاصة (DM) إلى أعضاء السيرفر
  * - فقط للأدمن (Administrator)
  * - required: message (string)
- * - optional: role (role) - إذا تركت فارغة ترسل للكل، وإلا ترسل فقط لأصحاب الرتبة
  * - required: format (embed/plain)
  * - required: show_sender (yes/no)
+ * - optional: role (role)
+ * - optional: color (string) - hex colour للإيمبد
  */
 async function handleBroadcast(interaction) {
   // 1) التحقق من صلاحية Administrator
@@ -18,23 +19,22 @@ async function handleBroadcast(interaction) {
   }
 
   const messageContent = interaction.options.getString('message', true);
+  const format = interaction.options.getString('format', true);
+  const showSender = interaction.options.getString('show_sender', true);
   const targetRole = interaction.options.getRole('role');
-  const format = interaction.options.getString('format', true); // 'embed' or 'plain'
-  const showSender = interaction.options.getString('show_sender', true); // 'yes' or 'no'
+  let colorInput = interaction.options.getString('color');
 
   await interaction.deferReply({ ephemeral: true });
 
   try {
     // جلب كل أعضاء السيرفر
     const guild = interaction.guild;
-    await guild.members.fetch(); // تصوير كامل للأعضاء
+    await guild.members.fetch();
 
     let members;
     if (targetRole) {
-      // إذا تم تحديد رتبة، نأخذ فقط الأعضاء الذين يملكون الرتبة
       members = guild.members.cache.filter(m => m.roles.cache.has(targetRole.id));
     } else {
-      // بدون رتبة → كل الأعضاء (ما عدا البوتات)
       members = guild.members.cache.filter(m => !m.user.bot);
     }
 
@@ -49,13 +49,29 @@ async function handleBroadcast(interaction) {
 
     if (format === 'embed') {
       // ========== إرسال كايمبد ==========
+
+      // تحديد لون الإيمبد
+      let embedColor;
+      if (colorInput) {
+        // محاولة تحويل الإدخال إلى رقم لون صالح
+        let hex = colorInput.trim();
+        if (hex.startsWith('#')) hex = hex.slice(1);
+        const parsed = parseInt(hex, 16);
+        if (!isNaN(parsed) && hex.length >= 3 && hex.length <= 8) {
+          embedColor = parsed;
+        } else {
+          embedColor = randomColor();
+        }
+      } else {
+        embedColor = randomColor();
+      }
+
       const embed = new EmbedBuilder()
         .setTitle(`📩 رسالة من ${guild.name}`)
-        .setColor(0x5865F2)
+        .setColor(embedColor)
         .setDescription(messageContent)
         .setTimestamp();
 
-      // إضافة اسم المرسل في الفوتر فقط إذا كان showSender = yes
       if (showSender === 'yes') {
         embed.setFooter({
           text: `من: ${interaction.user.tag}`,
@@ -117,6 +133,13 @@ async function handleBroadcast(interaction) {
       content: '⚠️ حدث خطأ أثناء إرسال الرسائل. تأكد من صلاحيات البوت.',
     });
   }
+}
+
+/**
+ * توليد لون عشوائي ساطع (bright random hex colour)
+ */
+function randomColor() {
+  return Math.floor(Math.random() * 0xFFFFFF);
 }
 
 module.exports = { handleBroadcast };
