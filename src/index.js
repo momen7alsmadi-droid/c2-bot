@@ -17,6 +17,8 @@ const { handleBroadcast } = require('./handlers/broadcast');
 const { handleColorsCommand } = require('./handlers/colors');
 const { handleSettings, showSettingsPage, handleSettingsSelect } = require('./handlers/settings');
 const { handleColorAutocomplete } = require('./handlers/broadcast');
+const { handleEmbedsInteraction, handleEmbedsModal, handleEmbedsMain } = require('./handlers/embeds');
+const { initEmbedModel } = require('./utils/embedStorage');
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
@@ -64,9 +66,11 @@ async function sendPingMessage() {
 async function initialize() {
   const dbConnected = await connectDatabase();
   initModels();
+  const embedReady = initEmbedModel();
   if (dbConnected) {
     await ensureConfigLoaded();
     console.log('📦 تم تحميل الإعدادات من MongoDB');
+    if (embedReady) console.log('📦 تم تهيئة نموذج الإيمبدات');
   }
 
   // تعطيل البوت تلقائياً عند دخوله سيرفر جديد
@@ -131,7 +135,12 @@ client.on('interactionCreate', async (interaction) => {
         await handleColorAutocomplete(interaction);
       }
     } else if (interaction.isStringSelectMenu() || interaction.isRoleSelectMenu() || interaction.isChannelSelectMenu()) {
-      await handleSettingsSelect(interaction);
+      // قوائم الإيمبدات أو الإعدادات
+      if (interaction.customId.startsWith('emb_')) {
+        await handleEmbedsInteraction(interaction);
+      } else {
+        await handleSettingsSelect(interaction);
+      }
     }
   } catch (err) {
     console.error('❌ ERROR [' + interaction.customId + ']:', err.message, err.stack);
@@ -161,11 +170,13 @@ async function handleSlashCommand(interaction) {
     case 'لوحة_المطور': return handleMasterPanel(interaction);
     case 'broadcast': return handleBroadcast(interaction);
     case 'الألوان_المتوفرة': return handleColorsCommand(interaction);
+    case 'ايمبد': return handleEmbedsMain(interaction);
   }
 }
 
 async function handleModalSubmit(interaction) {
   if (interaction.customId === 'modal_leave') return handleLeaveModalSubmit(interaction);
+  if (interaction.customId.startsWith('modal_emb_')) return handleEmbedsModal(interaction);
 }
 
 async function handleButton(interaction) {
@@ -208,6 +219,11 @@ async function handleButton(interaction) {
   if (id === 'set_resign_2') return showSettingsPage(interaction, 'resign', 2);
   if (id.startsWith('sl_report_cd_')) {
     return handleSettingsSelect(interaction);
+  }
+
+  // أزرار نظام الإيمبدات
+  if (prefix === 'emb') {
+    return handleEmbedsInteraction(interaction);
   }
 
   if (prefix === 'dev') {

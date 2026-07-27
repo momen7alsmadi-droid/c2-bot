@@ -103,6 +103,13 @@ const commands = [
     .setName('الألوان_المتوفرة')
     .setDescription('🎨 عرض جميع ألوان الإيمبد المتوفرة مع رموزها')
     .toJSON(),
+
+  // ------------------- /ايمبد -------------------
+  new SlashCommandBuilder()
+    .setName('ايمبد')
+    .setDescription('📦 نظام قوالب الإيمبدات المتكامل')
+    .setDefaultMemberPermissions(8) // Administrator
+    .toJSON(),
 ];
 
 const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);
