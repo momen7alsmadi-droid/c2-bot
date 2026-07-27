@@ -7,6 +7,9 @@ const {
   createReply, updateReply, deleteReply, getReply,
   getAllReplies, getRepliesList, getEnabledReplies, incrementUseCount
 } = require('../utils/autoReplyStorage');
+
+// سجل لمنع إرسال الرد أكثر من مرة لنفس الرسالة
+const processedMessages = new Set();
 const {
   createReact, updateReact, deleteReact, getReact,
   getReactsList, getEnabledReacts, incrementReactCount
@@ -944,6 +947,13 @@ async function handleAutoReplyInteraction(interaction) {
 async function handleMessage(message) {
   if (message.author.bot) return;
   if (!message.guild) return;
+
+  // منع التكرار: إذا تمت معالجة هذه الرسالة بالفعل، نتجاهلها
+  const msgKey = message.id;
+  if (processedMessages.has(msgKey)) return;
+  processedMessages.add(msgKey);
+  // تنظيف السجل بعد 10 ثواني
+  setTimeout(() => processedMessages.delete(msgKey), 10000);
 
   const replies = await getEnabledReplies();
   if (replies.length === 0) return;

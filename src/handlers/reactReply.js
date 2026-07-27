@@ -8,6 +8,9 @@ const {
   getReactsList, getEnabledReacts, incrementReactCount
 } = require('../utils/reactionReplyStorage');
 
+// سجل لمنع تكرار التفاعل لنفس الرسالة
+const processedReacts = new Set();
+
 async function respondOrUpdate(interaction, payload) {
   if (interaction.isCommand()) return interaction.reply({ ...payload, ephemeral: true });
   return interaction.update(payload);
@@ -487,6 +490,12 @@ async function handleReactInteraction(interaction) {
 async function handleReactMessage(message) {
   if (message.author.bot) return;
   if (!message.guild) return;
+
+  // منع تكرار التفاعل لنفس الرسالة
+  const msgKey = message.id;
+  if (processedReacts.has(msgKey)) return;
+  processedReacts.add(msgKey);
+  setTimeout(() => processedReacts.delete(msgKey), 10000);
 
   const reacts = await getEnabledReacts();
   if (reacts.length === 0) return;
