@@ -6,3 +6,4 @@ bot.log
 *.tar.gz
 RAILWAY_README.txt
 bot-*.log
+.mongodb_uri

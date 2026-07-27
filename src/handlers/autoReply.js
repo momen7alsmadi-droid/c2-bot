@@ -7,6 +7,10 @@ const {
   createReply, updateReply, deleteReply, getReply,
   getAllReplies, getRepliesList, getEnabledReplies, incrementUseCount
 } = require('../utils/autoReplyStorage');
+const {
+  createReact, updateReact, deleteReact, getReact,
+  getReactsList, getEnabledReacts, incrementReactCount
+} = require('../utils/reactionReplyStorage');
 
 // ---------- دالة مساعدة ----------
 async function respondOrUpdate(interaction, payload) {
@@ -63,14 +67,17 @@ async function handleAutoReplyMain(interaction) {
     .setDescription('اختر أحد الخيارات أدناه لإدارة الردود التلقائية.')
     .setTimestamp();
 
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('ar_create').setLabel('➕ إضافة رد جديد').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId('ar_list').setLabel('📋 الردود المسجلة').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('ar_edit').setLabel('✏️ تعديل رد').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('ar_delete').setLabel('🗑️ حذف رد').setStyle(ButtonStyle.Danger),
+  const row1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('ar_create').setLabel('➕ إضافة رد نصي').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('ar_react_create').setLabel('😊 إضافة تفاعل').setStyle(ButtonStyle.Success),
+  );
+  const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('ar_list').setLabel('📋 السجل').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('ar_edit').setLabel('✏️ تعديل').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('ar_delete').setLabel('🗑️ حذف').setStyle(ButtonStyle.Danger),
   );
 
-  return respondOrUpdate(interaction, { embeds: [embed], components: [row] });
+  return respondOrUpdate(interaction, { embeds: [embed], components: [row1, row2] });
 }
 
 // ================== 1. إنشاء رد جديد ==================
@@ -209,43 +216,45 @@ async function showArControlPanel(interaction, replyName) {
 // ================== 2. عرض الردود المسجلة (سجل + معاينة) ==================
 
 async function handleArList(interaction) {
-  const list = await getRepliesList();
-  if (list.length === 0) {
+  const textList = await getRepliesList();
+  const reactList = await getReactsList();
+
+  if (textList.length === 0 && reactList.length === 0) {
     return respondOrUpdate(interaction, {
-      content: '📭 لا يوجد ردود تلقائية مسجلة.',
+      content: '📭 لا يوجد ردود أو تفاعلات مسجلة.',
       components: [new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('ar_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
       )]
     });
   }
 
-  const options = list.map(r => ({
-    label: r.name,
-    description: `\`${r.trigger}\` | ${r.responsesCount} نص | ${r.useCount} استخدام`,
-    value: `ar_view_${r.name}`,
-    emoji: r.enabled ? '🟢' : '🔴'
-  }));
+  // عرض القائمة
+  const lines = [];
+  if (textList.length > 0) {
+    lines.push('**💬 الردود النصية:**');
+    textList.forEach(r => {
+      lines.push(`${r.enabled ? '🟢' : '🔴'} **${r.name}** — \`${r.trigger}\` | ${r.responsesCount} نص | ${r.useCount} استخدام`);
+    });
+  }
+  if (reactList.length > 0) {
+    lines.push('\n**😊 التفاعلات:**');
+    reactList.forEach(r => {
+      lines.push(`${r.enabled ? '🟢' : '🔴'} **${r.name}** — ${r.emoji} \`${r.trigger}\` | ${r.useCount} استخدام`);
+    });
+  }
 
   const embed = new EmbedBuilder()
-    .setTitle('📋 الردود التلقائية المسجلة')
+    .setTitle('📋 السجل الكامل')
     .setColor(0x5865F2)
-    .setDescription('اختر رداً من القائمة أدناه لعرض تفاصيله الكاملة ومعاينة نص الرد.')
-    .setFooter({ text: `إجمالي ${list.length} رد` })
+    .setDescription(lines.join('\n'))
+    .setFooter({ text: `إجمالي ${textList.length + reactList.length} | ${textList.length} رد نصي + ${reactList.length} تفاعل` })
     .setTimestamp();
 
   return respondOrUpdate(interaction, {
     embeds: [embed],
-    components: [
-      new ActionRowBuilder().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId('ar_view_select')
-          .setPlaceholder('📋 اختر رداً للعرض')
-          .addOptions(options.slice(0, 25))
-      ),
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('ar_main').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary)
-      )
-    ]
+    components: [new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('ar_main').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary)
+    )]
   });
 }
 
@@ -310,29 +319,42 @@ async function handleArView(interaction, replyName) {
 // ================== 3. تعديل رد (اختيار) ==================
 
 async function handleArEdit(interaction) {
-  const list = await getRepliesList();
-  if (list.length === 0) {
+  const textList = await getRepliesList();
+  const reactList = await getReactsList();
+
+  const options = [];
+  textList.forEach(r => {
+    options.push({
+      label: r.name,
+      description: `💬 "${r.trigger}" — ${r.useCount} استخدام`,
+      value: `ar_edit_text_${r.name}`,
+      emoji: r.enabled ? '🟢' : '🔴'
+    });
+  });
+  reactList.forEach(r => {
+    options.push({
+      label: r.name,
+      description: `😊 ${r.emoji} "${r.trigger}" — ${r.useCount} استخدام`,
+      value: `ar_edit_react_${r.name}`,
+      emoji: r.enabled ? '🟢' : '🔴'
+    });
+  });
+
+  if (options.length === 0) {
     return respondOrUpdate(interaction, {
-      content: '📭 لا يوجد ردود للتعديل.',
+      content: '📭 لا يوجد ردود أو تفاعلات للتعديل.',
       components: [new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('ar_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
       )]
     });
   }
 
-  const options = list.map(r => ({
-    label: r.name,
-    description: `"${r.trigger}" — ${r.useCount} استخدام`,
-    value: `ar_edit_${r.name}`,
-    emoji: r.enabled ? '🟢' : '🔴'
-  }));
-
   return respondOrUpdate(interaction, {
-    content: '✏️ اختر الرد الذي تريد تعديله:',
+    content: '✏️ اختر ما تريد تعديله:',
     components: [
       new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
-          .setCustomId('ar_edit_select').setPlaceholder('✏️ اختر رداً')
+          .setCustomId('ar_edit_select').setPlaceholder('✏️ اختر')
           .addOptions(options.slice(0, 25))
       ),
       new ActionRowBuilder().addComponents(
@@ -345,29 +367,42 @@ async function handleArEdit(interaction) {
 // ================== 4. حذف رد ==================
 
 async function handleArDelete(interaction) {
-  const list = await getRepliesList();
-  if (list.length === 0) {
+  const textList = await getRepliesList();
+  const reactList = await getReactsList();
+
+  const options = [];
+  textList.forEach(r => {
+    options.push({
+      label: r.name,
+      description: `💬 "${r.trigger}"`,
+      value: `ar_del_text_${r.name}`,
+      emoji: '🗑️'
+    });
+  });
+  reactList.forEach(r => {
+    options.push({
+      label: r.name,
+      description: `😊 ${r.emoji} "${r.trigger}"`,
+      value: `ar_del_react_${r.name}`,
+      emoji: '🗑️'
+    });
+  });
+
+  if (options.length === 0) {
     return respondOrUpdate(interaction, {
-      content: '📭 لا يوجد ردود للحذف.',
+      content: '📭 لا يوجد ردود أو تفاعلات للحذف.',
       components: [new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('ar_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
       )]
     });
   }
 
-  const options = list.map(r => ({
-    label: r.name,
-    description: `"${r.trigger}"`,
-    value: `ar_del_${r.name}`,
-    emoji: '🗑️'
-  }));
-
   return respondOrUpdate(interaction, {
-    content: '🗑️ اختر الرد الذي تريد حذفه:',
+    content: '🗑️ اختر ما تريد حذفه:',
     components: [
       new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
-          .setCustomId('ar_delete_select').setPlaceholder('🗑️ اختر رداً للحذف')
+          .setCustomId('ar_delete_select').setPlaceholder('🗑️ اختر')
           .addOptions(options.slice(0, 25))
       ),
       new ActionRowBuilder().addComponents(
@@ -777,6 +812,12 @@ async function handleAutoReplyModal(interaction) {
     return showArControlPanel(interaction, name);
   }
 
+  // توجيه مودالات التفاعلات
+  if (id.startsWith('modal_rr_')) {
+    const { handleReactModal } = require('./reactReply');
+    return handleReactModal(interaction);
+  }
+
   return interaction.reply({ content: '⚠️ Modal غير معروف.', ephemeral: true });
 }
 
@@ -794,27 +835,58 @@ async function handleAutoReplyInteraction(interaction) {
   if (id === 'ar_edit') return handleArEdit(interaction);
   if (id === 'ar_delete') return handleArDelete(interaction);
 
+  // زر إنشاء تفاعل جديد
+  if (id === 'ar_react_create') {
+    const { handleRrCreate } = require('./reactReply');
+    return handleRrCreate(interaction);
+  }
+
   // اختيار للعرض (سجل + معاينة)
   if (id === 'ar_view_select') {
     const name = interaction.values[0].replace('ar_view_', '');
     return handleArView(interaction, name);
   }
 
-  // اختيار للتعديل
+  // اختيار للتعديل (نصي أو تفاعل)
   if (id === 'ar_edit_select') {
-    const name = interaction.values[0].replace('ar_edit_', '');
-    return showArControlPanel(interaction, name);
+    const val = interaction.values[0];
+    if (val.startsWith('ar_edit_react_')) {
+      const name = val.replace('ar_edit_react_', '');
+      const { showRrControlPanel } = require('./reactReply');
+      return showRrControlPanel(interaction, name);
+    } else {
+      const name = val.replace('ar_edit_text_', '');
+      return showArControlPanel(interaction, name);
+    }
   }
 
-  // اختيار للحذف
+  // اختيار للحذف (نصي أو تفاعل)
   if (id === 'ar_delete_select') {
-    const name = interaction.values[0].replace('ar_del_', '');
-    return handleArDeleteConfirm(interaction, name);
+    const val = interaction.values[0];
+    if (val.startsWith('ar_del_react_')) {
+      const name = val.replace('ar_del_react_', '');
+      const { handleRrDeleteConfirm } = require('./reactReply');
+      return handleRrDeleteConfirm(interaction, name);
+    } else {
+      const name = val.replace('ar_del_text_', '');
+      return handleArDeleteConfirm(interaction, name);
+    }
   }
 
-  // تأكيد الحذف
+  // تأكيد حذف رد نصي
   if (prefix === 'ar' && parts[1] === 'delete' && parts[2] === 'yes') {
     return handleArDeleteExecute(interaction, parts.slice(3).join('_'));
+  }
+
+  // تأكيد حذف تفاعل
+  if (id.startsWith('rr_delete_yes_')) {
+    const { handleRrDeleteExecute } = require('./reactReply');
+    return handleRrDeleteExecute(interaction, id.replace('rr_delete_yes_', ''));
+  }
+
+  // تراجع عن حذف تفاعل
+  if (id === 'rr_delete') {
+    return handleArDelete(interaction);
   }
 
   // ---- أزرار التبديل ----
@@ -863,6 +935,12 @@ async function handleAutoReplyInteraction(interaction) {
   // اختيار الرومات المسموحة (ChannelSelectMenu)
   if (id.startsWith('ar_chans_w_set_')) return handleArChansWSet(interaction);
   if (id.startsWith('ar_chans_b_set_')) return handleArChansBSet(interaction);
+
+  // ========== توجيه التفاعلات (rr_) ==========
+  if (id.startsWith('rr_')) {
+    const { handleReactInteraction } = require('./reactReply');
+    return handleReactInteraction(interaction);
+  }
 
   return respondOrUpdate(interaction, { content: `⚠️ أمر غير معروف: ${id}` });
 }

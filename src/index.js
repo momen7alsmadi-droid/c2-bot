@@ -168,10 +168,8 @@ client.on('interactionCreate', async (interaction) => {
       // قوائم الإيمبدات أو الإعدادات
       if (interaction.customId.startsWith('emb_')) {
         await handleEmbedsInteraction(interaction);
-      } else if (interaction.customId.startsWith('ar_')) {
+      } else if (interaction.customId.startsWith('ar_') || interaction.customId.startsWith('rr_')) {
         await handleAutoReplyInteraction(interaction);
-      } else if (interaction.customId.startsWith('rr_')) {
-        await handleReactInteraction(interaction);
       } else {
         await handleSettingsSelect(interaction);
       }
@@ -206,7 +204,6 @@ async function handleSlashCommand(interaction) {
     case 'الألوان_المتوفرة': return handleColorsCommand(interaction);
     case 'ايمبد': return handleEmbedsMain(interaction);
     case 'الردود_التلقائية': return handleAutoReplyMain(interaction);
-    case 'التفاعلات': return handleReactMain(interaction);
   }
 }
 

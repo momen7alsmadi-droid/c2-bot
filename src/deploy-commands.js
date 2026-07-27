@@ -118,12 +118,6 @@ const commands = [
     .setDefaultMemberPermissions(8) // Administrator
     .toJSON(),
 
-  // ------------------- /التفاعلات -------------------
-  new SlashCommandBuilder()
-    .setName('التفاعلات')
-    .setDescription('😊 نظام الردود بالتفاعلات (رياكشن) على الرسائل')
-    .setDefaultMemberPermissions(8) // Administrator
-    .toJSON(),
 ];
 
 const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);
