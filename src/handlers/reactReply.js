@@ -68,22 +68,29 @@ async function handleRrCreate(interaction) {
 }
 
 async function handleRrCreateModal(interaction) {
-  const name = interaction.fields.getTextInputValue('rr_name').trim();
-  const trigger = interaction.fields.getTextInputValue('rr_trigger').trim();
-  const emoji = interaction.fields.getTextInputValue('rr_emoji').trim();
+  try {
+    await interaction.deferReply({ ephemeral: true });
 
-  const existing = await getReact(name);
-  if (existing) return interaction.reply({ content: `⚠️ التفاعل "${name}" موجود مسبقاً.`, ephemeral: true });
+    const name = interaction.fields.getTextInputValue('rr_name').trim();
+    const trigger = interaction.fields.getTextInputValue('rr_trigger').trim();
+    const emoji = interaction.fields.getTextInputValue('rr_emoji').trim();
 
-  const created = await createReact({
-    name, trigger, emojis: [emoji],
-    randomReact: false, multipleReact: false,
-    roleWhitelist: [], roleBlacklist: [],
-    channelWhitelist: [], channelBlacklist: []
-  });
+    const existing = await getReact(name);
+    if (existing) return interaction.editReply({ content: `⚠️ التفاعل "${name}" موجود مسبقاً.` });
 
-  if (!created) return interaction.reply({ content: '❌ فشل إنشاء التفاعل.', ephemeral: true });
-  return showRrControlPanel(interaction, name);
+    const created = await createReact({
+      name, trigger, emojis: [emoji],
+      randomReact: false, multipleReact: false,
+      roleWhitelist: [], roleBlacklist: [],
+      channelWhitelist: [], channelBlacklist: []
+    });
+
+    if (!created) return interaction.editReply({ content: '❌ فشل إنشاء التفاعل.' });
+    return showRrControlPanel(interaction, name);
+  } catch (e) {
+    console.error('[Modal:RrCreate]', e);
+    try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch(_) {}
+  }
 }
 
 // ================== لوحة التحكم الشاملة ==================

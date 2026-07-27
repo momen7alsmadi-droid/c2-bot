@@ -187,31 +187,38 @@ async function handleArCreate(interaction) {
 }
 
 async function handleArCreateModal(interaction) {
-  const name = interaction.fields.getTextInputValue('ar_name').trim();
-  const trigger = interaction.fields.getTextInputValue('ar_trigger').trim();
+  try {
+    await interaction.deferReply({ ephemeral: true });
 
-  const existing = await getReply(name);
-  if (existing) {
-    return interaction.reply({ content: `⚠️ الرد "${name}" موجود مسبقاً.`, ephemeral: true });
+    const name = interaction.fields.getTextInputValue('ar_name').trim();
+    const trigger = interaction.fields.getTextInputValue('ar_trigger').trim();
+
+    const existing = await getReply(name);
+    if (existing) {
+      return interaction.editReply({ content: `⚠️ الرد "${name}" موجود مسبقاً.` });
+    }
+
+    const created = await createReply({
+      name, trigger,
+      responses: [],
+      randomReply: false,
+      sendStyle: 'reply_mention',
+      autoDelete: false, autoDeleteTime: 0,
+      deleteUserMsg: false,
+      replyDelay: false, replyDelayTime: 0,
+      roleWhitelist: [], roleBlacklist: [],
+      channelWhitelist: [], channelBlacklist: []
+    });
+
+    if (!created) {
+      return interaction.editReply({ content: '❌ فشل إنشاء الرد.' });
+    }
+
+    return showArControlPanel(interaction, name);
+  } catch (e) {
+    console.error('[Modal:ArCreate]', e);
+    try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch(_) {}
   }
-
-  const created = await createReply({
-    name, trigger,
-    responses: [],
-    randomReply: false,
-    sendStyle: 'reply_mention',
-    autoDelete: false, autoDeleteTime: 0,
-    deleteUserMsg: false,
-    replyDelay: false, replyDelayTime: 0,
-    roleWhitelist: [], roleBlacklist: [],
-    channelWhitelist: [], channelBlacklist: []
-  });
-
-  if (!created) {
-    return interaction.reply({ content: '❌ فشل إنشاء الرد.', ephemeral: true });
-  }
-
-  return showArControlPanel(interaction, name);
 }
 
 // ================== لوحة التحكم الشاملة ==================

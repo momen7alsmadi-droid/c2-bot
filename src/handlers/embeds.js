@@ -90,30 +90,39 @@ async function handleEmbCreate(interaction) {
 
 /** معالجة Modal الإنشاء */
 async function handleEmbCreateModal(interaction) {
-  const name = interaction.fields.getTextInputValue('emb_name').trim();
-  const title = interaction.fields.getTextInputValue('emb_title').trim();
-  const description = interaction.fields.getTextInputValue('emb_description').trim();
+  try {
+    // ⏱️ نأخذ وقت كافي عشان ما نضرب تايم أوت (15 دقيقة بدل 3 ثواني)
+    await interaction.deferReply({ ephemeral: true });
 
-  // التحقق من عدم تكرار الاسم
-  const existing = await getEmbed(name);
-  if (existing) {
-    return interaction.reply({
-      content: `⚠️ الإيمبد **${name}** موجود مسبقاً. اختر اسماً داخلياً آخر.`,
-      ephemeral: true
-    });
+    const name = interaction.fields.getTextInputValue('emb_name').trim();
+    const title = interaction.fields.getTextInputValue('emb_title').trim();
+    const description = interaction.fields.getTextInputValue('emb_description').trim();
+
+    // التحقق من عدم تكرار الاسم
+    const existing = await getEmbed(name);
+    if (existing) {
+      return interaction.editReply({
+        content: `⚠️ الإيمبد **${name}** موجود مسبقاً. اختر اسماً داخلياً آخر.`
+      });
+    }
+
+    // إنشاء الإيمبد في قاعدة البيانات
+    const created = await createEmbed({ name, title, description });
+    if (!created) {
+      return interaction.editReply({
+        content: '❌ فشل إنشاء الإيمبد. تأكد من اتصال قاعدة البيانات.'
+      });
+    }
+
+    // فتح لوحة التحكم
+    return showEmbedControlPanel(interaction, name);
+  } catch (e) {
+    console.error('[Modal:CreateEmbed]', e);
+    try {
+      if (interaction.deferred) await interaction.editReply({ content: '⚠️ خطأ غير متوقع: ' + e.message });
+      else if (!interaction.replied) await interaction.reply({ content: '⚠️ خطأ غير متوقع.', ephemeral: true });
+    } catch(_) {}
   }
-
-  // إنشاء الإيمبد في قاعدة البيانات
-  const created = await createEmbed({ name, title, description });
-  if (!created) {
-    return interaction.reply({
-      content: '❌ فشل إنشاء الإيمبد. تأكد من اتصال قاعدة البيانات.',
-      ephemeral: true
-    });
-  }
-
-  // فتح لوحة التحكم
-  return showEmbedControlPanel(interaction, name);
 }
 
 /** لوحة التحكم بالإيمبد (بعد الإنشاء أو التعديل) */
@@ -125,7 +134,7 @@ async function showEmbedControlPanel(interaction, embedName, editMode = false) {
 
   const embed = new EmbedBuilder()
     .setTitle(`📦 ${editMode ? '✏️' : '➕'} ${data.title || embedName}`)
-    .setColor(parseInt(data.color.replace('#', ''), 16) || 0x5865F2)
+    .setColor(parseInt((data.color || '#5865F2').replace('#', ''), 16) || 0x5865F2)
     .setDescription(data.description || '(بدون محتوى)')
     .setTimestamp();
 
@@ -548,38 +557,39 @@ async function handleEmbSched(interaction, embedName, channelId) {
 
 /** معالجة Modal المؤقت */
 async function handleEmbSchedModal(interaction) {
-  const id = interaction.customId; // modal_emb_sched_{name}_{channelId}
-  const rest = id.replace('modal_emb_sched_', '');
-  const sepIndex = rest.lastIndexOf('_');
-  const channelId = rest.slice(sepIndex + 1);
-  const embedName = rest.slice(0, sepIndex);
+  try {
+    await interaction.deferReply({ ephemeral: true });
 
-  const timeInput = interaction.fields.getTextInputValue('sched_time').trim().toLowerCase();
+    const id = interaction.customId; // modal_emb_sched_{name}_{channelId}
+    const rest = id.replace('modal_emb_sched_', '');
+    const sepIndex = rest.lastIndexOf('_');
+    const channelId = rest.slice(sepIndex + 1);
+    const embedName = rest.slice(0, sepIndex);
 
-  // تحليل الإدخال المركَّب: 1d 3h 10m 5s → ملي ثانية
-  const delayMs = parseTimeString(timeInput);
-  if (delayMs === null) {
-    return interaction.reply({
-      content: '⚠️ صيغة الوقت غير صحيحة. استخدم مثلاً: `1d 3h 10m 5s` أو `30m` أو `2h`',
-      ephemeral: true
+    const timeInput = interaction.fields.getTextInputValue('sched_time').trim().toLowerCase();
+
+    // تحليل الإدخال المركَّب: 1d 3h 10m 5s → ملي ثانية
+    const delayMs = parseTimeString(timeInput);
+    if (delayMs === null) {
+      return interaction.editReply({
+        content: '⚠️ صيغة الوقت غير صحيحة. استخدم مثلاً: `1d 3h 10m 5s` أو `30m` أو `2h`'
+      });
+    }
+
+    if (delayMs > 7 * 24 * 60 * 60 * 1000) { // حد أقصى 7 أيام
+      return interaction.editReply({ content: '⚠️ المدة كبيرة جداً. الحد الأقصى 7 أيام.' });
+    }
+
+    const senderTag = interaction.user.tag;
+    const client = interaction.client;
+    const guildId = interaction.guildId;
+
+    await interaction.editReply({
+      content: `⏳ تم جدولة إرسال الإيمبد **${embedName}** بعد ${formatDelay(delayMs)}.`,
+      components: [new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('emb_main').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary)
+      )]
     });
-  }
-
-  if (delayMs > 7 * 24 * 60 * 60 * 1000) { // حد أقصى 7 أيام
-    return interaction.reply({ content: '⚠️ المدة كبيرة جداً. الحد الأقصى 7 أيام.', ephemeral: true });
-  }
-
-  const senderTag = interaction.user.tag;
-  const client = interaction.client;
-  const guildId = interaction.guildId;
-
-  await interaction.reply({
-    content: `⏳ تم جدولة إرسال الإيمبد **${embedName}** بعد ${formatDelay(delayMs)}.`,
-    ephemeral: true,
-    components: [new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('emb_main').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary)
-    )]
-  });
 
   // جدولة الإرسال
   setTimeout(async () => {
@@ -591,6 +601,10 @@ async function handleEmbSchedModal(interaction) {
       console.error(`❌ خطأ في الإرسال المجدول: ${embedName}`, e.message);
     }
   }, delayMs);
+  } catch (e) {
+    console.error('[Modal:Sched]', e);
+    try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch(_) {}
+  }
 }
 
 /** دالة مساعدة لإرسال الإيمبد (تستخدم فورياً أو مجدولاً) */
@@ -604,7 +618,7 @@ async function sendEmbedToChannel(client, guild, embedName, channelId, senderTag
 
     const embed = new EmbedBuilder()
       .setTitle(data.title || undefined)
-      .setColor(parseInt(data.color.replace('#', ''), 16) || 0x5865F2)
+      .setColor(parseInt((data.color || '#5865F2').replace('#', ''), 16) || 0x5865F2)
       .setDescription(data.description || undefined)
       .setTimestamp(data.timestamp !== false ? new Date() : undefined);
 
@@ -739,23 +753,30 @@ async function handleEmbAddField(interaction, embedName) {
 
 /** معالجة Modal إضافة حقل */
 async function handleEmbAddFieldModal(interaction, embedName) {
-  const fieldName = interaction.fields.getTextInputValue('field_name').trim();
-  const fieldValue = interaction.fields.getTextInputValue('field_value').trim();
-  const inlineRaw = interaction.fields.getTextInputValue('field_inline').trim().toLowerCase();
-  const inline = inlineRaw === 'true' || inlineRaw === 'نعم' || inlineRaw === 'yes';
+  try {
+    await interaction.deferReply({ ephemeral: true });
 
-  const data = await getEmbed(embedName);
-  if (!data) {
-    return interaction.reply({ content: '⚠️ الإيمبد غير موجود.', ephemeral: true });
+    const fieldName = interaction.fields.getTextInputValue('field_name').trim();
+    const fieldValue = interaction.fields.getTextInputValue('field_value').trim();
+    const inlineRaw = interaction.fields.getTextInputValue('field_inline').trim().toLowerCase();
+    const inline = inlineRaw === 'true' || inlineRaw === 'نعم' || inlineRaw === 'yes';
+
+    const data = await getEmbed(embedName);
+    if (!data) {
+      return interaction.editReply({ content: '⚠️ الإيمبد غير موجود.' });
+    }
+
+    const fields = data.fields || [];
+    fields.push({ name: fieldName, value: fieldValue, inline });
+
+    await updateEmbed(embedName, { fields });
+
+    // إعادة فتح لوحة التحكم
+    return showEmbedControlPanel(interaction, embedName, true);
+  } catch (e) {
+    console.error('[Modal:AddField]', e);
+    try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch(_) {}
   }
-
-  const fields = data.fields || [];
-  fields.push({ name: fieldName, value: fieldValue, inline });
-
-  await updateEmbed(embedName, { fields });
-
-  // إعادة فتح لوحة التحكم
-  return showEmbedControlPanel(interaction, embedName, true);
 }
 
 /** فتح Modal لتعديل التذييل */
@@ -796,12 +817,19 @@ async function handleEmbFooter(interaction, embedName) {
 
 /** معالجة Modal التذييل */
 async function handleEmbFooterModal(interaction, embedName) {
-  const text = interaction.fields.getTextInputValue('footer_text').trim();
-  const iconURL = interaction.fields.getTextInputValue('footer_icon').trim();
+  try {
+    await interaction.deferReply({ ephemeral: true });
 
-  await updateEmbed(embedName, { footer: { text, iconURL } });
+    const text = interaction.fields.getTextInputValue('footer_text').trim();
+    const iconURL = interaction.fields.getTextInputValue('footer_icon').trim();
 
-  return showEmbedControlPanel(interaction, embedName, true);
+    await updateEmbed(embedName, { footer: { text, iconURL } });
+
+    return showEmbedControlPanel(interaction, embedName, true);
+  } catch (e) {
+    console.error('[Modal:Footer]', e);
+    try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch(_) {}
+  }
 }
 
 /** تبديل الـ Timestamp */
@@ -867,15 +895,27 @@ async function handleEmbEditDesc(interaction, embedName) {
 }
 
 async function handleEmbEditTitleModal(interaction, embedName) {
-  const title = interaction.fields.getTextInputValue('emb_title').trim();
-  await updateEmbed(embedName, { title });
-  return showEmbedControlPanel(interaction, embedName, true);
+  try {
+    await interaction.deferReply({ ephemeral: true });
+    const title = interaction.fields.getTextInputValue('emb_title').trim();
+    await updateEmbed(embedName, { title });
+    return showEmbedControlPanel(interaction, embedName, true);
+  } catch (e) {
+    console.error('[Modal:EditTitle]', e);
+    try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch(_) {}
+  }
 }
 
 async function handleEmbEditDescModal(interaction, embedName) {
-  const description = interaction.fields.getTextInputValue('emb_description').trim();
-  await updateEmbed(embedName, { description });
-  return showEmbedControlPanel(interaction, embedName, true);
+  try {
+    await interaction.deferReply({ ephemeral: true });
+    const description = interaction.fields.getTextInputValue('emb_description').trim();
+    await updateEmbed(embedName, { description });
+    return showEmbedControlPanel(interaction, embedName, true);
+  } catch (e) {
+    console.error('[Modal:EditDesc]', e);
+    try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch(_) {}
+  }
 }
 
 // ================== معالج حفظ (تحديث وقت التعديل) ==================
