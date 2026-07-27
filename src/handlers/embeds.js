@@ -18,12 +18,19 @@ const {
 
 // ---------- دالة مساعدة للرد أو التحديث ----------
 async function respondOrUpdate(interaction, payload) {
+  // إذا كان التفاعل مؤجلاً (deferReply / deferUpdate) → editReply
+  if (interaction.deferred) {
+    return interaction.editReply(payload).catch(() => {});
+  }
+  // أوامر سلاش ومودالات لم يسبق الرد عليها → reply
   if (interaction.isCommand() || interaction.isModalSubmit()) {
     return interaction.reply({ ...payload, ephemeral: true });
   }
+  // أزرار وقوائم منسدلة لم يسبق الرد عليها → update
   if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
     return interaction.update(payload);
   }
+  // في أي حالة أخرى → editReply أو reply
   return interaction.editReply(payload).catch(() => interaction.reply({ ...payload, ephemeral: true }).catch(() => {}));
 }
 
@@ -98,6 +105,10 @@ async function handleEmbCreateModal(interaction) {
     const title = interaction.fields.getTextInputValue('emb_title').trim();
     const description = interaction.fields.getTextInputValue('emb_description').trim();
 
+    if (!name) return interaction.editReply({ content: '⚠️ الاسم الداخلي مطلوب.' });
+    if (!title) return interaction.editReply({ content: '⚠️ عنوان الإيمبد مطلوب.' });
+    if (!description) return interaction.editReply({ content: '⚠️ المحتوى مطلوب.' });
+
     // التحقق من عدم تكرار الاسم
     const existing = await getEmbed(name);
     if (existing) {
@@ -107,7 +118,7 @@ async function handleEmbCreateModal(interaction) {
     }
 
     // إنشاء الإيمبد في قاعدة البيانات
-    const created = await createEmbed({ name, title, description });
+    const created = await createEmbed(name, { title, description });
     if (!created) {
       return interaction.editReply({
         content: '❌ فشل إنشاء الإيمبد. تأكد من اتصال قاعدة البيانات.'

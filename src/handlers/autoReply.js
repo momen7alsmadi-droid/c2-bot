@@ -87,6 +87,9 @@ const {
 
 // ---------- دالة مساعدة ----------
 async function respondOrUpdate(interaction, payload) {
+  if (interaction.deferred) {
+    return interaction.editReply(payload).catch(() => {});
+  }
   if (interaction.isCommand() || interaction.isModalSubmit()) {
     return interaction.reply({ ...payload, ephemeral: true });
   }
