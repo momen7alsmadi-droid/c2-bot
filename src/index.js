@@ -263,6 +263,11 @@ async function handleButton(interaction) {
 
   // أزرار نظام الردود التلقائية
   if (prefix === 'ar') {
+    // زر إضافة تفاعل يذهب مباشرة إلى reactReply
+    if (id === 'ar_react_create') {
+      const { handleRrCreate } = require('./handlers/reactReply');
+      return handleRrCreate(interaction);
+    }
     return handleAutoReplyInteraction(interaction);
   }
 

@@ -835,12 +835,6 @@ async function handleAutoReplyInteraction(interaction) {
   if (id === 'ar_edit') return handleArEdit(interaction);
   if (id === 'ar_delete') return handleArDelete(interaction);
 
-  // زر إنشاء تفاعل جديد
-  if (id === 'ar_react_create') {
-    const { handleRrCreate } = require('./reactReply');
-    return handleRrCreate(interaction);
-  }
-
   // اختيار للعرض (سجل + معاينة)
   if (id === 'ar_view_select') {
     const name = interaction.values[0].replace('ar_view_', '');
