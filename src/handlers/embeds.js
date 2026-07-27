@@ -491,21 +491,36 @@ async function handleEmbSendChannel(interaction, embedName) {
 
 /** إرسال فوري */
 async function handleEmbSendNow(interaction, embedName, channelId) {
-  const result = await sendEmbedToChannel(interaction.client, interaction.guild, embedName, channelId, interaction.user.tag);
-  if (result.success) {
+  // منع الإرسال المزدوج
+  const sendKey = `send_${embedName}_${channelId}_${interaction.user.id}`;
+  if (global.__emb_send_lock?.has(sendKey)) {
+    return respondOrUpdate(interaction, { content: '⏳ الإرسال قيد التنفيذ...' });
+  }
+  if (!global.__emb_send_lock) global.__emb_send_lock = new Set();
+  global.__emb_send_lock.add(sendKey);
+
+  try {
+    const result = await sendEmbedToChannel(interaction.client, interaction.guild, embedName, channelId, interaction.user.tag);
+    global.__emb_send_lock.delete(sendKey);
+
+    if (result.success) {
+      return respondOrUpdate(interaction, {
+        content: `✅ تم إرسال الإيمبد **${embedName}** فورياً إلى ${result.channel}.`,
+        components: [new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('emb_main').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary)
+        )]
+      });
+    }
     return respondOrUpdate(interaction, {
-      content: `✅ تم إرسال الإيمبد **${embedName}** فورياً إلى ${result.channel}.`,
+      content: `❌ ${result.error}`,
       components: [new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('emb_main').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary)
       )]
     });
+  } catch (e) {
+    global.__emb_send_lock?.delete(sendKey);
+    return respondOrUpdate(interaction, { content: `❌ ${e.message}` });
   }
-  return respondOrUpdate(interaction, {
-    content: `❌ ${result.error}`,
-    components: [new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('emb_main').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary)
-    )]
-  });
 }
 
 /** فتح Modal لإدخال وقت التأخير */
