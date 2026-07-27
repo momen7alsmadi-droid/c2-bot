@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const { Client, GatewayIntentBits, Partials, EmbedBuilder } = require('discord.js');
 const express = require('express');
 const { connectDatabase } = require('./utils/database');
-const { getConfig, ensureConfigLoaded, initModels } = require('./utils/storage');
+const { getConfig, saveConfig, ensureConfigLoaded, initModels } = require('./utils/storage');
 
 const {
   handleLeaveCommand, handleLeaveModalSubmit, handleLeaveButton,
@@ -186,11 +186,34 @@ initialize();
 
 // ------------------- التفاعلات -------------------
 
+/** دالة آمنة لجلب الإعدادات - لا ترمي أخطاء أبداً */
+function safeGetConfig() {
+  try {
+    return getConfig();
+  } catch (e) {
+    console.error('❌ safeGetConfig فشل:', e.message);
+    // إرجاع إعدادات افتراضية آمنة
+    return {
+      leave: { allowedRoleId: null, requestChannelId: null, rolesToRemove: [], leaveRoleId: null, logChannelId: null },
+      daleel: { allowedRoleId: null, channelId: null, logChannelId: null },
+      report: { allowedRoleId: null, adminRoleId: null, channelId: null, warning1RoleId: null, warning2RoleId: null, warning3RoleId: null, upperManagementRoleId: null, upperManagementChannelId: null, logChannelId: null, cooldownEnabled: true, cooldownDuration: 60 },
+      resign: { allowedRoleId: null, logChannelId: null, rolesToRemove: [], resignRoleId: null, upperManagementRoleId: null },
+      disabledGuilds: []
+    };
+  }
+}
+
 client.on('interactionCreate', async (interaction) => {
   try {
+    // فحص التعطيل بأمان
     if (interaction.guild && interaction.user.id !== '1387331972094890036') {
-      const cfg = getConfig();
-      if (cfg.disabledGuilds.includes(interaction.guild.id)) return;
+      try {
+        const cfg = safeGetConfig();
+        const disabled = Array.isArray(cfg.disabledGuilds) ? cfg.disabledGuilds : [];
+        if (disabled.includes(interaction.guild.id)) return;
+      } catch (e) {
+        console.error('⚠️ فشل فحص التعطيل:', e.message);
+      }
     }
 
     if (interaction.isChatInputCommand()) {
@@ -200,11 +223,14 @@ client.on('interactionCreate', async (interaction) => {
     } else if (interaction.isButton()) {
       await handleButton(interaction);
     } else if (interaction.isAutocomplete()) {
-      if (interaction.commandName === 'broadcast' && interaction.options.getFocused(true).name === 'color') {
-        await handleColorAutocomplete(interaction);
+      try {
+        if (interaction.commandName === 'broadcast' && interaction.options.getFocused(true).name === 'color') {
+          await handleColorAutocomplete(interaction);
+        }
+      } catch (acErr) {
+        console.error('❌ Autocomplete error:', acErr.message);
       }
     } else if (interaction.isStringSelectMenu() || interaction.isRoleSelectMenu() || interaction.isChannelSelectMenu()) {
-      // قوائم الإيمبدات أو الإعدادات
       if (interaction.customId.startsWith('emb_')) {
         await handleEmbedsInteraction(interaction);
       } else if (interaction.customId.startsWith('ar_') || interaction.customId.startsWith('rr_')) {
@@ -215,8 +241,9 @@ client.on('interactionCreate', async (interaction) => {
     }
   } catch (err) {
     const type = interaction.isChatInputCommand() ? 'CMD' : interaction.isModalSubmit() ? 'MODAL' : interaction.isButton() ? 'BTN' : interaction.isAutocomplete() ? 'AC' : 'SELECT';
-    console.error(`❌ ERROR [${type}] [${interaction.customId}]: ${err.message}`);
-    console.error(err.stack?.split('\n').slice(0, 4).join('\n'));
+    const id = interaction.customId || interaction.commandName || '?';
+    console.error(`❌ ERROR [${type}] [${id}]: ${err.message}`);
+    console.error(err.stack?.split('\n').slice(0, 5).join('\n'));
     try {
       if (interaction.isRepliable()) {
         if (interaction.deferred) {
@@ -229,9 +256,16 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
+/** معالج آمن للأوامر */
 async function handleSlashCommand(interaction) {
   const { commandName } = interaction;
-  const cfg = getConfig();
+  let cfg;
+  try {
+    cfg = safeGetConfig();
+  } catch (e) {
+    console.error('❌ handleSlashCommand getConfig:', e.message);
+    cfg = null;
+  }
 
   switch (commandName) {
     case 'اجازة': return handleLeaveCommand(interaction, cfg);
