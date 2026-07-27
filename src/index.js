@@ -19,10 +19,19 @@ const { handleSettings, showSettingsPage, handleSettingsSelect } = require('./ha
 const { handleColorAutocomplete } = require('./handlers/broadcast');
 const { handleEmbedsInteraction, handleEmbedsModal, handleEmbedsMain } = require('./handlers/embeds');
 const { initEmbedModel } = require('./utils/embedStorage');
+const { handleAutoReplyInteraction, handleAutoReplyModal, handleAutoReplyMain, handleMessage } = require('./handlers/autoReply');
+const { handleReactInteraction, handleReactModal, handleReactMain, handleReactMessage } = require('./handlers/reactReply');
+const { initAutoReplyModel, syncJsonToMongo: syncAr } = require('./utils/autoReplyStorage');
+const { initReactModel, syncJsonToMongo: syncRr } = require('./utils/reactionReplyStorage');
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
-  partials: [Partials.GuildMember]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMessages
+  ],
+  partials: [Partials.GuildMember, Partials.Message, Partials.Reaction, Partials.Channel]
 });
 
 // ---------- Express healthcheck server (لـ Render) ----------
@@ -67,15 +76,18 @@ async function initialize() {
   const dbConnected = await connectDatabase();
   initModels();
   const embedReady = initEmbedModel();
+  const arReady = initAutoReplyModel();
+  const rrReady = initReactModel();
   if (dbConnected) {
     await ensureConfigLoaded();
     console.log('📦 تم تحميل الإعدادات من MongoDB');
     if (embedReady) {
       console.log('📦 تم تهيئة نموذج الإيمبدات');
-      // مزامنة أي إيمبدات مخزنة في JSON إلى MongoDB
       const { syncJsonToMongo } = require('./utils/embedStorage');
       await syncJsonToMongo();
     }
+    if (arReady) { await syncAr(); }
+    if (rrReady) { await syncRr(); }
   }
 
   // تعطيل البوت تلقائياً عند دخوله سيرفر جديد
@@ -115,6 +127,19 @@ ID: ${guild.id}
     // فحص الاجازات المنتهية
     checkExpiredLeaves(client);
     setInterval(() => checkExpiredLeaves(client), CHECK_INTERVAL_MS);
+
+    // تسجيل مستقبل الرسائل للردود التلقائية والتفاعلات
+    console.log('👂 تم تفعيل مراقبة الرسائل للردود التلقائية والتفاعلات');
+  });
+
+  // معالج الرسائل (messageCreate)
+  client.on('messageCreate', async (message) => {
+    try {
+      await handleMessage(message);
+      await handleReactMessage(message);
+    } catch (e) {
+      // لا تطبع خطأ للرسائل العادية
+    }
   });
 }
 
@@ -143,6 +168,10 @@ client.on('interactionCreate', async (interaction) => {
       // قوائم الإيمبدات أو الإعدادات
       if (interaction.customId.startsWith('emb_')) {
         await handleEmbedsInteraction(interaction);
+      } else if (interaction.customId.startsWith('ar_')) {
+        await handleAutoReplyInteraction(interaction);
+      } else if (interaction.customId.startsWith('rr_')) {
+        await handleReactInteraction(interaction);
       } else {
         await handleSettingsSelect(interaction);
       }
@@ -176,12 +205,16 @@ async function handleSlashCommand(interaction) {
     case 'broadcast': return handleBroadcast(interaction);
     case 'الألوان_المتوفرة': return handleColorsCommand(interaction);
     case 'ايمبد': return handleEmbedsMain(interaction);
+    case 'الردود_التلقائية': return handleAutoReplyMain(interaction);
+    case 'التفاعلات': return handleReactMain(interaction);
   }
 }
 
 async function handleModalSubmit(interaction) {
   if (interaction.customId === 'modal_leave') return handleLeaveModalSubmit(interaction);
   if (interaction.customId.startsWith('modal_emb_')) return handleEmbedsModal(interaction);
+  if (interaction.customId.startsWith('modal_ar_')) return handleAutoReplyModal(interaction);
+  if (interaction.customId.startsWith('modal_rr_')) return handleReactModal(interaction);
 }
 
 async function handleButton(interaction) {
@@ -229,6 +262,16 @@ async function handleButton(interaction) {
   // أزرار نظام الإيمبدات
   if (prefix === 'emb') {
     return handleEmbedsInteraction(interaction);
+  }
+
+  // أزرار نظام الردود التلقائية
+  if (prefix === 'ar') {
+    return handleAutoReplyInteraction(interaction);
+  }
+
+  // أزرار نظام التفاعلات
+  if (prefix === 'rr') {
+    return handleReactInteraction(interaction);
   }
 
   if (prefix === 'dev') {
