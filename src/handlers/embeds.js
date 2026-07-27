@@ -110,11 +110,17 @@ async function handleEmbCreateModal(interaction) {
     if (!description) return interaction.editReply({ content: '⚠️ المحتوى مطلوب.' });
 
     // التحقق من عدم تكرار الاسم
-    const existing = await getEmbed(name);
-    if (existing) {
-      return interaction.editReply({
-        content: `⚠️ الإيمبد **${name}** موجود مسبقاً. اختر اسماً داخلياً آخر.`
-      });
+    try {
+      const existing = await getEmbed(name);
+      if (existing) {
+        // الاسم موجود مسبقاً → نحذفه أولاً ثم ننشئ الجديد
+        console.log(`⚠️ embed: "${name}" موجود مسبقاً، سيتم استبداله.`);
+        await deleteEmbed(name);
+      }
+    } catch (checkErr) {
+      // لو فشل الفحص (مثلاً البيانات تالفة) → نحاول حذفها عموماً
+      console.error(`⚠️ embed فحص الاسم "${name}" فشل:`, checkErr.message);
+      try { await deleteEmbed(name); } catch {}
     }
 
     // إنشاء الإيمبد في قاعدة البيانات
