@@ -160,4 +160,49 @@ async function handleDevToggle(interaction) {
   }
 }
 
-module.exports = { handleMasterPanel, handleDevRefresh, handleDevDisable, handleDevEnable, handleDevToggle, DEV_BOT_ID };
+// ------------------- تحديث اللوحة -------------------
+
+async function handleDevRefreshPanel(interaction) {
+  if (interaction.user.id !== DEV_BOT_ID) return;
+
+  const cfg = getConfig();
+  const totalGuilds = interaction.client.guilds.cache.size;
+  const leaves = getLeaves();
+  const now = Date.now();
+  const activeLeaves = Object.entries(leaves).filter(([_, l]) => l.endsAt > now).length;
+  const disabledCount = cfg.disabledGuilds.length;
+
+  const guildsList = interaction.client.guilds.cache
+    .map(g => {
+      const status = cfg.disabledGuilds.includes(g.id) ? '🔴' : '🟢';
+      return `${status} ${g.name} - \`${g.id}\``;
+    })
+    .join('\n') || 'لا يوجد';
+
+  const embed = new EmbedBuilder()
+    .setTitle('🛠️ لوحة المطور')
+    .setColor(0x9B59B6)
+    .addFields(
+      { name: '📊 إحصائيات', value: `سيرفرات: ${totalGuilds}\nمعطل: ${disabledCount}\nإجازات نشطة: ${activeLeaves}` },
+      { name: '🌍 السيرفرات', value: guildsList.slice(0, 1020) },
+    )
+    .setFooter({ text: `الإصدار: ${version} | @${interaction.user.tag}` })
+    .setTimestamp();
+
+  const row1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('dev_refresh_panel').setLabel('🔄 تحديث اللوحة').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('dev_refresh').setLabel('🔄 تحديث الإجازات').setStyle(ButtonStyle.Primary),
+  );
+  const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('dev_disable').setLabel('🔴 تعطيل سيرفر').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('dev_enable').setLabel('🟢 تفعيل سيرفر').setStyle(ButtonStyle.Success),
+  );
+  const row3 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('dev_disable_all').setLabel('🔴🔴 إطفاء الكل').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('dev_enable_all').setLabel('🟢🟢 تشغيل الكل').setStyle(ButtonStyle.Success),
+  );
+
+  return interaction.update({ embeds: [embed], components: [row1, row2, row3] });
+}
+
+module.exports = { handleMasterPanel, handleDevRefresh, handleDevRefreshPanel, handleDevDisable, handleDevEnable, handleDevToggle, DEV_BOT_ID };

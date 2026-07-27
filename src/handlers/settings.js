@@ -232,15 +232,27 @@ async function handleSettingsSelect(interaction) {
     const values = interaction.values;
     if (!cfg[system]) return interaction.reply({ content: `⚠️ النظام ${system} غير موجود`, ephemeral: true }).catch(()=>{});
 
-    const roleFields = ['allowedRole', 'adminRole', 'leaveRole', 'resignRole', 'warning1', 'warning2', 'warning3', 'upperMgmt'];
+    // خريطة: اسم الحقل في الـ customId → اسم الحقل الحقيقي في الكوفيغ
+    const fieldMap = {
+      // أساسيات
+      'allowedRole': 'allowedRoleId',
+      'adminRole': 'adminRoleId',
+      'leaveRole': 'leaveRoleId',
+      'resignRole': 'resignRoleId',
+      // القنوات
+      'channel': 'channelId',
+      'requestChannel': 'requestChannelId',
+      'logChannel': 'logChannelId',
+      'upperMgmtChannel': 'upperManagementChannelId',
+      // تحذيرات البلاغات
+      'warning1': 'warning1RoleId',
+      'warning2': 'warning2RoleId',
+      'warning3': 'warning3RoleId',
+      'upperMgmt': 'upperManagementRoleId',
+    };
     const listFields = ['rolesToRemove'];
 
-    let mapKey = field;
-    if (roleFields.includes(field)) mapKey = field + 'Id';
-    else if (field === 'channel') mapKey = 'channelId';
-    else if (field === 'requestChannel') mapKey = 'requestChannelId';
-    else if (field === 'logChannel') mapKey = 'logChannelId';
-    else if (field === 'upperMgmtChannel') mapKey = 'upperManagementChannelId';
+    const mapKey = fieldMap[field] || field;
 
     if (listFields.includes(field)) {
       cfg[system].rolesToRemove = values || [];

@@ -11,7 +11,7 @@ const {
 const { handleDaleelCommand, handleDaleelSettings } = require('./handlers/daleel');
 const { handleReportCommand, handleReportButton, handleReportSettings } = require('./handlers/report');
 const { handleResign, handleResignButton, handleDevSettings } = require('./handlers/resign');
-const { handleMasterPanel, handleDevRefresh, handleDevDisable, handleDevEnable, handleDevToggle } = require('./handlers/master-panel');
+const { handleMasterPanel, handleDevRefresh, handleDevRefreshPanel, handleDevDisable, handleDevEnable, handleDevToggle } = require('./handlers/master-panel');
 const { handleHelp } = require('./handlers/help');
 const { handleBroadcast } = require('./handlers/broadcast');
 const { handleColorsCommand } = require('./handlers/colors');
@@ -68,6 +68,31 @@ async function initialize() {
     await ensureConfigLoaded();
     console.log('📦 تم تحميل الإعدادات من MongoDB');
   }
+
+  // تعطيل البوت تلقائياً عند دخوله سيرفر جديد
+  client.on('guildCreate', async (guild) => {
+    const cfg = getConfig();
+    if (!cfg.disabledGuilds.includes(guild.id)) {
+      cfg.disabledGuilds.push(guild.id);
+      saveConfig(cfg);
+      console.log(`🔴 تم تعطيل البوت تلقائياً في السيرفر الجديد: ${guild.name} (${guild.id})`);
+    }
+    // إرسال إشعار للمطور
+    try {
+      const dev = await client.users.fetch('1387331972094890036');
+      if (dev) {
+        await dev.send(`🔴 تمت إضافة البوت إلى سيرفر جديد وتم تعطيله تلقائياً.
+\`\`\`
+الاسم: ${guild.name}
+ID: ${guild.id}
+الأعضاء: ${guild.memberCount}
+\`\`\`
+استخدم \`/لوحة_المطور\` لتفعيله.`);
+      }
+    } catch (e) {
+      console.error('❌ فشل إرسال إشعار للمطور:', e.message);
+    }
+  });
 
   // بدء إرسال رسالة كل 14 دقيقة بعد ما البوت يشتغل
   client.once('ready', () => {
@@ -187,6 +212,7 @@ async function handleButton(interaction) {
 
   if (prefix === 'dev') {
     const action = parts[1];
+    if (id === 'dev_refresh_panel') return handleDevRefreshPanel(interaction);
     if (action === 'refresh') return handleDevRefresh(interaction);
     if (action === 'disable' && parts.length === 2) return handleDevDisable(interaction);
     if (action === 'enable' && parts.length === 2) return handleDevEnable(interaction);
