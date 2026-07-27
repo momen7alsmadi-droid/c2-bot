@@ -1,11 +1,19 @@
 /**
- * embedStorage.js - تخزين قوالب الإيمبدات في MongoDB فقط
+ * embedStorage.js - تخزين قوالب الإيمبدات
+ * يدعم MongoDB بشكل أساسي + JSON كنسخة احتياطية
  */
 const mongoose = require('mongoose');
+const fs = require('fs');
+const path = require('path');
+
+const DATA_DIR = path.join(__dirname, '..', '..', 'data');
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+const EMBEDS_PATH = path.join(DATA_DIR, 'embeds.json');
 
 // ---------- MongoDB Schema ----------
 const embedSchema = new mongoose.Schema({
-  _id: String, // الاسم الداخلي (unique key)
+  _id: String,
   name: { type: String, required: true },
   title: { type: String, default: '' },
   description: { type: String, default: '' },
@@ -29,41 +37,52 @@ const embedSchema = new mongoose.Schema({
 }, { collection: 'embeds', versionKey: false });
 
 let EmbedModel;
+let useMongo = false;
 
-/** تهيئة الموديل (يُستدعى بعد الاتصال بقاعدة البيانات) */
+// ---------- JSON helpers ----------
+
+function readJSON() {
+  try {
+    if (!fs.existsSync(EMBEDS_PATH)) return {};
+    const raw = fs.readFileSync(EMBEDS_PATH, 'utf8');
+    return raw.trim() ? JSON.parse(raw) : {};
+  } catch (e) {
+    console.error('❌ embedStorage readJSON error:', e.message);
+    return {};
+  }
+}
+
+function writeJSON(data) {
+  fs.writeFileSync(EMBEDS_PATH, JSON.stringify(data, null, 2), 'utf8');
+}
+
+// ---------- التهيئة ----------
+
 function initEmbedModel() {
   if (mongoose.connection.readyState === 1) {
     EmbedModel = mongoose.models.Embed || mongoose.model('Embed', embedSchema);
+    useMongo = true;
     return true;
   }
+  useMongo = false;
   return false;
 }
 
-/** جلب جميع الإيمبدات */
-async function getAllEmbeds() {
-  if (!EmbedModel) return [];
+// ---------- دوال المساعدة (MongoDB → JSON) ----------
+
+async function mongoGetAll() {
   try {
     return await EmbedModel.find().lean();
-  } catch (e) {
-    console.error('❌ getAllEmbeds error:', e.message);
-    return [];
-  }
+  } catch { return null; }
 }
 
-/** جلب إيمبد واحد بالاسم الداخلي */
-async function getEmbed(name) {
-  if (!EmbedModel) return null;
+async function mongoGetById(name) {
   try {
     return await EmbedModel.findById(name).lean();
-  } catch (e) {
-    console.error('❌ getEmbed error:', e.message);
-    return null;
-  }
+  } catch { return null; }
 }
 
-/** إنشاء إيمبد جديد */
-async function createEmbed(data) {
-  if (!EmbedModel) return null;
+async function mongoCreate(data) {
   try {
     const doc = new EmbedModel({
       _id: data.name,
@@ -84,52 +103,130 @@ async function createEmbed(data) {
     });
     await doc.save();
     return doc.toObject();
-  } catch (e) {
-    console.error('❌ createEmbed error:', e.message);
-    return null;
-  }
+  } catch { return null; }
 }
 
-/** تحديث إيمبد (تدمج الحقول الجديدة مع القديمة) */
-async function updateEmbed(name, updates) {
-  if (!EmbedModel) return null;
+async function mongoUpdate(name, updates) {
   try {
     updates.updatedAt = new Date();
-    const doc = await EmbedModel.findByIdAndUpdate(
-      name,
-      { $set: updates },
-      { new: true, upsert: false }
-    ).lean();
-    return doc;
-  } catch (e) {
-    console.error('❌ updateEmbed error:', e.message);
-    return null;
-  }
+    return await EmbedModel.findByIdAndUpdate(name, { $set: updates }, { new: true }).lean();
+  } catch { return null; }
 }
 
-/** زيادة عداد الإرسال */
-async function incrementSendCount(name) {
-  if (!EmbedModel) return;
+async function mongoDelete(name) {
+  try {
+    await EmbedModel.findByIdAndDelete(name);
+    return true;
+  } catch { return false; }
+}
+
+async function mongoIncrementCount(name) {
   try {
     await EmbedModel.findByIdAndUpdate(name, { $inc: { sendCount: 1 }, $set: { updatedAt: new Date() } });
-  } catch (e) {
-    console.error('❌ incrementSendCount error:', e.message);
+  } catch {}
+}
+
+// ---------- API العامة ----------
+
+/** جلب جميع الإيمبدات */
+async function getAllEmbeds() {
+  if (useMongo) {
+    const data = await mongoGetAll();
+    if (data) return data;
   }
+  // JSON fallback
+  const json = readJSON();
+  return Object.values(json);
+}
+
+/** جلب إيمبد واحد */
+async function getEmbed(name) {
+  if (useMongo) {
+    const data = await mongoGetById(name);
+    if (data) return data;
+  }
+  // JSON fallback
+  const json = readJSON();
+  return json[name] || null;
+}
+
+/** إنشاء إيمبد جديد */
+async function createEmbed(data) {
+  if (useMongo) {
+    const created = await mongoCreate(data);
+    if (created) return created;
+    // إذا فشل MongoDB → جرب JSON
+  }
+  // JSON fallback
+  const json = readJSON();
+  if (json[data.name]) return null; // مكرر
+  const newEmbed = {
+    _id: data.name,
+    name: data.name,
+    title: data.title || '',
+    description: data.description || '',
+    color: data.color || '#5865F2',
+    fields: data.fields || [],
+    footer: data.footer || { text: '', iconURL: '' },
+    thumbnail: data.thumbnail || '',
+    image: data.image || '',
+    author: data.author || { name: '', iconURL: '' },
+    timestamp: data.timestamp !== undefined ? data.timestamp : true,
+    showSender: data.showSender || false,
+    sendCount: 0,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  json[data.name] = newEmbed;
+  writeJSON(json);
+  return newEmbed;
+}
+
+/** تحديث إيمبد */
+async function updateEmbed(name, updates) {
+  updates.updatedAt = new Date().toISOString();
+  if (useMongo) {
+    const updated = await mongoUpdate(name, updates);
+    if (updated) return updated;
+  }
+  // JSON fallback
+  const json = readJSON();
+  if (!json[name]) return null;
+  json[name] = { ...json[name], ...updates };
+  writeJSON(json);
+  return json[name];
 }
 
 /** حذف إيمبد */
 async function deleteEmbed(name) {
-  if (!EmbedModel) return false;
-  try {
-    await EmbedModel.findByIdAndDelete(name);
-    return true;
-  } catch (e) {
-    console.error('❌ deleteEmbed error:', e.message);
-    return false;
+  if (useMongo) {
+    const deleted = await mongoDelete(name);
+    if (deleted) return true;
+  }
+  // JSON fallback
+  const json = readJSON();
+  if (!json[name]) return false;
+  delete json[name];
+  writeJSON(json);
+  return true;
+}
+
+/** زيادة عداد الإرسال */
+async function incrementSendCount(name) {
+  if (useMongo) {
+    await mongoIncrementCount(name);
+    return;
+  }
+  // JSON fallback
+  const json = readJSON();
+  if (json[name]) {
+    json[name].sendCount = (json[name].sendCount || 0) + 1;
+    json[name].updatedAt = new Date().toISOString();
+    writeJSON(json);
   }
 }
 
-/** جلب قائمة مختصرة (للقوائم المنسدلة) */
+/** جلب قائمة مختصرة للقوائم المنسدلة */
 async function getEmbedsList() {
   const embeds = await getAllEmbeds();
   return embeds.map(e => ({
@@ -148,5 +245,6 @@ module.exports = {
   updateEmbed,
   deleteEmbed,
   incrementSendCount,
-  getEmbedsList
+  getEmbedsList,
+  useMongo: () => useMongo
 };
