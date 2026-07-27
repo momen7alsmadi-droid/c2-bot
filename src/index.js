@@ -144,8 +144,12 @@ ID: ${guild.id}
     console.log('👂 تم تفعيل مراقبة الرسائل للردود التلقائية والتفاعلات');
   });
 
-  // معالج الرسائل (messageCreate)
+  // معالج الرسائل (messageCreate) - مع فترة سماح عند بدء التشغيل
+  let startupGrace = true;
+  setTimeout(() => { startupGrace = false; console.log('👂 فترة سماح بدء التشغيل انتهت — جاهز لاستقبال الرسائل'); }, 6000);
+
   client.on('messageCreate', async (message) => {
+    if (startupGrace) return; // تجاهل الرسائل خلال أول 6 ثوانٍ (لإعطاء القديم وقت للإطفاء)
     try {
       await handleMessage(message);
       await handleReactMessage(message);

@@ -234,6 +234,7 @@ async function showArControlPanel(interaction, replyName) {
       { name: '🔍 بحث ضمني', value: data.triggerType === 'contains' ? '🟢 مفعل' : '🔴 معطل', inline: true },
       { name: '🎲 رد عشوائي', value: data.randomReply ? '🟢 مفعل' : '🔴 معطل', inline: true },
       { name: '↩️ نمط الإرسال', value: data.sendStyle === 'reply_mention' ? 'رد مع منشن' : data.sendStyle === 'reply_no_mention' ? 'رد بدون منشن' : 'رسالة عادية', inline: true },
+      { name: '🖼️ إيمبد', value: data.replyAsEmbed ? `🟢${data.randomColor ? ' عشوائي' : data.embedColor ? ' ' + data.embedColor : ''}` : '🔴 معطل', inline: true },
       { name: '🗑️ حذف رسالة العضو', value: data.deleteUserMsg ? '🟢 مفعل' : '🔴 معطل', inline: true },
       { name: '⏱️ حذف الرد تلقائياً', value: data.autoDelete ? `🟢 ${formatDelay(data.autoDeleteTime)}` : '🔴 معطل', inline: true },
       { name: '⏳ تأخير الإرسال', value: data.replyDelay ? `🟢 ${formatDelay(data.replyDelayTime)}` : '🔴 معطل', inline: true },
@@ -280,9 +281,20 @@ async function showArControlPanel(interaction, replyName) {
   const row5 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`ar_chans_whitelist_${replyName}`).setLabel('📢 الرومات المسموحة').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`ar_chans_blacklist_${replyName}`).setLabel('⛔ الرومات الممنوعة').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`ar_embed_${replyName}`).setLabel(data.replyAsEmbed ? '🖼️ إيمبد 🟢' : '🖼️ إيمبد 🔴').setStyle(data.replyAsEmbed ? ButtonStyle.Success : ButtonStyle.Danger),
   );
 
-  return respondOrUpdate(interaction, { embeds: [infoEmbed], components: [row1, row2, row3, row4, row5] });
+  // ---- الصف السادس (اختياري) - يظهر فقط لو الإيمبد مفعل ----
+  let components = [row1, row2, row3, row4, row5];
+  if (data.replyAsEmbed) {
+    const row6 = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`ar_randcolor_${replyName}`).setLabel(data.randomColor ? '🎨 لون عشوائي 🟢' : '🎨 لون عشوائي 🔴').setStyle(data.randomColor ? ButtonStyle.Success : ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(`ar_embedcolor_${replyName}`).setLabel('🎨 اختر لون').setStyle(ButtonStyle.Secondary),
+    );
+    components.push(row6);
+  }
+
+  return respondOrUpdate(interaction, { embeds: [infoEmbed], components });
 }
 
 // ================== 2. عرض الردود المسجلة (سجل + معاينة) ==================
@@ -601,6 +613,43 @@ async function handleArDelay(interaction, replyName) {
   }
 }
 
+// ================== 🖼️ إرسال كإيمبد ==================
+
+async function handleArEmbed(interaction, replyName) {
+  const data = await getReply(replyName);
+  if (!data) return respondOrUpdate(interaction, { content: '⚠️ الرد غير موجود.' });
+  const newVal = !data.replyAsEmbed;
+  await updateReply(replyName, { replyAsEmbed: newVal });
+  return showArControlPanel(interaction, replyName);
+}
+
+async function handleArRandColor(interaction, replyName) {
+  const data = await getReply(replyName);
+  if (!data) return respondOrUpdate(interaction, { content: '⚠️ الرد غير موجود.' });
+  const newVal = !data.randomColor;
+  await updateReply(replyName, { randomColor: newVal, replyAsEmbed: true });
+  return showArControlPanel(interaction, replyName);
+}
+
+async function handleArEmbedColor(interaction, replyName) {
+  const data = await getReply(replyName);
+  if (!data) return respondOrUpdate(interaction, { content: '⚠️ الرد غير موجود.' });
+
+  const modal = new ModalBuilder()
+    .setCustomId(`modal_ar_embedcolor_${replyName}`)
+    .setTitle('🎨 اختر لون الإيمبد');
+
+  const colorInput = new TextInputBuilder()
+    .setCustomId('ar_embed_color')
+    .setLabel('لون (Hex: #FF0000 أو اسم: Red)')
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setValue(data.embedColor || '#5865F2');
+
+  modal.addComponents(new ActionRowBuilder().addComponents(colorInput));
+  return interaction.showModal(modal);
+}
+
 // ================== 💬 إدارة نصوص الرد ==================
 
 async function handleArResponses(interaction, replyName) {
@@ -884,6 +933,14 @@ async function handleAutoReplyModal(interaction) {
     return showArControlPanel(interaction, name);
   }
 
+  // اختيار لون الإيمبد
+  if (id.startsWith('modal_ar_embedcolor_')) {
+    const name = id.replace('modal_ar_embedcolor_', '');
+    const color = interaction.fields.getTextInputValue('ar_embed_color').trim();
+    await updateReply(name, { embedColor: color, replyAsEmbed: true });
+    return showArControlPanel(interaction, name);
+  }
+
   // توجيه مودالات التفاعلات
   if (id.startsWith('modal_rr_')) {
     const { handleReactModal } = require('./reactReply');
@@ -963,6 +1020,11 @@ async function handleAutoReplyInteraction(interaction) {
   if (id.startsWith('ar_autodel_')) return handleArAutoDel(interaction, id.replace('ar_autodel_', ''));
   if (id.startsWith('ar_delay_')) return handleArDelay(interaction, id.replace('ar_delay_', ''));
 
+  // أزرار الإيمبد
+  if (id.startsWith('ar_embed_')) return handleArEmbed(interaction, id.replace('ar_embed_', ''));
+  if (id.startsWith('ar_randcolor_')) return handleArRandColor(interaction, id.replace('ar_randcolor_', ''));
+  if (id.startsWith('ar_embedcolor_')) return handleArEmbedColor(interaction, id.replace('ar_embedcolor_', ''));
+
   // تعديل الكلمة المفتاحية (قبل الرجوع العام)
   if (id.startsWith('ar_edit_trigger_')) return handleArEditTrigger(interaction, id.replace('ar_edit_trigger_', ''));
 
@@ -1033,7 +1095,17 @@ async function handleMessage(message) {
   const member = message.member;
   const channel = message.channel;
 
+  // تتبع المحفزات التي تم الرد عليها لمنع تكرار نفس المحفز
+  const usedTriggers = new Set();
+
   for (const reply of replies) {
+    // إذا كان هذا المحفز قد تم استخدامه بالفعل، نتخطاه
+    const triggerLower = (reply.trigger || '').toLowerCase();
+    if (usedTriggers.has(triggerLower)) {
+      console.log(`⏭️ تكرار محفز: "${reply.trigger}" تم الرد عليه مسبقاً`);
+      continue;
+    }
+
     // === فحص الرومات (Whitelist / Blacklist) ===
     const chW = reply.channelWhitelist || [];
     const chB = reply.channelBlacklist || [];
@@ -1075,6 +1147,9 @@ async function handleMessage(message) {
     }
 
     if (!matched) continue;
+
+    // تسجيل المحفز كمستخدم (لمنع التكرار)
+    usedTriggers.add(triggerLower);
 
     // === تمت المطابقة ===
 
@@ -1119,16 +1194,31 @@ async function handleMessage(message) {
         text = responses[0];
       }
 
-      // دالة الإرسال
+      // دالة الإرسال (مع دعم الإيمبد)
       const sendReply = async () => {
         try {
+          // بناء الإيمبد لو مفعل
+          let payload;
+          if (reply.replyAsEmbed) {
+            const color = reply.randomColor
+              ? Math.floor(Math.random() * 0xFFFFFF)
+              : parseInt((reply.embedColor || '#5865F2').replace('#', ''), 16);
+            const embed = new EmbedBuilder()
+              .setDescription(text)
+              .setColor(color)
+              .setTimestamp();
+            payload = { embeds: [embed] };
+          } else {
+            payload = { content: text };
+          }
+
           if (reply.sendStyle === 'reply_with_mention' || reply.sendStyle === 'reply_mention') {
-            await message.reply({ content: text, allowedMentions: { repliedUser: true } });
+            await message.reply({ ...payload, allowedMentions: { repliedUser: true } });
           } else if (reply.sendStyle === 'reply_no_mention') {
-            await message.reply({ content: text, allowedMentions: { repliedUser: false } });
+            await message.reply({ ...payload, allowedMentions: { repliedUser: false } });
           } else {
             // normal
-            await channel.send(text);
+            await channel.send(payload);
           }
 
           // حذف تلقائي إن مفعل

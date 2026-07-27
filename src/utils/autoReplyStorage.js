@@ -34,6 +34,9 @@ const autoReplySchema = new mongoose.Schema({
   caseSensitive: { type: Boolean, default: false },
   enabled: { type: Boolean, default: true },
   useCount: { type: Number, default: 0 },
+  replyAsEmbed: { type: Boolean, default: false },
+  embedColor: { type: String, default: '#5865F2' },
+  randomColor: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 }, { collection: 'autoreplies', versionKey: false });
@@ -166,6 +169,9 @@ async function createReply(data) {
     channelId: data.channelId || null,
     ignoreBots: data.ignoreBots !== false, caseSensitive: data.caseSensitive || false,
     enabled: data.enabled !== false, useCount: 0,
+    replyAsEmbed: data.replyAsEmbed || false,
+    embedColor: data.embedColor || '#5865F2',
+    randomColor: data.randomColor || false,
     createdAt: now, updatedAt: now
   };
 
