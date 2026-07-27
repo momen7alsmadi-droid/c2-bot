@@ -1,13 +1,10 @@
 const mongoose = require('mongoose');
 
-// رابط قاعدة البيانات الثابت (احتياطي في حال لم يُضبط متغير البيئة)
-const FALLBACK_URI = 'mongodb+srv://momen7alsmadi_db_user:l7zDaH7CkksljM1l@c2.kpnmvro.mongodb.net/c2?retryWrites=true&w=majority';
-
 async function connectDatabase() {
-  let uri = process.env.MONGODB_URI || FALLBACK_URI;
+  const uri = process.env.MONGODB_URI;
   
   if (!uri) {
-    console.log('⚠️ MONGODB_URI غير موجود، سيتم استخدام التخزين المحلي (JSON).');
+    console.log('⚠️ MONGODB_URI غير مضبوط في متغيرات البيئة. يتم استخدام التخزين المحلي (JSON).');
     return false;
   }
   
