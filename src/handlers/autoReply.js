@@ -1064,7 +1064,7 @@ async function handleMessage(message) {
       console.error(`❌ autoReply error for "${reply.name}":`, e.message);
     }
 
-    break; // نطابق أول رد فقط
+    // ملاحظة: بدون break عشان كل الردود المطابقة تشتغل
   }
 }
 

@@ -546,10 +546,11 @@ async function handleReactMessage(message) {
     } catch (e) {
       console.error(`❌ reactReply error for "${react.name}":`, e.message);
     }
-    break;
+    // بدون break — كل التفاعلات المطابقة تشتغل
   }
 }
 
 module.exports = {
-  handleReactInteraction, handleReactModal, handleReactMain, handleReactMessage
+  handleReactInteraction, handleReactModal, handleReactMain, handleReactMessage,
+  handleRrCreate, showRrControlPanel, handleRrDeleteConfirm, handleRrDeleteExecute
 };
