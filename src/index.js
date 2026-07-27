@@ -14,6 +14,7 @@ const { handleResign, handleResignButton, handleDevSettings } = require('./handl
 const { handleMasterPanel, handleDevRefresh, handleDevDisable, handleDevEnable, handleDevToggle } = require('./handlers/master-panel');
 const { handleHelp } = require('./handlers/help');
 const { handleBroadcast } = require('./handlers/broadcast');
+const { handleColorsCommand } = require('./handlers/colors');
 const { handleSettings, showSettingsPage, handleSettingsSelect } = require('./handlers/settings');
 const { handleColorAutocomplete } = require('./handlers/broadcast');
 
@@ -134,6 +135,7 @@ async function handleSlashCommand(interaction) {
     case 'اعدادات': return handleSettings(interaction);
     case 'لوحة_المطور': return handleMasterPanel(interaction);
     case 'broadcast': return handleBroadcast(interaction);
+    case 'الألوان_المتوفرة': return handleColorsCommand(interaction);
   }
 }
 

@@ -97,6 +97,12 @@ const commands = [
     .addRoleOption(o => o.setName('role').setDescription('الرتبة المستهدفة (اختياري) - إذا تركت فارغة ترسل للكل').setRequired(false))
     .addStringOption(o => o.setName('color').setDescription('لون الإيمبد (اختياري) - اكتب للبحث أو اتركه فارغاً للون عشوائي').setRequired(false).setAutocomplete(true))
     .toJSON(),
+
+  // ------------------- /الألوان_المتوفرة -------------------
+  new SlashCommandBuilder()
+    .setName('الألوان_المتوفرة')
+    .setDescription('🎨 عرض جميع ألوان الإيمبد المتوفرة مع رموزها')
+    .toJSON(),
 ];
 
 const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);
