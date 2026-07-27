@@ -16,7 +16,10 @@ const reactSchema = new mongoose.Schema({
   name: { type: String, required: true },
   trigger: { type: String, required: true },
   triggerType: { type: String, default: 'contains' },
-  emoji: { type: String, required: true },
+  emoji: { type: String, default: '' },         // للتوافق القديم
+  emojis: { type: [String], default: [] },       // مصفوفة الإيموجيات
+  randomReact: { type: Boolean, default: false }, // اختيار عشوائي
+  multipleReact: { type: Boolean, default: false }, // كل الإيموجيات
   channelId: { type: String, default: null },
   roleWhitelist: { type: [String], default: [] },
   roleBlacklist: { type: [String], default: [] },
@@ -96,11 +99,15 @@ async function mongoGetById(name) {
 }
 
 async function mongoCreate(data) {
+  const emojis = data.emojis && data.emojis.length > 0 ? data.emojis : (data.emoji ? [data.emoji] : []);
   try {
     const doc = new ReactModel({
       _id: data.name, name: data.name,
       trigger: data.trigger, triggerType: data.triggerType || 'contains',
-      emoji: data.emoji,
+      emoji: emojis[0] || '',
+      emojis: emojis,
+      randomReact: data.randomReact || false,
+      multipleReact: data.multipleReact || false,
       channelId: data.channelId || null,
       roleWhitelist: data.roleWhitelist || [],
       roleBlacklist: data.roleBlacklist || [],
@@ -152,6 +159,7 @@ async function getReact(name) {
 }
 
 async function createReact(data) {
+  const emojis = data.emojis && data.emojis.length > 0 ? data.emojis : (data.emoji ? [data.emoji] : []);
   if (mongoReady) {
     const created = await mongoCreate(data);
     if (created) { console.log(`✅ reaction: تم حفظ "${data.name}" في MongoDB`); return created; }
@@ -161,7 +169,10 @@ async function createReact(data) {
   json[data.name] = {
     _id: data.name, name: data.name,
     trigger: data.trigger, triggerType: data.triggerType || 'contains',
-    emoji: data.emoji, channelId: data.channelId || null,
+    emoji: emojis[0] || '', emojis: emojis,
+    randomReact: data.randomReact || false,
+    multipleReact: data.multipleReact || false,
+    channelId: data.channelId || null,
     roleWhitelist: data.roleWhitelist || [], roleBlacklist: data.roleBlacklist || [],
     channelWhitelist: data.channelWhitelist || [], channelBlacklist: data.channelBlacklist || [],
     ignoreBots: data.ignoreBots !== false, caseSensitive: data.caseSensitive || false,
@@ -213,7 +224,11 @@ async function getReactsList() {
   const all = await getAllReacts();
   return all.map(r => ({
     name: r.name, trigger: r.trigger,
-    triggerType: r.triggerType, emoji: r.emoji,
+    triggerType: r.triggerType,
+    emoji: r.emoji || ((r.emojis||[])[0] || ''),
+    emojisCount: (r.emojis||[]).length,
+    randomReact: r.randomReact || false,
+    multipleReact: r.multipleReact || false,
     enabled: r.enabled !== false, useCount: r.useCount || 0
   }));
 }
