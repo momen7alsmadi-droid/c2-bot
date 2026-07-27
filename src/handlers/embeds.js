@@ -109,18 +109,20 @@ async function handleEmbCreateModal(interaction) {
     if (!title) return interaction.editReply({ content: '⚠️ عنوان الإيمبد مطلوب.' });
     if (!description) return interaction.editReply({ content: '⚠️ المحتوى مطلوب.' });
 
-    // التحقق من عدم تكرار الاسم
+    // التحقق من عدم تكرار الاسم (حتى لو البيانات تالفة)
     try {
       const existing = await getEmbed(name);
       if (existing) {
-        // الاسم موجود مسبقاً → نحذفه أولاً ثم ننشئ الجديد
-        console.log(`⚠️ embed: "${name}" موجود مسبقاً، سيتم استبداله.`);
-        await deleteEmbed(name);
+        return interaction.editReply({
+          content: '❌ هذا الاسم الداخلي مستخدم مسبقاً، يرجى اختيار اسم آخر.'
+        });
       }
     } catch (checkErr) {
-      // لو فشل الفحص (مثلاً البيانات تالفة) → نحاول حذفها عموماً
-      console.error(`⚠️ embed فحص الاسم "${name}" فشل:`, checkErr.message);
-      try { await deleteEmbed(name); } catch {}
+      // إذا فشل الفحص نفسه (مثلاً قاعدة البيانات ترجع بيانات تالفة)
+      console.error('⚠️ embed فحص الاسم فشل:', checkErr.message);
+      return interaction.editReply({
+        content: '❌ هذا الاسم الداخلي مستخدم مسبقاً (بيانات تالفة)، يرجى اختيار اسم آخر.'
+      });
     }
 
     // إنشاء الإيمبد في قاعدة البيانات
