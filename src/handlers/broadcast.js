@@ -119,6 +119,8 @@ async function handleBroadcast(interaction) {
       summaryEmbed.addFields({ name: '🎨 اللون', value: colorName, inline: false });
     }
 
+    summaryEmbed.setFooter({ text: `الإصدار: ${version}` });
+
     return interaction.editReply({ embeds: [summaryEmbed] });
   } catch (err) {
     console.error('❌ خطأ في /broadcast:', err.message, err.stack);

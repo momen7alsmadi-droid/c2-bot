@@ -4,6 +4,7 @@ const {
   ModalBuilder, TextInputBuilder, TextInputStyle
 } = require('discord.js');
 const { COLORS } = require('../utils/colors');
+const { version } = require('../../package.json');
 const {
   initEmbedModel,
   getAllEmbeds,
@@ -29,6 +30,7 @@ async function handleEmbedsMain(interaction) {
     .setTitle('📦 لوحة قوالب الإيمبدات')
     .setColor(0x5865F2)
     .setDescription('اختر أحد الخيارات أدناه:')
+    .setFooter({ text: `الإصدار: ${version}` })
     .setTimestamp();
 
   const row = new ActionRowBuilder().addComponents(

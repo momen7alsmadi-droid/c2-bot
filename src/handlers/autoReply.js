@@ -3,6 +3,7 @@ const {
   StringSelectMenuBuilder, RoleSelectMenuBuilder, ChannelSelectMenuBuilder,
   ModalBuilder, TextInputBuilder, TextInputStyle, ChannelType
 } = require('discord.js');
+const { version } = require('../../package.json');
 const mongoose = require('mongoose');
 const {
   createReply, updateReply, deleteReply, getReply,
@@ -142,6 +143,7 @@ async function handleAutoReplyMain(interaction) {
     .setTitle('🤖 لوحة الردود التلقائية')
     .setColor(0x5865F2)
     .setDescription('اختر أحد الخيارات أدناه لإدارة الردود التلقائية.')
+    .setFooter({ text: `الإصدار: ${version}` })
     .setTimestamp();
 
   const row1 = new ActionRowBuilder().addComponents(

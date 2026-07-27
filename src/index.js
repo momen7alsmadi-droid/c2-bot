@@ -16,7 +16,7 @@ const { handleMasterPanel, handleDevRefresh, handleDevRefreshPanel, handleDevDis
 const { handleHelp } = require('./handlers/help');
 const { handleBroadcast } = require('./handlers/broadcast');
 const { handleColorsCommand } = require('./handlers/colors');
-const { handleSettings, showSettingsPage, handleSettingsSelect } = require('./handlers/settings');
+const { handleSettings, showSettingsPage, handleSettingsSelect, handleDbCheck } = require('./handlers/settings');
 const { handleColorAutocomplete } = require('./handlers/broadcast');
 const { handleEmbedsInteraction, handleEmbedsModal, handleEmbedsMain } = require('./handlers/embeds');
 const { initEmbedModel } = require('./utils/embedStorage');
@@ -327,6 +327,7 @@ async function handleButton(interaction) {
   if (id === 'set_resign') return showSettingsPage(interaction, 'resign', 1);
   if (id === 'set_resign_1') return showSettingsPage(interaction, 'resign', 1);
   if (id === 'set_resign_2') return showSettingsPage(interaction, 'resign', 2);
+  if (id === 'set_checkdb') return handleDbCheck(interaction);
   if (id.startsWith('sl_report_cd_')) {
     return handleSettingsSelect(interaction);
   }

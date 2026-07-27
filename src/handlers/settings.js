@@ -2,6 +2,7 @@ const {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder,
   RoleSelectMenuBuilder, ChannelSelectMenuBuilder
 } = require('discord.js');
+const mongoose = require('mongoose');
 const { getConfig, saveConfig } = require('../utils/storage');
 const { version } = require('../utils/version');
 
@@ -81,7 +82,10 @@ async function handleSettings(interaction) {
       new ButtonBuilder().setCustomId('set_report').setLabel('🛡️ بلاغات').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('set_resign').setLabel('📄 استقالة').setStyle(ButtonStyle.Primary),
     );
-    return respondOrUpdate(interaction, { embeds: [embed], components: [row] });
+    const row2 = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('set_checkdb').setLabel('🗄️ فحص قاعدة البيانات').setStyle(ButtonStyle.Secondary),
+    );
+    return respondOrUpdate(interaction, { embeds: [embed], components: [row, row2] });
   } catch (e) {
     console.error('ERR-HOME:', e.message);
     try { await interaction.reply({ content: '⚠️ ERR-HOME', ephemeral: true }); } catch(_) {}
@@ -327,4 +331,52 @@ async function handleSettingsSelect(interaction) {
   }
 }
 
-module.exports = { handleSettings, showSettingsPage, handleSettingsSelect };
+/** فحص حالة قاعدة البيانات */
+async function handleDbCheck(interaction) {
+  try {
+    const readyState = mongoose.connection.readyState;
+    const stateNames = {
+      0: '❌ غير متصل (Disconnected)',
+      1: '✅ متصل (Connected)',
+      2: '⏳ جاري الاتصال (Connecting)',
+      3: '⚠️ يتم قطع الاتصال (Disconnecting)',
+    };
+
+    let desc = `**الحالة:** ${stateNames[readyState] || '❓ غير معروف'}\n\n`;
+
+    if (readyState === 1) {
+      desc += '✅ **قاعدة البيانات شغالة ويعمل.**\n';
+      desc += `🗄️ **القاعدة:** \`${mongoose.connection.db.databaseName}\`\n`;
+      desc += `🖥️ **المضيف:** \`${mongoose.connection.host}\``;
+    } else {
+      desc += '⚠️ **قاعدة البيانات غير متصلة.**\n\n';
+      desc += '🔧 **حلول:**\n';
+      desc += '1. تأكد من متغير MONGODB_URI في الإعدادات\n';
+      desc += '2. أضف 0.0.0.0/0 في MongoDB Atlas → Network Access\n';
+      desc += '3. أعد تشغيل البوت';
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle('🗄️ فحص قاعدة البيانات')
+      .setColor(readyState === 1 ? 0x2ECC71 : 0xE74C3C)
+      .setDescription(desc)
+      .setFooter({ text: `الإصدار: ${version}` })
+      .setTimestamp();
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('settings_back').setLabel('🔙 رجوع للوحة الإعدادات').setStyle(ButtonStyle.Secondary),
+    );
+
+    return respondOrUpdate(interaction, { embeds: [embed], components: [row] });
+  } catch (e) {
+    console.error('ERR-DB:', e.message);
+    try {
+      if (interaction.isRepliable()) {
+        if (interaction.deferred) await interaction.editReply({ content: '⚠️ ERR-DB', ephemeral: true }).catch(() => {});
+        else if (!interaction.replied) await interaction.reply({ content: '⚠️ ERR-DB', ephemeral: true }).catch(() => {});
+      }
+    } catch(_) {}
+  }
+}
+
+module.exports = { handleSettings, showSettingsPage, handleSettingsSelect, handleDbCheck };

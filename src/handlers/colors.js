@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
 const { COLORS } = require('../utils/colors');
+const { version } = require('../../package.json');
 
 /**
  * /الألوان_المتوفرة - عرض جميع ألوان الإيمبد مع رموزها
@@ -16,7 +17,7 @@ async function handleColorsCommand(interaction) {
     .setColor(0x5865F2)
     .setDescription(lines.join('\n'))
     .setFooter({
-      text: `إجمالي ${COLORS.length} لون | استخدم /broadcast مع خيار color`,
+      text: `الإصدار: ${version} | إجمالي ${COLORS.length} لون`,
     })
     .setTimestamp();
 

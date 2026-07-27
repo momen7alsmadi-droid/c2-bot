@@ -7,6 +7,7 @@ const {
   createReact, updateReact, deleteReact, getReact,
   getReactsList, getEnabledReacts, incrementReactCount
 } = require('../utils/reactionReplyStorage');
+const { version } = require('../../package.json');
 
 // سجل لمنع تكرار التفاعل لنفس الرسالة
 const processedReacts = new Set();
@@ -28,6 +29,7 @@ async function handleReactMain(interaction) {
     .setTitle('😊 لوحة الردود بالتفاعلات (رياكشن)')
     .setColor(0x5865F2)
     .setDescription('اختر أحد الخيارات أدناه لإدارة التفاعلات التلقائية.')
+    .setFooter({ text: `الإصدار: ${version}` })
     .setTimestamp();
 
   const row = new ActionRowBuilder().addComponents(
