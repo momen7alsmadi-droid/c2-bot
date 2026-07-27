@@ -1,5 +1,5 @@
 /**
- * embedStorage.js - تخزين ثنائي (MongoDB + JSON) لقوالب الإيمبدات
+ * embedStorage.js - تخزين ثنائي ديناميكي (MongoDB + JSON)
  */
 const mongoose = require('mongoose');
 const fs = require('fs');
@@ -28,7 +28,6 @@ const embedSchema = new mongoose.Schema({
 }, { collection: 'embeds', versionKey: false });
 
 let EmbedModel;
-let mongoReady = false;
 
 // ---------- JSON helpers ----------
 function readJSON() {
@@ -36,76 +35,56 @@ function readJSON() {
     if (!fs.existsSync(EMBEDS_PATH)) return {};
     const raw = fs.readFileSync(EMBEDS_PATH, 'utf8');
     return raw.trim() ? JSON.parse(raw) : {};
-  } catch (e) {
-    console.error('❌ embedStorage readJSON:', e.message);
-    return {};
-  }
+  } catch (e) { console.error('❌ embedStorage readJSON:', e.message); return {}; }
 }
 
 function writeJSON(data) {
-  try {
-    fs.writeFileSync(EMBEDS_PATH, JSON.stringify(data, null, 2), 'utf8');
-  } catch (e) {
-    console.error('❌ embedStorage writeJSON:', e.message);
-  }
+  try { fs.writeFileSync(EMBEDS_PATH, JSON.stringify(data, null, 2), 'utf8'); } catch (e) { console.error('❌ embedStorage writeJSON:', e.message); }
 }
 
 function objToJson(obj) { writeJSON(obj); }
 
-// ---------- التهيئة ----------
+// ---------- التحقق الديناميكي ----------
+function isMongoReady() {
+  if (mongoose.connection.readyState !== 1) return false;
+  if (EmbedModel) return true;
+  try { EmbedModel = mongoose.models.Embed || mongoose.model('Embed', embedSchema); return true; } catch { return false; }
+}
+
 function initEmbedModel() {
-  if (mongoose.connection.readyState === 1) {
-    EmbedModel = mongoose.models.Embed || mongoose.model('Embed', embedSchema);
-    mongoReady = true;
-    console.log('📦 embeds → ✅ MongoDB');
-    return true;
-  }
-  mongoReady = false;
-  console.log('📦 embeds → ⚠️ JSON فقط');
-  return false;
+  if (isMongoReady()) { console.log('📦 embeds → ✅ MongoDB'); return true; }
+  console.log('📦 embeds → ⚠️ JSON فقط'); return false;
 }
 
 async function syncJsonToMongo() {
-  if (!mongoReady) return;
+  if (!isMongoReady()) return;
   const json = readJSON();
   const names = Object.keys(json);
   if (names.length === 0) { console.log('🔄 embeds: JSON فاضي'); return; }
   console.log(`🔄 مزامنة ${names.length} إيمبد من JSON إلى MongoDB...`);
   let synced = 0;
   for (const name of names) {
-    try {
-      await EmbedModel.findByIdAndUpdate(name, { $set: json[name] }, { upsert: true });
-      synced++;
-    } catch (e) { console.error(`❌ فشل مزامنة ${name}:`, e.message); }
+    try { await EmbedModel.findByIdAndUpdate(name, { $set: json[name] }, { upsert: true }); synced++; } catch (e) { console.error(`❌ فشل مزامنة ${name}:`, e.message); }
   }
   console.log(`✅ تمت مزامنة ${synced}/${names.length} إيمبد`);
 }
 
-// ========== دوال مساعدة ==========
+// ========== مساعدة ==========
 
 async function writeToMongo(name, data) {
-  if (!mongoReady) return null;
-  try {
-    return await EmbedModel.findByIdAndUpdate(
-      name,
-      { $set: { ...data, updatedAt: new Date() } },
-      { upsert: true, new: true }
-    ).lean();
-  } catch (e) {
-    console.error(`❌ embed MongoDB write error:`, e.message);
-    return null;
-  }
+  if (!isMongoReady()) return null;
+  try { return await EmbedModel.findByIdAndUpdate(name, { $set: { ...data, updatedAt: new Date() } }, { upsert: true, new: true }).lean(); } catch (e) { console.error(`❌ embed MongoDB error:`, e.message); return null; }
 }
 
 async function deleteFromMongo(name) {
-  if (!mongoReady) return false;
+  if (!isMongoReady()) return false;
   try { await EmbedModel.findByIdAndDelete(name); return true; } catch { return false; }
 }
 
-// ========== API العامة مع Dual-Write ==========
+// ========== API ==========
 
 async function getAllEmbeds() {
-  if (mongoReady) {
+  if (isMongoReady()) {
     try {
       const data = await EmbedModel.find().lean();
       if (data && data.length > 0) {
@@ -114,17 +93,14 @@ async function getAllEmbeds() {
         objToJson(jsonObj);
         return data;
       }
-    } catch {}
+    } catch (e) { console.error('❌ embed getAll MongoDB:', e.message); }
   }
   return Object.values(readJSON());
 }
 
 async function getEmbed(name) {
-  if (mongoReady) {
-    try {
-      const data = await EmbedModel.findById(name).lean();
-      if (data) return data;
-    } catch {}
+  if (isMongoReady()) {
+    try { const data = await EmbedModel.findById(name).lean(); if (data) return data; } catch {}
   }
   return readJSON()[name] || null;
 }
@@ -136,19 +112,19 @@ async function createEmbed(name, data) {
     title: data.title || '', description: data.description || '',
     color: data.color || '#5865F2', footer: data.footer || '',
     image: data.image || '', thumbnail: data.thumbnail || '',
-    author: data.author || '', fields: data.fields || ['','','','','','','','','',''],
+    author: data.author || '',
+    fields: data.fields || ['','','','','','','','','',''],
     timestamp: data.timestamp || false,
     createdAt: now, updatedAt: now
   };
 
   let mongoResult = null;
-  if (mongoReady) {
+  if (isMongoReady()) {
     mongoResult = await writeToMongo(name, doc);
     if (mongoResult) console.log(`✅ embed: "${name}" → MongoDB`);
     else console.log(`⚠️ embed: "${name}" → فشل MongoDB`);
   }
 
-  // JSON دائماً
   const json = readJSON();
   if (json[name]) { console.log(`⚠️ embed: "${name}" موجود مسبقاً`); return null; }
   json[name] = { ...doc, createdAt: now.toISOString(), updatedAt: now.toISOString() };
@@ -160,21 +136,15 @@ async function createEmbed(name, data) {
 
 async function updateEmbed(name, updates) {
   updates.updatedAt = new Date();
-
   let mongoResult = null;
-  if (mongoReady) mongoResult = await writeToMongo(name, updates);
-
+  if (isMongoReady()) mongoResult = await writeToMongo(name, updates);
   const json = readJSON();
-  if (json[name]) {
-    json[name] = { ...json[name], ...updates, updatedAt: updates.updatedAt.toISOString() };
-    objToJson(json);
-  }
-
+  if (json[name]) { json[name] = { ...json[name], ...updates, updatedAt: updates.updatedAt.toISOString() }; objToJson(json); }
   return mongoResult || json[name] || null;
 }
 
 async function deleteEmbed(name) {
-  if (mongoReady) await deleteFromMongo(name);
+  if (isMongoReady()) await deleteFromMongo(name);
   const json = readJSON();
   if (json[name]) { delete json[name]; objToJson(json); }
   return true;
@@ -182,11 +152,7 @@ async function deleteEmbed(name) {
 
 async function getEmbedsList() {
   const all = await getAllEmbeds();
-  return all.map(r => ({
-    name: r.name || r._id,
-    title: (r.title || '').slice(0, 50),
-    color: r.color || '#5865F2'
-  }));
+  return all.map(r => ({ name: r.name || r._id, title: (r.title || '').slice(0, 50), color: r.color || '#5865F2' }));
 }
 
 module.exports = {

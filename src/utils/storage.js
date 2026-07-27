@@ -63,15 +63,22 @@ const reportsSchema = new mongoose.Schema({
 }, { collection: 'reports', versionKey: false });
 
 let ConfigModel, LeavesModel, ReportsModel;
-let useMongo = false;
+
+function isMongoReady() {
+  if (mongoose.connection.readyState !== 1) return false;
+  if (!ConfigModel || !LeavesModel || !ReportsModel) {
+    try {
+      ConfigModel = mongoose.models.Config || mongoose.model('Config', configSchema);
+      LeavesModel = mongoose.models.Leaves || mongoose.model('Leaves', leavesSchema);
+      ReportsModel = mongoose.models.Reports || mongoose.model('Reports', reportsSchema);
+    } catch { return false; }
+  }
+  return true;
+}
 
 function initModels() {
-  if (mongoose.connection.readyState === 1) {
-    ConfigModel = mongoose.models.Config || mongoose.model('Config', configSchema);
-    LeavesModel = mongoose.models.Leaves || mongoose.model('Leaves', leavesSchema);
-    ReportsModel = mongoose.models.Reports || mongoose.model('Reports', reportsSchema);
-    useMongo = true;
-  }
+  if (isMongoReady()) { console.log('📦 settings → ✅ MongoDB'); return true; }
+  console.log('📦 settings → ⚠️ JSON فقط'); return false;
 }
 
 // ---------- JSON helpers ----------
@@ -94,7 +101,7 @@ function writeJSON(filePath, data) {
 // ---------- Config ----------
 
 async function mongoGetConfig() {
-  if (!useMongo) return null;
+  if (!isMongoReady()) return null;
   try {
     const doc = await ConfigModel.findById('main').lean();
     return doc ? doc.data : null;
@@ -102,7 +109,7 @@ async function mongoGetConfig() {
 }
 
 async function mongoSaveConfig(cfg) {
-  if (!useMongo) return;
+  if (!isMongoReady()) return;
   try {
     await ConfigModel.findByIdAndUpdate('main', { data: cfg }, { upsert: true });
   } catch (e) { console.error('Mongo saveConfig error:', e); }
@@ -110,7 +117,7 @@ async function mongoSaveConfig(cfg) {
 
 function getConfig() {
   // Try MongoDB first
-  if (useMongo) {
+  if (isMongoReady()) {
     // We'll handle async via a promise cache, but for sync we return cached or fallback
     // For simplicity, we'll use a sync fallback and expose async versions
   }
@@ -126,13 +133,13 @@ function getConfig() {
 
 function saveConfig(cfg) {
   writeJSON(CONFIG_PATH, cfg);
-  if (useMongo) mongoSaveConfig(cfg);
+  if (isMongoReady()) mongoSaveConfig(cfg);
 }
 
 // Async versions for MongoDB
 async function ensureConfigLoaded() {
   initModels();
-  if (useMongo) {
+  if (isMongoReady()) {
     const mCfg = await mongoGetConfig();
     if (mCfg) {
       writeJSON(CONFIG_PATH, mCfg);
@@ -147,7 +154,7 @@ async function ensureConfigLoaded() {
 // ---------- Leaves ----------
 
 async function mongoGetLeaves() {
-  if (!useMongo) return null;
+  if (!isMongoReady()) return null;
   try {
     const docs = await LeavesModel.find().lean();
     const result = {};
@@ -159,7 +166,7 @@ async function mongoGetLeaves() {
 }
 
 async function mongoSaveLeaves(leaves) {
-  if (!useMongo) return;
+  if (!isMongoReady()) return;
   try {
     // Bulk upsert
     const ops = Object.entries(leaves).map(([userId, data]) => ({
@@ -182,13 +189,13 @@ function getLeaves() {
 
 function saveLeaves(leaves) {
   writeJSON(LEAVES_PATH, leaves);
-  if (useMongo) mongoSaveLeaves(leaves);
+  if (isMongoReady()) mongoSaveLeaves(leaves);
 }
 
 // ---------- Reports ----------
 
 async function mongoGetReports() {
-  if (!useMongo) return null;
+  if (!isMongoReady()) return null;
   try {
     const docs = await ReportsModel.find().lean();
     const result = {};
@@ -200,7 +207,7 @@ async function mongoGetReports() {
 }
 
 async function mongoSaveReports(reports) {
-  if (!useMongo) return;
+  if (!isMongoReady()) return;
   try {
     const ops = Object.entries(reports).map(([id, data]) => ({
       updateOne: {
@@ -221,7 +228,7 @@ function getReports() {
 
 function saveReports(reports) {
   writeJSON(REPORTS_PATH, reports);
-  if (useMongo) mongoSaveReports(reports);
+  if (isMongoReady()) mongoSaveReports(reports);
 }
 
 module.exports = {
@@ -230,5 +237,5 @@ module.exports = {
   getReports, saveReports,
   ensureConfigLoaded,
   initModels,
-  useMongo: () => useMongo
+  isMongoReady
 };

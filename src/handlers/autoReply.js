@@ -9,38 +9,52 @@ const {
   getAllReplies, getRepliesList, getEnabledReplies, incrementUseCount
 } = require('../utils/autoReplyStorage');
 
-// ====== MongoDB Dedup: لمنع التكرار بين نسخ البوت المتعددة ======
+// ====== MongoDB Dedup ATOMIC: منع التكرار بين نسخ البوت ======
+// كل مستند = مفتاح فريد (messageId:replyName)
+// unique _id يمنع الإدراج المكرر على مستوى قاعدة البيانات
 const dedupSchema = new mongoose.Schema({
-  _id: String, // messageId
-  replyNames: { type: [String], default: [] },
+  _id: String, // messageId + ':' + replyName
   createdAt: { type: Date, default: Date.now, expires: 300 } // TTL: 5 دقائق
-}, { collection: 'msgdedup', versionKey: false });
+}, { collection: 'msgdedup2', versionKey: false });
+
 let DedupModel;
 
 function initDedup() {
   if (mongoose.connection.readyState === 1) {
-    DedupModel = mongoose.models.Dedup || mongoose.model('Dedup', dedupSchema);
-    return true;
+    try {
+      DedupModel = mongoose.models.Dedup2 || mongoose.model('Dedup2', dedupSchema);
+      // تأكيد إنشاء الـ TTL index
+      DedupModel.collection.createIndex({ createdAt: 1 }, { expireAfterSeconds: 300 }).catch(() => {});
+      console.log('📦 dedup → ✅ MongoDB');
+      return true;
+    } catch (e) {
+      console.error('❌ dedup init error:', e.message);
+      return false;
+    }
   }
+  console.log('📦 dedup → ⚠️ MongoDB غير متصل');
   return false;
 }
 
-// التحقق من أن هذا الرد لم يُرسل لهذه الرسالة بعد (للتكامل مع عدة نسخ)
+/**
+ * التحقق الذري: هل هذا الرد أُرسل لهذه الرسالة من قبل؟
+ * يستخدم unique _id constraint في MongoDB لمنع التكرار
+ */
 async function canSendReply(messageId, replyName) {
-  if (mongoose.connection.readyState !== 1 || !DedupModel) return true; // إذا MongoDB غير متصل، نسمح
+  if (!DedupModel || mongoose.connection.readyState !== 1) {
+    return true; // MongoDB غير متصل → نسمح
+  }
+  const key = messageId + ':' + replyName;
   try {
-    const existing = await DedupModel.findById(messageId).lean();
-    if (existing && existing.replyNames && existing.replyNames.includes(replyName)) {
-      console.log(`🗑️ dedup: ${replyName} ← ${messageId} (مكرر)`);
+    await DedupModel.create({ _id: key });
+    return true; // أول مرة → نسمح
+  } catch (e) {
+    if (e.code === 11000) {
+      // duplicate key → هذا الرد أُرسل سابقاً
+      console.log(`🗑️ dedup ATOMIC: ${replyName} ← ${messageId} (مكرر)`);
       return false;
     }
-    if (existing) {
-      await DedupModel.findByIdAndUpdate(messageId, { $addToSet: { replyNames: replyName } });
-    } else {
-      await DedupModel.create({ _id: messageId, replyNames: [replyName] });
-    }
-    return true;
-  } catch (e) {
+    // خطأ آخر → نسمح احتياطاً
     console.error('❌ dedup error:', e.message);
     return true;
   }

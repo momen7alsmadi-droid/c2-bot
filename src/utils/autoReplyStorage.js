@@ -1,5 +1,6 @@
 /**
- * autoReplyStorage.js - تخزين ثنائي (MongoDB + JSON) لضمان عدم فقدان البيانات
+ * autoReplyStorage.js - تخزين ثنائي ديناميكي (MongoDB + JSON)
+ * يتحقق من حالة MongoDB في كل عملية، لا يعتمد على flag ثابت
  */
 const mongoose = require('mongoose');
 const fs = require('fs');
@@ -38,7 +39,6 @@ const autoReplySchema = new mongoose.Schema({
 }, { collection: 'autoreplies', versionKey: false });
 
 let AutoReplyModel;
-let mongoReady = false;
 
 // ---------- JSON helpers ----------
 function readJSON() {
@@ -60,111 +60,94 @@ function writeJSON(data) {
   }
 }
 
-/** تحميل كل البيانات من JSON إلى object */
-function jsonToObj() {
-  return readJSON();
-}
+function objToJson(obj) { writeJSON(obj); }
 
-/** حفظ object كامل إلى JSON */
-function objToJson(obj) {
-  writeJSON(obj);
+// ---------- التحقق الديناميكي من MongoDB ----------
+function isMongoReady() {
+  if (mongoose.connection.readyState !== 1) return false;
+  if (AutoReplyModel) return true;
+  // حاول تهيئة النموذج إن لم يكن موجوداً
+  try {
+    AutoReplyModel = mongoose.models.AutoReply || mongoose.model('AutoReply', autoReplySchema);
+    return true;
+  } catch { return false; }
 }
 
 // ---------- التهيئة ----------
 function initAutoReplyModel() {
-  if (mongoose.connection.readyState === 1) {
-    AutoReplyModel = mongoose.models.AutoReply || mongoose.model('AutoReply', autoReplySchema);
-    mongoReady = true;
+  if (isMongoReady()) {
     console.log('📦 autoReply → ✅ MongoDB');
     return true;
   }
-  mongoReady = false;
   console.log('📦 autoReply → ⚠️ JSON فقط');
   return false;
 }
 
 async function syncJsonToMongo() {
-  if (!mongoReady) return;
+  if (!isMongoReady()) return;
   const json = readJSON();
   const names = Object.keys(json);
-  if (names.length === 0) {
-    console.log('🔄 autoReply: JSON فاضي، لا يوجد شيء للمزامنة');
-    return;
-  }
-  console.log(`🔄 مزامنة ${names.length} رد تلقائي من JSON إلى MongoDB...`);
+  if (names.length === 0) { console.log('🔄 autoReply: JSON فاضي'); return; }
+  console.log(`🔄 مزامنة ${names.length} رد من JSON إلى MongoDB...`);
   let synced = 0;
   for (const name of names) {
     try {
       await AutoReplyModel.findByIdAndUpdate(name, { $set: json[name] }, { upsert: true });
       synced++;
-    } catch (e) {
-      console.error(`❌ فشل مزامنة ${name}:`, e.message);
-    }
+    } catch (e) { console.error(`❌ فشل مزامنة ${name}:`, e.message); }
   }
   console.log(`✅ تمت مزامنة ${synced}/${names.length} رد`);
 }
 
-// ========== دوال الكتابة الثنائية (MongoDB + JSON) ==========
+// ========== دوال مساعدة ==========
 
-/** كتابة سجل في MongoDB (مع تحديث JSON) */
 async function writeToMongo(name, data) {
-  if (!mongoReady) return null;
+  if (!isMongoReady()) return null;
   try {
-    const result = await AutoReplyModel.findByIdAndUpdate(
+    return await AutoReplyModel.findByIdAndUpdate(
       name,
       { $set: { ...data, updatedAt: new Date() } },
       { upsert: true, new: true }
     ).lean();
-    return result;
   } catch (e) {
-    console.error(`❌ autoReply MongoDB write error:`, e.message);
+    console.error(`❌ autoReply MongoDB error:`, e.message);
     return null;
   }
 }
 
-/** حذف من MongoDB */
 async function deleteFromMongo(name) {
-  if (!mongoReady) return false;
-  try {
-    await AutoReplyModel.findByIdAndDelete(name);
-    return true;
-  } catch { return false; }
+  if (!isMongoReady()) return false;
+  try { await AutoReplyModel.findByIdAndDelete(name); return true; } catch { return false; }
 }
 
-// ========== API العامة مع Dual-Write ==========
+// ========== API العامة ==========
 
 async function getAllReplies() {
   // حاول من MongoDB أولاً
-  if (mongoReady) {
+  if (isMongoReady()) {
     try {
       const data = await AutoReplyModel.find().lean();
       if (data && data.length > 0) {
-        // حدّث JSON كنسخة احتياطية
+        // مزامنة إلى JSON كنسخة احتياطية
         const jsonObj = {};
-        for (const item of data) {
-          jsonObj[item.name] = { ...item, _id: item.name };
-        }
+        for (const item of data) jsonObj[item.name] = { ...item, _id: item.name };
         objToJson(jsonObj);
         return data;
       }
-    } catch {}
+    } catch (e) { console.error('❌ autoReply getAll MongoDB:', e.message); }
   }
   // ارجع للـ JSON
-  const json = readJSON();
-  return Object.values(json);
+  return Object.values(readJSON());
 }
 
 async function getReply(name) {
-  // حاول من MongoDB
-  if (mongoReady) {
+  if (isMongoReady()) {
     try {
       const data = await AutoReplyModel.findById(name).lean();
       if (data) return data;
     } catch {}
   }
-  // ارجع للـ JSON
-  const json = readJSON();
-  return json[name] || null;
+  return readJSON()[name] || null;
 }
 
 async function createReply(data) {
@@ -186,18 +169,15 @@ async function createReply(data) {
     createdAt: now, updatedAt: now
   };
 
-  // 1. احفظ في MongoDB
+  // 1. MongoDB
   let mongoResult = null;
-  if (mongoReady) {
+  if (isMongoReady()) {
     mongoResult = await writeToMongo(data.name, doc);
-    if (mongoResult) {
-      console.log(`✅ autoReply: "${data.name}" → MongoDB`);
-    } else {
-      console.log(`⚠️ autoReply: "${data.name}" → فشل MongoDB`);
-    }
+    if (mongoResult) console.log(`✅ autoReply: "${data.name}" → MongoDB`);
+    else console.log(`⚠️ autoReply: "${data.name}" → فشل MongoDB`);
   }
 
-  // 2. احفظ في JSON (دائماً)
+  // 2. JSON (دائماً)
   const json = readJSON();
   if (json[data.name]) {
     console.log(`⚠️ autoReply: "${data.name}" موجود مسبقاً في JSON`);
@@ -213,51 +193,35 @@ async function createReply(data) {
 async function updateReply(name, updates) {
   updates.updatedAt = new Date();
 
-  // 1. حدّث في MongoDB
+  // 1. MongoDB
   let mongoResult = null;
-  if (mongoReady) {
-    mongoResult = await writeToMongo(name, updates);
-  }
+  if (isMongoReady()) mongoResult = await writeToMongo(name, updates);
 
-  // 2. حدّث في JSON (دائماً)
+  // 2. JSON
   const json = readJSON();
   if (json[name]) {
     json[name] = { ...json[name], ...updates, updatedAt: updates.updatedAt.toISOString() };
     objToJson(json);
   }
-
   return mongoResult || json[name] || null;
 }
 
 async function deleteReply(name) {
-  // 1. احذف من MongoDB
-  let mongoOk = false;
-  if (mongoReady) {
-    mongoOk = await deleteFromMongo(name);
-  }
-
-  // 2. احذف من JSON (دائماً)
+  if (isMongoReady()) await deleteFromMongo(name);
   const json = readJSON();
-  if (json[name]) {
-    delete json[name];
-    objToJson(json);
-  }
-
-  return mongoOk || true;
+  if (json[name]) { delete json[name]; objToJson(json); }
+  return true;
 }
 
 async function incrementUseCount(name) {
-  // MongoDB
-  if (mongoReady) {
-    try {
-      await AutoReplyModel.findByIdAndUpdate(name, { $inc: { useCount: 1 }, $set: { updatedAt: new Date() } });
-    } catch {}
+  const now = new Date();
+  if (isMongoReady()) {
+    try { await AutoReplyModel.findByIdAndUpdate(name, { $inc: { useCount: 1 }, $set: { updatedAt: now } }); } catch {}
   }
-  // JSON
   const json = readJSON();
   if (json[name]) {
     json[name].useCount = (json[name].useCount || 0) + 1;
-    json[name].updatedAt = new Date().toISOString();
+    json[name].updatedAt = now.toISOString();
     objToJson(json);
   }
 }

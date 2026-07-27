@@ -1,5 +1,5 @@
 /**
- * reactionReplyStorage.js - تخزين ثنائي (MongoDB + JSON) لضمان عدم فقدان البيانات
+ * reactionReplyStorage.js - تخزين ثنائي ديناميكي (MongoDB + JSON)
  */
 const mongoose = require('mongoose');
 const fs = require('fs');
@@ -34,7 +34,6 @@ const reactSchema = new mongoose.Schema({
 }, { collection: 'reactions', versionKey: false });
 
 let ReactModel;
-let mongoReady = false;
 
 // ---------- JSON helpers ----------
 function readJSON() {
@@ -42,77 +41,56 @@ function readJSON() {
     if (!fs.existsSync(REACT_PATH)) return {};
     const raw = fs.readFileSync(REACT_PATH, 'utf8');
     return raw.trim() ? JSON.parse(raw) : {};
-  } catch (e) {
-    console.error('❌ reaction readJSON:', e.message);
-    return {};
-  }
+  } catch (e) { console.error('❌ reaction readJSON:', e.message); return {}; }
 }
 
 function writeJSON(data) {
-  try {
-    fs.writeFileSync(REACT_PATH, JSON.stringify(data, null, 2), 'utf8');
-  } catch (e) {
-    console.error('❌ reaction writeJSON:', e.message);
-  }
+  try { fs.writeFileSync(REACT_PATH, JSON.stringify(data, null, 2), 'utf8'); } catch (e) { console.error('❌ reaction writeJSON:', e.message); }
 }
 
-function jsonToObj() { return readJSON(); }
 function objToJson(obj) { writeJSON(obj); }
 
-// ---------- التهيئة ----------
+// ---------- التحقق الديناميكي ----------
+function isMongoReady() {
+  if (mongoose.connection.readyState !== 1) return false;
+  if (ReactModel) return true;
+  try { ReactModel = mongoose.models.ReactReply || mongoose.model('ReactReply', reactSchema); return true; } catch { return false; }
+}
+
 function initReactModel() {
-  if (mongoose.connection.readyState === 1) {
-    ReactModel = mongoose.models.ReactReply || mongoose.model('ReactReply', reactSchema);
-    mongoReady = true;
-    console.log('📦 reactions → ✅ MongoDB');
-    return true;
-  }
-  mongoReady = false;
-  console.log('📦 reactions → ⚠️ JSON فقط');
-  return false;
+  if (isMongoReady()) { console.log('📦 reactions → ✅ MongoDB'); return true; }
+  console.log('📦 reactions → ⚠️ JSON فقط'); return false;
 }
 
 async function syncJsonToMongo() {
-  if (!mongoReady) return;
+  if (!isMongoReady()) return;
   const json = readJSON();
   const names = Object.keys(json);
   if (names.length === 0) { console.log('🔄 reactions: JSON فاضي'); return; }
   console.log(`🔄 مزامنة ${names.length} تفاعل من JSON إلى MongoDB...`);
   let synced = 0;
   for (const name of names) {
-    try {
-      await ReactModel.findByIdAndUpdate(name, { $set: json[name] }, { upsert: true });
-      synced++;
-    } catch (e) { console.error(`❌ فشل مزامنة ${name}:`, e.message); }
+    try { await ReactModel.findByIdAndUpdate(name, { $set: json[name] }, { upsert: true }); synced++; } catch (e) { console.error(`❌ فشل مزامنة ${name}:`, e.message); }
   }
   console.log(`✅ تمت مزامنة ${synced}/${names.length} تفاعل`);
 }
 
-// ========== دوال مساعدة ==========
+// ========== مساعدة ==========
 
 async function writeToMongo(name, data) {
-  if (!mongoReady) return null;
-  try {
-    return await ReactModel.findByIdAndUpdate(
-      name,
-      { $set: { ...data, updatedAt: new Date() } },
-      { upsert: true, new: true }
-    ).lean();
-  } catch (e) {
-    console.error(`❌ reaction MongoDB write error:`, e.message);
-    return null;
-  }
+  if (!isMongoReady()) return null;
+  try { return await ReactModel.findByIdAndUpdate(name, { $set: { ...data, updatedAt: new Date() } }, { upsert: true, new: true }).lean(); } catch (e) { console.error(`❌ reaction MongoDB error:`, e.message); return null; }
 }
 
 async function deleteFromMongo(name) {
-  if (!mongoReady) return false;
+  if (!isMongoReady()) return false;
   try { await ReactModel.findByIdAndDelete(name); return true; } catch { return false; }
 }
 
-// ========== API العامة مع Dual-Write ==========
+// ========== API ==========
 
 async function getAllReacts() {
-  if (mongoReady) {
+  if (isMongoReady()) {
     try {
       const data = await ReactModel.find().lean();
       if (data && data.length > 0) {
@@ -121,17 +99,14 @@ async function getAllReacts() {
         objToJson(jsonObj);
         return data;
       }
-    } catch {}
+    } catch (e) { console.error('❌ reaction getAll MongoDB:', e.message); }
   }
   return Object.values(readJSON());
 }
 
 async function getReact(name) {
-  if (mongoReady) {
-    try {
-      const data = await ReactModel.findById(name).lean();
-      if (data) return data;
-    } catch {}
+  if (isMongoReady()) {
+    try { const data = await ReactModel.findById(name).lean(); if (data) return data; } catch {}
   }
   return readJSON()[name] || null;
 }
@@ -143,8 +118,7 @@ async function createReact(data) {
     _id: data.name, name: data.name,
     trigger: data.trigger, triggerType: data.triggerType || 'contains',
     emoji: emojis[0] || '', emojis: emojis,
-    randomReact: data.randomReact || false,
-    multipleReact: data.multipleReact || false,
+    randomReact: data.randomReact || false, multipleReact: data.multipleReact || false,
     channelId: data.channelId || null,
     roleWhitelist: data.roleWhitelist || [], roleBlacklist: data.roleBlacklist || [],
     channelWhitelist: data.channelWhitelist || [], channelBlacklist: data.channelBlacklist || [],
@@ -153,15 +127,13 @@ async function createReact(data) {
     createdAt: now, updatedAt: now
   };
 
-  // MongoDB
   let mongoResult = null;
-  if (mongoReady) {
+  if (isMongoReady()) {
     mongoResult = await writeToMongo(data.name, doc);
     if (mongoResult) console.log(`✅ reaction: "${data.name}" → MongoDB`);
     else console.log(`⚠️ reaction: "${data.name}" → فشل MongoDB`);
   }
 
-  // JSON
   const json = readJSON();
   if (json[data.name]) return null;
   json[data.name] = { ...doc, createdAt: now.toISOString(), updatedAt: now.toISOString() };
@@ -173,36 +145,25 @@ async function createReact(data) {
 
 async function updateReact(name, updates) {
   updates.updatedAt = new Date();
-
   let mongoResult = null;
-  if (mongoReady) mongoResult = await writeToMongo(name, updates);
-
+  if (isMongoReady()) mongoResult = await writeToMongo(name, updates);
   const json = readJSON();
-  if (json[name]) {
-    json[name] = { ...json[name], ...updates, updatedAt: updates.updatedAt.toISOString() };
-    objToJson(json);
-  }
-
+  if (json[name]) { json[name] = { ...json[name], ...updates, updatedAt: updates.updatedAt.toISOString() }; objToJson(json); }
   return mongoResult || json[name] || null;
 }
 
 async function deleteReact(name) {
-  if (mongoReady) await deleteFromMongo(name);
+  if (isMongoReady()) await deleteFromMongo(name);
   const json = readJSON();
   if (json[name]) { delete json[name]; objToJson(json); }
   return true;
 }
 
 async function incrementReactCount(name) {
-  if (mongoReady) {
-    try { await ReactModel.findByIdAndUpdate(name, { $inc: { useCount: 1 }, $set: { updatedAt: new Date() } }); } catch {}
-  }
+  const now = new Date();
+  if (isMongoReady()) { try { await ReactModel.findByIdAndUpdate(name, { $inc: { useCount: 1 }, $set: { updatedAt: now } }); } catch {} }
   const json = readJSON();
-  if (json[name]) {
-    json[name].useCount = (json[name].useCount || 0) + 1;
-    json[name].updatedAt = new Date().toISOString();
-    objToJson(json);
-  }
+  if (json[name]) { json[name].useCount = (json[name].useCount || 0) + 1; json[name].updatedAt = now.toISOString(); objToJson(json); }
 }
 
 async function getEnabledReacts() {
@@ -216,8 +177,7 @@ async function getReactsList() {
     name: r.name, trigger: r.trigger, triggerType: r.triggerType,
     emoji: r.emoji || ((r.emojis||[])[0] || ''),
     emojisCount: (r.emojis||[]).length,
-    randomReact: r.randomReact || false,
-    multipleReact: r.multipleReact || false,
+    randomReact: r.randomReact || false, multipleReact: r.multipleReact || false,
     enabled: r.enabled !== false, useCount: r.useCount || 0
   }));
 }
