@@ -12,8 +12,13 @@ const {
 const processedReacts = new Set();
 
 async function respondOrUpdate(interaction, payload) {
-  if (interaction.isCommand()) return interaction.reply({ ...payload, ephemeral: true });
-  return interaction.update(payload);
+  if (interaction.isCommand() || interaction.isModalSubmit()) {
+    return interaction.reply({ ...payload, ephemeral: true });
+  }
+  if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+    return interaction.update(payload);
+  }
+  return interaction.editReply(payload).catch(() => interaction.reply({ ...payload, ephemeral: true }).catch(() => {}));
 }
 
 // ================== اللوحة الرئيسية ==================

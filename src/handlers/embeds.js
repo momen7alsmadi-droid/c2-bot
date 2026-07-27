@@ -238,7 +238,7 @@ async function handleEmbViewShow(interaction, embedName) {
 
   const preview = new EmbedBuilder()
     .setTitle(data.title || '(بدون عنوان)')
-    .setColor(parseInt(data.color.replace('#', ''), 16) || 0x5865F2)
+    .setColor(parseInt((data.color || '#5865F2').replace('#', ''), 16) || 0x5865F2)
     .setDescription(data.description || '(بدون محتوى)')
     .setTimestamp(data.timestamp !== false ? new Date() : undefined);
 
@@ -254,7 +254,7 @@ async function handleEmbViewShow(interaction, embedName) {
     .setColor(0x2ECC71)
     .addFields(
       { name: '🏷️ الاسم الداخلي', value: `\`${data.name}\``, inline: true },
-      { name: '🎨 اللون', value: `${data.color}`, inline: true },
+      { name: '🎨 اللون', value: `${data.color || '#5865F2'}`, inline: true },
       { name: '📨 عدد الإرسال', value: `${data.sendCount || 0}`, inline: true },
       { name: '📝 العنوان', value: data.title || '(بدون)', inline: false },
       { name: '📄 المحتوى', value: (data.description || '(بدون)').slice(0, 200), inline: false },
@@ -437,7 +437,7 @@ async function handleEmbSendChannel(interaction, embedName) {
 
   const preview = new EmbedBuilder()
     .setTitle(data.title || '(بدون عنوان)')
-    .setColor(parseInt(data.color.replace('#', ''), 16) || 0x5865F2)
+    .setColor(parseInt((data.color || '#5865F2').replace('#', ''), 16) || 0x5865F2)
     .setDescription(data.description || '(بدون محتوى)')
     .setTimestamp(data.timestamp !== false ? new Date() : undefined);
 

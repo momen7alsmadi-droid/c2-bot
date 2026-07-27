@@ -214,7 +214,9 @@ client.on('interactionCreate', async (interaction) => {
       }
     }
   } catch (err) {
-    console.error('❌ ERROR [' + interaction.customId + ']:', err.message, err.stack);
+    const type = interaction.isChatInputCommand() ? 'CMD' : interaction.isModalSubmit() ? 'MODAL' : interaction.isButton() ? 'BTN' : interaction.isAutocomplete() ? 'AC' : 'SELECT';
+    console.error(`❌ ERROR [${type}] [${interaction.customId}]: ${err.message}`);
+    console.error(err.stack?.split('\n').slice(0, 4).join('\n'));
     try {
       if (interaction.isRepliable()) {
         if (interaction.deferred) {
@@ -323,6 +325,11 @@ async function handleButton(interaction) {
     if (action === 'disable' && parts.length === 2) return handleDevDisable(interaction);
     if (action === 'enable' && parts.length === 2) return handleDevEnable(interaction);
     if (action === 'disable' || action === 'enable') return handleDevToggle(interaction);
+  }
+
+  // إذا ما تعرفنا على الزر → رد بخطأ واضح
+  if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+    await interaction.reply({ content: `⚠️ زر غير معروف: \`${id}\``, ephemeral: true }).catch(() => {});
   }
 }
 

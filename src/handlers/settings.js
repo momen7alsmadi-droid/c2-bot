@@ -11,12 +11,15 @@ const lst = (arr) => Array.isArray(arr) && arr.length ? arr.map(i => `<@&${i}>`)
 
 // ---------- دالة مساعدة: تحديث أو رد حسب حالة الـ interaction ----------
 async function respondOrUpdate(interaction, payload) {
-  if (interaction.isCommand()) {
-    // أول مرة من الأمر السلاش
+  if (interaction.isCommand() || interaction.isModalSubmit()) {
+    // أول مرة من الأمر السلاش أو بعد مودال
     return interaction.reply({ ...payload, ephemeral: true });
   }
   // من زر أو قائمة منسدلة → نحدّث الرسالة نفسها
-  return interaction.update(payload);
+  if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+    return interaction.update(payload);
+  }
+  return interaction.editReply(payload).catch(() => interaction.reply({ ...payload, ephemeral: true }).catch(() => {}));
 }
 
 // ---------- معرفة الصفحة من الـ customId ----------
