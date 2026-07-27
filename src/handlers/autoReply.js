@@ -3,10 +3,49 @@ const {
   StringSelectMenuBuilder, RoleSelectMenuBuilder, ChannelSelectMenuBuilder,
   ModalBuilder, TextInputBuilder, TextInputStyle, ChannelType
 } = require('discord.js');
+const mongoose = require('mongoose');
 const {
   createReply, updateReply, deleteReply, getReply,
   getAllReplies, getRepliesList, getEnabledReplies, incrementUseCount
 } = require('../utils/autoReplyStorage');
+
+// ====== MongoDB Dedup: لمنع التكرار بين نسخ البوت المتعددة ======
+const dedupSchema = new mongoose.Schema({
+  _id: String, // messageId
+  replyNames: { type: [String], default: [] },
+  createdAt: { type: Date, default: Date.now, expires: 300 } // TTL: 5 دقائق
+}, { collection: 'msgdedup', versionKey: false });
+let DedupModel;
+
+function initDedup() {
+  if (mongoose.connection.readyState === 1) {
+    DedupModel = mongoose.models.Dedup || mongoose.model('Dedup', dedupSchema);
+    return true;
+  }
+  return false;
+}
+
+// التحقق من أن هذا الرد لم يُرسل لهذه الرسالة بعد (للتكامل مع عدة نسخ)
+async function canSendReply(messageId, replyName) {
+  if (mongoose.connection.readyState !== 1 || !DedupModel) return true; // إذا MongoDB غير متصل، نسمح
+  try {
+    const existing = await DedupModel.findById(messageId).lean();
+    if (existing && existing.replyNames && existing.replyNames.includes(replyName)) {
+      console.log(`🗑️ dedup: ${replyName} ← ${messageId} (مكرر)`);
+      return false;
+    }
+    if (existing) {
+      await DedupModel.findByIdAndUpdate(messageId, { $addToSet: { replyNames: replyName } });
+    } else {
+      await DedupModel.create({ _id: messageId, replyNames: [replyName] });
+    }
+    return true;
+  } catch (e) {
+    console.error('❌ dedup error:', e.message);
+    return true;
+  }
+}
+// =============================================================
 
 // أنظمة منع التكرار:
 // 1- سجل لمنع معالجة نفس الرسالة مرتين
@@ -964,11 +1003,13 @@ async function handleMessage(message) {
   if (message.author.bot) return;
   if (!message.guild) return;
 
-  // منع التكرار: إذا تمت معالجة هذه الرسالة بالفعل، نتجاهلها
+  // تهيئة نظام منع التكرار عبر MongoDB (لمنافذ متعددة)
+  if (!DedupModel) initDedup();
+
+  // منع التكرار عبر الذاكرة المحلية
   const msgKey = message.id;
   if (processedMessages.has(msgKey)) return;
   processedMessages.add(msgKey);
-  // تنظيف السجل بعد 10 ثواني
   setTimeout(() => processedMessages.delete(msgKey), 10000);
 
   const replies = await getEnabledReplies();
@@ -1024,7 +1065,7 @@ async function handleMessage(message) {
     // === تمت المطابقة ===
 
     try {
-      // ✅ كولدون: منع إرسال نفس الرد لنفس المستخدم خلال ثانيتين
+      // ✅ كولدون محلي: منع إرسال نفس الرد لنفس المستخدم خلال ثانيتين
       const cooldownKey = reply.name + ':' + message.author.id;
       const now = Date.now();
       if (replyCooldowns.has(cooldownKey)) {
@@ -1035,6 +1076,13 @@ async function handleMessage(message) {
         }
       }
       replyCooldowns.set(cooldownKey, now);
+
+      // ✅ MongoDB Dedup: منع التكرار بين نسخ البوت المتعددة
+      const dedupOk = await canSendReply(message.id, reply.name);
+      if (!dedupOk) {
+        console.log(`🗑️ dedup منع: ${reply.name} للرسالة ${message.id}`);
+        continue;
+      }
 
       // زيادة العداد
       await incrementUseCount(reply.name);
