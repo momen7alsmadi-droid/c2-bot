@@ -5,6 +5,8 @@ const { EmbedBuilder } = require('discord.js');
  * - فقط للأدمن (Administrator)
  * - required: message (string)
  * - optional: role (role) - إذا تركت فارغة ترسل للكل، وإلا ترسل فقط لأصحاب الرتبة
+ * - required: format (embed/plain)
+ * - required: show_sender (yes/no)
  */
 async function handleBroadcast(interaction) {
   // 1) التحقق من صلاحية Administrator
@@ -17,6 +19,8 @@ async function handleBroadcast(interaction) {
 
   const messageContent = interaction.options.getString('message', true);
   const targetRole = interaction.options.getRole('role');
+  const format = interaction.options.getString('format', true); // 'embed' or 'plain'
+  const showSender = interaction.options.getString('show_sender', true); // 'yes' or 'no'
 
   await interaction.deferReply({ ephemeral: true });
 
@@ -40,29 +44,52 @@ async function handleBroadcast(interaction) {
       });
     }
 
-    const embed = new EmbedBuilder()
-      .setTitle('📩 رسالة من الإدارة')
-      .setColor(0x5865F2)
-      .setDescription(messageContent)
-      .setFooter({
-        text: `من: ${interaction.user.tag} | ${guild.name}`,
-        iconURL: interaction.user.displayAvatarURL(),
-      })
-      .setTimestamp();
-
     let sentCount = 0;
     let failCount = 0;
 
-    // إرسال الرسالة لكل عضو في الخاص (DM)
-    for (const [, member] of members) {
-      try {
-        await member.send({ embeds: [embed] });
-        sentCount++;
-      } catch {
-        failCount++;
+    if (format === 'embed') {
+      // ========== إرسال كايمبد ==========
+      const embed = new EmbedBuilder()
+        .setTitle(`📩 رسالة من ${guild.name}`)
+        .setColor(0x5865F2)
+        .setDescription(messageContent)
+        .setTimestamp();
+
+      // إضافة اسم المرسل في الفوتر فقط إذا كان showSender = yes
+      if (showSender === 'yes') {
+        embed.setFooter({
+          text: `من: ${interaction.user.tag}`,
+          iconURL: interaction.user.displayAvatarURL(),
+        });
+      }
+
+      for (const [, member] of members) {
+        try {
+          await member.send({ embeds: [embed] });
+          sentCount++;
+        } catch {
+          failCount++;
+        }
+      }
+    } else {
+      // ========== إرسال كنص عادي ==========
+      let text = `📩 **رسالة من ${guild.name}**\n\n${messageContent}`;
+
+      if (showSender === 'yes') {
+        text += `\n\n— ${interaction.user.tag}`;
+      }
+
+      for (const [, member] of members) {
+        try {
+          await member.send(text);
+          sentCount++;
+        } catch {
+          failCount++;
+        }
       }
     }
 
+    // ========== تقرير النتيجة ==========
     const summaryEmbed = new EmbedBuilder()
       .setTitle('✅ تم إرسال الرسالة')
       .setColor(0x2ECC71)
@@ -77,6 +104,11 @@ async function handleBroadcast(interaction) {
     if (targetRole) {
       summaryEmbed.addFields({ name: '🎯 الرتبة المحددة', value: `${targetRole}`, inline: false });
     }
+
+    summaryEmbed.addFields(
+      { name: '🖼️ النوع', value: format === 'embed' ? 'ايمبد' : 'نص عادي', inline: true },
+      { name: '👤 إظهار المرسل', value: showSender === 'yes' ? '✅ نعم' : '❌ لا', inline: true },
+    );
 
     return interaction.editReply({ embeds: [summaryEmbed] });
   } catch (err) {

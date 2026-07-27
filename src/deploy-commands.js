@@ -84,6 +84,16 @@ const commands = [
     .setDescription('📩 إرسال رسالة خاصة للأعضاء عبر DM (أدمن فقط)')
     .setDefaultMemberPermissions(8) // Administrator
     .addStringOption(o => o.setName('message').setDescription('نص الرسالة').setRequired(true))
+    .addStringOption(o => o.setName('format').setDescription('نوع الرسالة').setRequired(true)
+      .addChoices(
+        { name: '🖼️ ايمبد (Embed)', value: 'embed' },
+        { name: '📝 نص عادي (Plain)', value: 'plain' },
+      ))
+    .addStringOption(o => o.setName('show_sender').setDescription('إظهار اسم المرسل').setRequired(true)
+      .addChoices(
+        { name: '✅ نعم', value: 'yes' },
+        { name: '❌ لا', value: 'no' },
+      ))
     .addRoleOption(o => o.setName('role').setDescription('الرتبة المستهدفة (اختياري) - إذا تركت فارغة ترسل للكل').setRequired(false))
     .toJSON(),
 ];
