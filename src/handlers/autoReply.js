@@ -214,7 +214,7 @@ async function showArControlPanel(interaction, replyName) {
   return respondOrUpdate(interaction, { embeds: [infoEmbed], components: [row1, row2, row3, row4, row5] });
 }
 
-// ================== 2. عرض الردود المسجلة ==================
+// ================== 2. عرض الردود المسجلة (سجل + معاينة) ==================
 
 async function handleArList(interaction) {
   const list = await getRepliesList();
@@ -227,22 +227,91 @@ async function handleArList(interaction) {
     });
   }
 
-  const lines = list.map(r =>
-    `${r.enabled ? '🟢' : '🔴'} **${r.name}** — \`${r.trigger}\` | ${r.responsesCount} نص | ${r.useCount} استخدام`
-  );
+  const options = list.map(r => ({
+    label: r.name,
+    description: `\`${r.trigger}\` | ${r.responsesCount} نص | ${r.useCount} استخدام`,
+    value: `ar_view_${r.name}`,
+    emoji: r.enabled ? '🟢' : '🔴'
+  }));
 
   const embed = new EmbedBuilder()
     .setTitle('📋 الردود التلقائية المسجلة')
     .setColor(0x5865F2)
-    .setDescription(lines.join('\n'))
+    .setDescription('اختر رداً من القائمة أدناه لعرض تفاصيله الكاملة ومعاينة نص الرد.')
     .setFooter({ text: `إجمالي ${list.length} رد` })
     .setTimestamp();
 
   return respondOrUpdate(interaction, {
     embeds: [embed],
-    components: [new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('ar_main').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary)
-    )]
+    components: [
+      new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId('ar_view_select')
+          .setPlaceholder('📋 اختر رداً للعرض')
+          .addOptions(options.slice(0, 25))
+      ),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('ar_main').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary)
+      )
+    ]
+  });
+}
+
+// عرض تفاصيل رد + معاينة
+async function handleArView(interaction, replyName) {
+  const data = await getReply(replyName);
+  if (!data) return respondOrUpdate(interaction, { content: '⚠️ الرد غير موجود.' });
+
+  const responses = data.responses || [];
+  const responseCount = responses.length;
+  const firstResponse = responses.length > 0 ? responses[0] : '*(لا توجد نصوص رد)*';
+
+  const rolesW = data.roleWhitelist || [];
+  const rolesB = data.roleBlacklist || [];
+  const chansW = data.channelWhitelist || [];
+  const chansB = data.channelBlacklist || [];
+
+  const infoEmbed = new EmbedBuilder()
+    .setTitle(`📋 ${data.name}`)
+    .setColor(0x5865F2)
+    .addFields(
+      { name: '🔑 الكلمة المفتاحية', value: `\`${data.trigger}\``, inline: true },
+      { name: '✅ مفعل', value: data.enabled !== false ? '🟢 نعم' : '🔴 لا', inline: true },
+      { name: '📨 مرات الاستخدام', value: `${data.useCount || 0}`, inline: true },
+      { name: '🔍 بحث ضمني', value: data.triggerType === 'contains' ? '🟢 مفعل' : '🔴 معطل', inline: true },
+      { name: '🎲 رد عشوائي', value: data.randomReply ? '🟢 مفعل' : '🔴 معطل', inline: true },
+      { name: '↩️ نمط الإرسال', value: data.sendStyle === 'reply_mention' ? 'رد مع منشن' : data.sendStyle === 'reply_no_mention' ? 'رد بدون منشن' : 'رسالة عادية', inline: true },
+      { name: '🗑️ حذف رسالة العضو', value: data.deleteUserMsg ? '🟢 مفعل' : '🔴 معطل', inline: true },
+      { name: '⏱️ حذف الرد تلقائياً', value: data.autoDelete ? `🟢 ${formatDelay(data.autoDeleteTime)}` : '🔴 معطل', inline: true },
+      { name: '⏳ تأخير الإرسال', value: data.replyDelay ? `🟢 ${formatDelay(data.replyDelayTime)}` : '🔴 معطل', inline: true },
+      { name: '🛡️ الرتب المسموحة', value: rolesW.length > 0 ? rolesW.map(r => `<@&${r}>`).join(' ') : '*(الكل)*', inline: false },
+      { name: '🚫 الرتب الممنوعة', value: rolesB.length > 0 ? rolesB.map(r => `<@&${r}>`).join(' ') : '*(لا يوجد)*', inline: false },
+      { name: '📢 الرومات المسموحة', value: chansW.length > 0 ? chansW.map(c => `<#${c}>`).join(' ') : '*(الكل)*', inline: false },
+      { name: '⛔ الرومات الممنوعة', value: chansB.length > 0 ? chansB.map(c => `<#${c}>`).join(' ') : '*(لا يوجد)*', inline: false },
+    )
+    .setTimestamp();
+
+  // إضافة معاينة النص
+  const previewEmbed = new EmbedBuilder()
+    .setTitle('💬 معاينة نص الرد')
+    .setColor(0x2ECC71)
+    .setDescription(
+      responseCount > 0
+        ? responses.map((r, i) => `**${i + 1}.** ${r}`).join('\n\n')
+        : '*(لا توجد نصوص رد)*'
+    )
+    .setFooter({ text: `إجمالي ${responseCount} نص | ${data.randomReply && responseCount > 1 ? '🔄 عشوائي' : '📋 أول نص'}` })
+    .setTimestamp();
+
+  return respondOrUpdate(interaction, {
+    embeds: [infoEmbed, previewEmbed],
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('ar_list').setLabel('📋 العودة للسجل').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`ar_edit_${replyName}`).setLabel('✏️ فتح لوحة التحكم').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('ar_main').setLabel('🔙 الرجوع للرئيسية').setStyle(ButtonStyle.Secondary)
+      )
+    ]
   });
 }
 
@@ -732,6 +801,12 @@ async function handleAutoReplyInteraction(interaction) {
   if (id === 'ar_list') return handleArList(interaction);
   if (id === 'ar_edit') return handleArEdit(interaction);
   if (id === 'ar_delete') return handleArDelete(interaction);
+
+  // اختيار للعرض (سجل + معاينة)
+  if (id === 'ar_view_select') {
+    const name = interaction.values[0].replace('ar_view_', '');
+    return handleArView(interaction, name);
+  }
 
   // اختيار للتعديل
   if (id === 'ar_edit_select') {
