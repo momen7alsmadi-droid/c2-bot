@@ -73,7 +73,12 @@ async function syncJsonToMongo() {
 
 async function writeToMongo(name, data) {
   if (!isMongoReady()) return null;
-  try { return await EmbedModel.findByIdAndUpdate(name, { $set: { ...data, updatedAt: new Date() } }, { upsert: true, new: true }).lean(); } catch (e) { console.error(`❌ embed MongoDB error:`, e.message); return null; }
+  try {
+    // نزيل _id من البيانات لأن MongoDB لا يسمح بتعديل _id عبر $set
+    const { _id, ...safeData } = data || {};
+    safeData.updatedAt = new Date();
+    return await EmbedModel.findByIdAndUpdate(name, { $set: safeData }, { upsert: true, new: true }).lean();
+  } catch (e) { console.error(`❌ embed MongoDB error:`, e.message); return null; }
 }
 
 async function deleteFromMongo(name) {
@@ -84,18 +89,30 @@ async function deleteFromMongo(name) {
 // ========== API ==========
 
 async function getAllEmbeds() {
+  // نجلب من JSON أولاً (المصدر الأساسي)
+  const jsonData = readJSON();
+  const jsonEmbeds = Object.values(jsonData);
+
+  // ندمج مع MongoDB (إذا كان متصلاً)
   if (isMongoReady()) {
     try {
-      const data = await EmbedModel.find().lean();
-      if (data && data.length > 0) {
-        const jsonObj = {};
-        for (const item of data) jsonObj[item.name || item._id] = { ...item, _id: item.name || item._id };
-        objToJson(jsonObj);
-        return data;
+      const mongoData = await EmbedModel.find().lean();
+      if (mongoData && mongoData.length > 0) {
+        // ندمج: كل إيمبد في MongoDB يضاف أو يحدّث في jsonData
+        for (const item of mongoData) {
+          const key = item.name || item._id;
+          if (key) {
+            jsonData[key] = { ...(jsonData[key] || {}), ...item, _id: key };
+          }
+        }
+        // نحدّث ملف JSON بالبيانات المدمجة
+        objToJson(jsonData);
+        return Object.values(jsonData);
       }
     } catch (e) { console.error('❌ embed getAll MongoDB:', e.message); }
   }
-  return Object.values(readJSON());
+
+  return jsonEmbeds;
 }
 
 async function getEmbed(name) {
