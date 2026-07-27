@@ -530,8 +530,8 @@ async function handleEmbSched(interaction, embedName, channelId) {
     new ActionRowBuilder().addComponents(
       new TextInputBuilder()
         .setCustomId('sched_time')
-        .setLabel('المدة (بالدقائق أو الساعات)')
-        .setPlaceholder('مثال: 30 (دقيقة) أو 2h (ساعتين)')
+        .setLabel('المدة (d, h, m, s)')
+        .setPlaceholder('مثال: 1d 3h 10m 5s أو 30m أو 2h')
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
         .setMaxLength(10)
@@ -550,27 +550,14 @@ async function handleEmbSchedModal(interaction) {
   const embedName = rest.slice(0, sepIndex);
 
   const timeInput = interaction.fields.getTextInputValue('sched_time').trim().toLowerCase();
-  let delayMs = 0;
 
-  // تحليل الإدخال: 30 = 30 دقيقة، 2h = ساعتين، 60m = 60 دقيقة
-  if (timeInput.endsWith('h')) {
-    const hours = parseFloat(timeInput.slice(0, -1));
-    if (isNaN(hours) || hours <= 0) {
-      return interaction.reply({ content: '⚠️ أدخل رقماً صحيحاً للمدة.', ephemeral: true });
-    }
-    delayMs = hours * 60 * 60 * 1000;
-  } else if (timeInput.endsWith('m')) {
-    const mins = parseFloat(timeInput.slice(0, -1));
-    if (isNaN(mins) || mins <= 0) {
-      return interaction.reply({ content: '⚠️ أدخل رقماً صحيحاً للمدة.', ephemeral: true });
-    }
-    delayMs = mins * 60 * 1000;
-  } else {
-    const mins = parseFloat(timeInput);
-    if (isNaN(mins) || mins <= 0) {
-      return interaction.reply({ content: '⚠️ أدخل رقماً صحيحاً (بالدقائق).', ephemeral: true });
-    }
-    delayMs = mins * 60 * 1000;
+  // تحليل الإدخال المركَّب: 1d 3h 10m 5s → ملي ثانية
+  const delayMs = parseTimeString(timeInput);
+  if (delayMs === null) {
+    return interaction.reply({
+      content: '⚠️ صيغة الوقت غير صحيحة. استخدم مثلاً: `1d 3h 10m 5s` أو `30m` أو `2h`',
+      ephemeral: true
+    });
   }
 
   if (delayMs > 7 * 24 * 60 * 60 * 1000) { // حد أقصى 7 أيام
@@ -645,15 +632,63 @@ async function sendEmbedToChannel(client, guild, embedName, channelId, senderTag
 }
 
 /** تنسيق المدة */
+/**
+ * تحليل نص الوقت إلى ملي ثانية
+ * يدعم: 1d 3h 10m 5s, 30m, 2h, 1d, 45s, إلخ
+ * @param {string} str - نص الوقت
+ * @returns {number|null} - المدة بالملي ثانية أو null إن كان غير صالح
+ */
+function parseTimeString(str) {
+  // Regex: يلتقط أرقاماً (بما في ذلك الكسور 0.5) متبوعة بـ d, h, m, s
+  const regex = /(\d+(?:\.\d+)?)\s*([dhms])/gi;
+  let match;
+  let totalMs = 0;
+  let found = false;
+
+  while ((match = regex.exec(str)) !== null) {
+    found = true;
+    const value = parseFloat(match[1]);
+    if (value <= 0) return null;
+    const unit = match[2].toLowerCase();
+    switch (unit) {
+      case 'd': totalMs += value * 86400000; break;
+      case 'h': totalMs += value * 3600000; break;
+      case 'm': totalMs += value * 60000; break;
+      case 's': totalMs += value * 1000; break;
+    }
+  }
+
+  // إذا لم يعثر على شيء، جرب أن الرقم كامل يمثل دقائق (توافق مع القديم)
+  if (!found) {
+    const justNumber = parseFloat(str);
+    if (!isNaN(justNumber) && justNumber > 0) {
+      totalMs = justNumber * 60000; // دقائق
+    } else {
+      return null;
+    }
+  }
+
+  return Math.round(totalMs);
+}
+
+/**
+ * تنسيق المدة من ملي ثانية إلى نص مفهوم
+ */
 function formatDelay(ms) {
-  const totalMinutes = Math.floor(ms / 60000);
-  if (totalMinutes < 60) return `${totalMinutes} دقيقة`;
-  const hours = Math.floor(totalMinutes / 60);
-  const mins = totalMinutes % 60;
-  if (hours < 24) return mins ? `${hours} ساعة و ${mins} دقيقة` : `${hours} ساعة`;
-  const days = Math.floor(hours / 24);
-  const remHours = hours % 24;
-  return remHours ? `${days} يوم و ${remHours} ساعة` : `${days} يوم`;
+  if (ms <= 0) return '0 ثانية';
+
+  const seconds = Math.floor(ms / 1000) % 60;
+  const minutes = Math.floor(ms / 60000) % 60;
+  const hours = Math.floor(ms / 3600000) % 24;
+  const days = Math.floor(ms / 86400000);
+
+  const parts = [];
+  if (days > 0) parts.push(`${days} يوم`);
+  if (hours > 0) parts.push(`${hours} ساعة`);
+  if (minutes > 0) parts.push(`${minutes} دقيقة`);
+  if (seconds > 0) parts.push(`${seconds} ثانية`);
+
+  return parts.join(' و ') || '0 ثانية';
 }
 
 // ================== معالجات الإضافات (Fields, Footer) ==================
