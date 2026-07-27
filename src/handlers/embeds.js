@@ -132,28 +132,36 @@ async function showEmbedControlPanel(interaction, embedName, editMode = false) {
     return respondOrUpdate(interaction, { content: '⚠️ الإيمبد غير موجود.' });
   }
 
+  // سلامة البيانات
+  const safe = data || {};
+  const title = safe.title || embedName;
+  const color = safe.color || '#5865F2';
+  const desc = safe.description || '(بدون محتوى)';
+  const fields = Array.isArray(safe.fields) ? safe.fields : [];
+  const footer = safe.footer || {};
+
   const embed = new EmbedBuilder()
-    .setTitle(`📦 ${editMode ? '✏️' : '➕'} ${data.title || embedName}`)
-    .setColor(parseInt((data.color || '#5865F2').replace('#', ''), 16) || 0x5865F2)
-    .setDescription(data.description || '(بدون محتوى)')
+    .setTitle(`📦 ${editMode ? '✏️' : '➕'} ${title}`)
+    .setColor(parseInt(color.replace('#', ''), 16) || 0x5865F2)
+    .setDescription(desc)
     .setTimestamp();
 
-  if (data.fields && data.fields.length > 0) {
-    data.fields.forEach(f => embed.addFields({ name: f.name, value: f.value, inline: f.inline || false }));
-  }
+  fields.forEach(f => {
+    if (f && f.name) embed.addFields({ name: f.name, value: f.value || '⠀', inline: f.inline || false });
+  });
 
-  if (data.footer?.text) {
-    embed.setFooter({ text: data.footer.text, iconURL: data.footer.iconURL || undefined });
+  if (footer.text) {
+    embed.setFooter({ text: footer.text, iconURL: footer.iconURL || undefined });
   }
 
   const infoEmbed = new EmbedBuilder()
     .setTitle('ℹ️ معلومات الإيمبد')
     .setColor(0x2ECC71)
     .addFields(
-      { name: '🏷️ الاسم الداخلي', value: `\`${data.name}\``, inline: true },
-      { name: '🎨 اللون', value: `${data.color}`, inline: true },
-      { name: '📨 عدد الإرسال', value: `${data.sendCount || 0}`, inline: true },
-      { name: '📝 العنوان', value: data.title || '(بدون)', inline: false },
+      { name: '🏷️ الاسم الداخلي', value: `\`${safe.name || embedName}\``, inline: true },
+      { name: '🎨 اللون', value: `${color}`, inline: true },
+      { name: '📨 عدد الإرسال', value: `${safe.sendCount || 0}`, inline: true },
+      { name: '📝 العنوان', value: title, inline: false },
     )
     .setTimestamp();
 
@@ -171,7 +179,7 @@ async function showEmbedControlPanel(interaction, embedName, editMode = false) {
     label: c.name,
     value: `${embedName}|${c.value}`,
     emoji: { name: c.name.split(' ')[0] || '🎨' },
-    default: c.value === data.color
+    default: c.value === color
   }));
 
   const row2 = new ActionRowBuilder().addComponents(
@@ -182,9 +190,9 @@ async function showEmbedControlPanel(interaction, embedName, editMode = false) {
   );
 
   // الصف الثالث: إعدادات الفوتر والتايمستامب
-  const footerStatus = data.footer?.text ? '🟢' : '🔴';
-  const timeStatus = data.timestamp !== false ? '🟢' : '🔴';
-  const senderStatus = data.showSender ? '🟢' : '🔴';
+  const footerStatus = footer.text ? '🟢' : '🔴';
+  const timeStatus = safe.timestamp !== false ? '🟢' : '🔴';
+  const senderStatus = safe.showSender ? '🟢' : '🔴';
 
   const row3 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`emb_footer_${embedName}`).setLabel(`${footerStatus} تذييل (Footer)`).setStyle(ButtonStyle.Secondary),
@@ -250,35 +258,42 @@ async function handleEmbViewShow(interaction, embedName) {
     return respondOrUpdate(interaction, { content: '⚠️ الإيمبد غير موجود.' });
   }
 
-  const preview = new EmbedBuilder()
-    .setTitle(data.title || '(بدون عنوان)')
-    .setColor(parseInt((data.color || '#5865F2').replace('#', ''), 16) || 0x5865F2)
-    .setDescription(data.description || '(بدون محتوى)')
-    .setTimestamp(data.timestamp !== false ? new Date() : undefined);
+  const safe = data || {};
+  const safeTitle = safe.title || '(بدون عنوان)';
+  const safeColor = safe.color || '#5865F2';
+  const safeDesc = safe.description || '(بدون محتوى)';
+  const safeFields = Array.isArray(safe.fields) ? safe.fields : [];
+  const safeFooter = safe.footer || {};
 
-  if (data.fields && data.fields.length > 0) {
-    data.fields.forEach(f => preview.addFields({ name: f.name, value: f.value, inline: f.inline || false }));
-  }
-  if (data.footer?.text) {
-    preview.setFooter({ text: data.footer.text, iconURL: data.footer.iconURL || undefined });
+  const preview = new EmbedBuilder()
+    .setTitle(safeTitle)
+    .setColor(parseInt(safeColor.replace('#', ''), 16) || 0x5865F2)
+    .setDescription(safeDesc)
+    .setTimestamp(safe.timestamp !== false ? new Date() : undefined);
+
+  safeFields.forEach(f => {
+    if (f && f.name) preview.addFields({ name: f.name, value: f.value || '⠀', inline: f.inline || false });
+  });
+  if (safeFooter.text) {
+    preview.setFooter({ text: safeFooter.text, iconURL: safeFooter.iconURL || undefined });
   }
 
   const infoEmbed = new EmbedBuilder()
     .setTitle('ℹ️ معلومات الإيمبد')
     .setColor(0x2ECC71)
     .addFields(
-      { name: '🏷️ الاسم الداخلي', value: `\`${data.name}\``, inline: true },
-      { name: '🎨 اللون', value: `${data.color || '#5865F2'}`, inline: true },
-      { name: '📨 عدد الإرسال', value: `${data.sendCount || 0}`, inline: true },
-      { name: '📝 العنوان', value: data.title || '(بدون)', inline: false },
-      { name: '📄 المحتوى', value: (data.description || '(بدون)').slice(0, 200), inline: false },
-      { name: '🔻 عدد الحقول', value: `${data.fields?.length || 0}`, inline: true },
-      { name: '⏱️ Timestamp', value: data.timestamp !== false ? '✅ مفعل' : '❌ معطل', inline: true },
+      { name: '🏷️ الاسم الداخلي', value: `\`${safe.name || embedName}\``, inline: true },
+      { name: '🎨 اللون', value: `${safeColor}`, inline: true },
+      { name: '📨 عدد الإرسال', value: `${safe.sendCount || 0}`, inline: true },
+      { name: '📝 العنوان', value: safeTitle, inline: false },
+      { name: '📄 المحتوى', value: safeDesc.slice(0, 200), inline: false },
+      { name: '🔻 عدد الحقول', value: `${safeFields.length}`, inline: true },
+      { name: '⏱️ Timestamp', value: safe.timestamp !== false ? '✅ مفعل' : '❌ معطل', inline: true },
     )
     .setTimestamp();
 
-  if (data.footer?.text) {
-    infoEmbed.addFields({ name: '🔻 التذييل', value: data.footer.text.slice(0, 100), inline: false });
+  if (safeFooter.text) {
+    infoEmbed.addFields({ name: '🔻 التذييل', value: safeFooter.text.slice(0, 100), inline: false });
   }
 
   return respondOrUpdate(interaction, {
@@ -372,13 +387,14 @@ async function handleEmbDeleteConfirm(interaction, embedName) {
     return respondOrUpdate(interaction, { content: '⚠️ الإيمبد غير موجود.' });
   }
 
+  const safe = data || {};
   const embed = new EmbedBuilder()
     .setTitle('🗑️ تأكيد الحذف')
     .setColor(0xFF0000)
     .setDescription(`هل أنت متأكد من حذف الإيمبد **${embedName}**؟`)
     .addFields(
-      { name: 'العنوان', value: data.title || '(بدون)', inline: true },
-      { name: 'عدد الإرسال', value: `${data.sendCount || 0}`, inline: true }
+      { name: 'العنوان', value: safe.title || '(بدون)', inline: true },
+      { name: 'عدد الإرسال', value: `${safe.sendCount || 0}`, inline: true }
     )
     .setTimestamp();
 
@@ -449,17 +465,24 @@ async function handleEmbSendChannel(interaction, embedName) {
     return respondOrUpdate(interaction, { content: '⚠️ الإيمبد غير موجود.' });
   }
 
-  const preview = new EmbedBuilder()
-    .setTitle(data.title || '(بدون عنوان)')
-    .setColor(parseInt((data.color || '#5865F2').replace('#', ''), 16) || 0x5865F2)
-    .setDescription(data.description || '(بدون محتوى)')
-    .setTimestamp(data.timestamp !== false ? new Date() : undefined);
+  const safe = data || {};
+  const safeTitle = safe.title || '(بدون عنوان)';
+  const safeColor = safe.color || '#5865F2';
+  const safeDesc = safe.description || '(بدون محتوى)';
+  const safeFields = Array.isArray(safe.fields) ? safe.fields : [];
+  const safeFooter = safe.footer || {};
 
-  if (data.fields && data.fields.length > 0) {
-    data.fields.forEach(f => preview.addFields({ name: f.name, value: f.value, inline: f.inline || false }));
-  }
-  if (data.footer?.text) {
-    preview.setFooter({ text: data.footer.text, iconURL: data.footer.iconURL || undefined });
+  const preview = new EmbedBuilder()
+    .setTitle(safeTitle)
+    .setColor(parseInt(safeColor.replace('#', ''), 16) || 0x5865F2)
+    .setDescription(safeDesc)
+    .setTimestamp(safe.timestamp !== false ? new Date() : undefined);
+
+  safeFields.forEach(f => {
+    if (f && f.name) preview.addFields({ name: f.name, value: f.value || '⠀', inline: f.inline || false });
+  });
+  if (safeFooter.text) {
+    preview.setFooter({ text: safeFooter.text, iconURL: safeFooter.iconURL || undefined });
   }
 
   // إذا تم اختيار القناة (جاي من القناة المنسدلة)
@@ -616,30 +639,33 @@ async function sendEmbedToChannel(client, guild, embedName, channelId, senderTag
     const channel = guild?.channels.cache.get(channelId);
     if (!channel) return { success: false, error: 'القناة غير موجودة.' };
 
-    const embed = new EmbedBuilder()
-      .setTitle(data.title || undefined)
-      .setColor(parseInt((data.color || '#5865F2').replace('#', ''), 16) || 0x5865F2)
-      .setDescription(data.description || undefined)
-      .setTimestamp(data.timestamp !== false ? new Date() : undefined);
+    const safe = data || {};
+    const safeColor = safe.color || '#5865F2';
+    const safeFields = Array.isArray(safe.fields) ? safe.fields : [];
+    const safeFooter = safe.footer || {};
 
-    if (data.fields && data.fields.length > 0) {
-      data.fields.forEach(f => {
-        if (f.name) embed.addFields({ name: f.name, value: f.value || '⠀', inline: f.inline || false });
-      });
-    }
+    const embed = new EmbedBuilder()
+      .setTitle(safe.title || undefined)
+      .setColor(parseInt(safeColor.replace('#', ''), 16) || 0x5865F2)
+      .setDescription(safe.description || undefined)
+      .setTimestamp(safe.timestamp !== false ? new Date() : undefined);
+
+    safeFields.forEach(f => {
+      if (f && f.name) embed.addFields({ name: f.name, value: f.value || '⠀', inline: f.inline || false });
+    });
 
     // بناء التذييل تلقائياً: اسم السيرفر + اسم المرسل (اختياري)
     const footerParts = [];
-    if (data.footer?.text) {
-      footerParts.push(data.footer.text);
+    if (safeFooter.text) {
+      footerParts.push(safeFooter.text);
     }
     footerParts.push(guild.name);
-    if (data.showSender && senderTag) {
+    if (safe.showSender && senderTag) {
       footerParts.push(`من: ${senderTag}`);
     }
     embed.setFooter({
       text: footerParts.join(' | '),
-      iconURL: data.footer?.iconURL || undefined
+      iconURL: safeFooter.iconURL || undefined
     });
 
     await channel.send({ embeds: [embed] });
