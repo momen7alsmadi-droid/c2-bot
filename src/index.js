@@ -264,9 +264,13 @@ client.on('interactionCreate', async (interaction) => {
   } catch (err) {
     const type = interaction.isChatInputCommand() ? 'CMD' : interaction.isModalSubmit() ? 'MODAL' : interaction.isButton() ? 'BTN' : interaction.isAutocomplete() ? 'AC' : 'SELECT';
     const id = interaction.customId || interaction.commandName || '?';
-    const shortId = id.length > 30 ? id.slice(0, 30) + '…' : id;
-    console.error(`❌ ERROR [${type}] [${id}]: ${err.message}`);
-    console.error(err.stack?.split('\n').slice(0, 5).join('\n'));
+    const replyState = interaction.replied ? 'REPLIED' : interaction.deferred ? 'DEFERRED' : 'FRESH';
+    // ===== طباعة الخطأ كاملاً في الـ Console =====
+    console.error(`\n========== ❌ ERROR [${type}] [${id}] (${replyState}) ==========`);
+    console.error('Message:', err.message);
+    console.error('Full Stack:');
+    console.error(err.stack || '(no stack trace)');
+    console.error('========================================================\n');
     logError(type, id, err);
     try {
       if (interaction.isRepliable()) {
@@ -276,7 +280,7 @@ client.on('interactionCreate', async (interaction) => {
           await interaction.reply({ content: '⚠️ خطأ غير متوقع.', ephemeral: true }).catch(() => {});
         }
       }
-    } catch(e) { console.error('Reply error:', e.message); }
+    } catch(e) { console.error('❌ Reply error:', e.message); }
   }
 });
 

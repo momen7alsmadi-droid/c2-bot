@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
 const { COLORS } = require('../utils/colors');
+const { version } = require('../../package.json');
 
 /**
  * /broadcast - إرسال رسالة خاصة (DM) إلى أعضاء السيرفر

@@ -18,10 +18,13 @@ const {
 
 // ---------- دالة مساعدة للرد أو التحديث ----------
 async function respondOrUpdate(interaction, payload) {
-  if (interaction.isCommand()) {
+  if (interaction.isCommand() || interaction.isModalSubmit()) {
     return interaction.reply({ ...payload, ephemeral: true });
   }
-  return interaction.update(payload);
+  if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+    return interaction.update(payload);
+  }
+  return interaction.editReply(payload).catch(() => interaction.reply({ ...payload, ephemeral: true }).catch(() => {}));
 }
 
 // ---------- اللوحة الرئيسية ----------
