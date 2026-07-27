@@ -78,16 +78,28 @@ async function initialize() {
   const embedReady = initEmbedModel();
   const arReady = initAutoReplyModel();
   const rrReady = initReactModel();
+
+  // تأكيد حالة التخزين
+  console.log('\n═══════════════════════════════════════');
+  console.log('📊 حالة التخزين:');
+  console.log(`   ${dbConnected ? '✅' : '❌'} MongoDB`);
+  console.log(`   ${embedReady ? '✅' : '⚠️'} Embed Storage`);
+  console.log(`   ${arReady ? '✅' : '⚠️'} AutoReply Storage`);
+  console.log(`   ${rrReady ? '✅' : '⚠️'} Reaction Storage`);
+  console.log('═══════════════════════════════════════\n');
+
   if (dbConnected) {
     await ensureConfigLoaded();
     console.log('📦 تم تحميل الإعدادات من MongoDB');
     if (embedReady) {
-      console.log('📦 تم تهيئة نموذج الإيمبدات');
       const { syncJsonToMongo } = require('./utils/embedStorage');
       await syncJsonToMongo();
     }
     if (arReady) { await syncAr(); }
     if (rrReady) { await syncRr(); }
+  } else {
+    console.log('⚠️ MongoDB غير متصل. التخزين عبر JSON فقط.');
+    console.log('⚠️ إذا كنت على Railway، تأكد من متغير MONGODB_URI');
   }
 
   // تعطيل البوت تلقائياً عند دخوله سيرفر جديد

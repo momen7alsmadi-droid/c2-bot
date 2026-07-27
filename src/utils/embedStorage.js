@@ -1,6 +1,5 @@
 /**
- * embedStorage.js - تخزين قوالب الإيمبدات
- * MongoDB أساسي + JSON احتياطي + مزامنة تلقائية
+ * embedStorage.js - تخزين ثنائي (MongoDB + JSON) لقوالب الإيمبدات
  */
 const mongoose = require('mongoose');
 const fs = require('fs');
@@ -10,7 +9,6 @@ const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 const EMBEDS_PATH = path.join(DATA_DIR, 'embeds.json');
-let storageType = 'غير متصل'; // 'mongodb' أو 'json'
 
 // ---------- MongoDB Schema ----------
 const embedSchema = new mongoose.Schema({
@@ -19,20 +17,12 @@ const embedSchema = new mongoose.Schema({
   title: { type: String, default: '' },
   description: { type: String, default: '' },
   color: { type: String, default: '#5865F2' },
-  fields: [{ name: String, value: String, inline: { type: Boolean, default: false } }],
-  footer: {
-    text: { type: String, default: '' },
-    iconURL: { type: String, default: '' }
-  },
-  thumbnail: { type: String, default: '' },
+  footer: { type: String, default: '' },
   image: { type: String, default: '' },
-  author: {
-    name: { type: String, default: '' },
-    iconURL: { type: String, default: '' }
-  },
-  timestamp: { type: Boolean, default: true },
-  showSender: { type: Boolean, default: false },
-  sendCount: { type: Number, default: 0 },
+  thumbnail: { type: String, default: '' },
+  author: { type: String, default: '' },
+  fields: { type: [String], default: ['', '', '', '', '', '', '', '', '', ''] },
+  timestamp: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 }, { collection: 'embeds', versionKey: false });
@@ -41,7 +31,6 @@ let EmbedModel;
 let mongoReady = false;
 
 // ---------- JSON helpers ----------
-
 function readJSON() {
   try {
     if (!fs.existsSync(EMBEDS_PATH)) return {};
@@ -54,205 +43,154 @@ function readJSON() {
 }
 
 function writeJSON(data) {
-  fs.writeFileSync(EMBEDS_PATH, JSON.stringify(data, null, 2), 'utf8');
+  try {
+    fs.writeFileSync(EMBEDS_PATH, JSON.stringify(data, null, 2), 'utf8');
+  } catch (e) {
+    console.error('❌ embedStorage writeJSON:', e.message);
+  }
 }
 
-// ---------- التهيئة ----------
+function objToJson(obj) { writeJSON(obj); }
 
+// ---------- التهيئة ----------
 function initEmbedModel() {
   if (mongoose.connection.readyState === 1) {
     EmbedModel = mongoose.models.Embed || mongoose.model('Embed', embedSchema);
     mongoReady = true;
-    storageType = '✅ MongoDB';
-    console.log('📦 embedStorage →', storageType);
+    console.log('📦 embeds → ✅ MongoDB');
     return true;
   }
   mongoReady = false;
-  storageType = '⚠️ JSON (محلي)';
-  console.log('📦 embedStorage →', storageType, '- البيانات قد تختفي عند إعادة التشغيل!');
+  console.log('📦 embeds → ⚠️ JSON فقط');
   return false;
 }
 
-/** مزامنة كل بيانات JSON إلى MongoDB */
 async function syncJsonToMongo() {
   if (!mongoReady) return;
   const json = readJSON();
   const names = Object.keys(json);
-  if (names.length === 0) return;
-
+  if (names.length === 0) { console.log('🔄 embeds: JSON فاضي'); return; }
   console.log(`🔄 مزامنة ${names.length} إيمبد من JSON إلى MongoDB...`);
   let synced = 0;
   for (const name of names) {
     try {
       await EmbedModel.findByIdAndUpdate(name, { $set: json[name] }, { upsert: true });
       synced++;
-    } catch (e) {
-      console.error(`❌ فشل مزامنة ${name}:`, e.message);
-    }
+    } catch (e) { console.error(`❌ فشل مزامنة ${name}:`, e.message); }
   }
-  console.log(`✅ تمت مزامنة ${synced}/${names.length} إيمبد إلى MongoDB`);
+  console.log(`✅ تمت مزامنة ${synced}/${names.length} إيمبد`);
 }
 
-// ---------- دوال MongoDB ----------
+// ========== دوال مساعدة ==========
 
-async function mongoGetAll() {
-  try { return await EmbedModel.find().lean(); } catch { return null; }
-}
-
-async function mongoGetById(name) {
-  try { return await EmbedModel.findById(name).lean(); } catch { return null; }
-}
-
-async function mongoCreate(data) {
+async function writeToMongo(name, data) {
+  if (!mongoReady) return null;
   try {
-    const doc = new EmbedModel({
-      _id: data.name, name: data.name,
-      title: data.title || '', description: data.description || '',
-      color: data.color || '#5865F2',
-      fields: data.fields || [],
-      footer: data.footer || { text: '', iconURL: '' },
-      thumbnail: data.thumbnail || '', image: data.image || '',
-      author: data.author || { name: '', iconURL: '' },
-      timestamp: data.timestamp !== undefined ? data.timestamp : true,
-      showSender: data.showSender || false,
-      sendCount: 0,
-      createdAt: new Date(), updatedAt: new Date()
-    });
-    await doc.save();
-    return doc.toObject();
-  } catch { return null; }
+    return await EmbedModel.findByIdAndUpdate(
+      name,
+      { $set: { ...data, updatedAt: new Date() } },
+      { upsert: true, new: true }
+    ).lean();
+  } catch (e) {
+    console.error(`❌ embed MongoDB write error:`, e.message);
+    return null;
+  }
 }
 
-async function mongoUpdate(name, updates) {
-  try {
-    updates.updatedAt = new Date();
-    return await EmbedModel.findByIdAndUpdate(name, { $set: updates }, { new: true }).lean();
-  } catch { return null; }
-}
-
-async function mongoDelete(name) {
+async function deleteFromMongo(name) {
+  if (!mongoReady) return false;
   try { await EmbedModel.findByIdAndDelete(name); return true; } catch { return false; }
 }
 
-async function mongoIncrementCount(name) {
-  try { await EmbedModel.findByIdAndUpdate(name, { $inc: { sendCount: 1 }, $set: { updatedAt: new Date() } }); } catch {}
-}
-
-// ---------- API العامة (MongoDB first, JSON fallback) ----------
+// ========== API العامة مع Dual-Write ==========
 
 async function getAllEmbeds() {
-  // حاول MongoDB أولاً
   if (mongoReady) {
-    const data = await mongoGetAll();
-    if (data) return data;
+    try {
+      const data = await EmbedModel.find().lean();
+      if (data && data.length > 0) {
+        const jsonObj = {};
+        for (const item of data) jsonObj[item.name || item._id] = { ...item, _id: item.name || item._id };
+        objToJson(jsonObj);
+        return data;
+      }
+    } catch {}
   }
-  // JSON احتياطي
-  const json = readJSON();
-  return Object.values(json);
+  return Object.values(readJSON());
 }
 
 async function getEmbed(name) {
   if (mongoReady) {
-    const data = await mongoGetById(name);
-    if (data) return data;
+    try {
+      const data = await EmbedModel.findById(name).lean();
+      if (data) return data;
+    } catch {}
   }
-  const json = readJSON();
-  return json[name] || null;
+  return readJSON()[name] || null;
 }
 
-async function createEmbed(data) {
-  // MongoDB أولاً
-  if (mongoReady) {
-    const created = await mongoCreate(data);
-    if (created) {
-      console.log(`✅ embedStorage: تم حفظ "${data.name}" في MongoDB`);
-      return created;
-    }
-    console.warn(`⚠️ embedStorage: فشل حفظ "${data.name}" في MongoDB, استخدام JSON`);
-  }
-  // JSON احتياطي
-  const json = readJSON();
-  if (json[data.name]) return null;
-  json[data.name] = {
-    _id: data.name, name: data.name,
+async function createEmbed(name, data) {
+  const now = new Date();
+  const doc = {
+    _id: name, name,
     title: data.title || '', description: data.description || '',
-    color: data.color || '#5865F2',
-    fields: data.fields || [],
-    footer: data.footer || { text: '', iconURL: '' },
-    thumbnail: data.thumbnail || '', image: data.image || '',
-    author: data.author || { name: '', iconURL: '' },
-    timestamp: data.timestamp !== undefined ? data.timestamp : true,
-    showSender: data.showSender || false,
-    sendCount: 0,
-    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+    color: data.color || '#5865F2', footer: data.footer || '',
+    image: data.image || '', thumbnail: data.thumbnail || '',
+    author: data.author || '', fields: data.fields || ['','','','','','','','','',''],
+    timestamp: data.timestamp || false,
+    createdAt: now, updatedAt: now
   };
-  writeJSON(json);
-  console.log(`⚠️ embedStorage: تم حفظ "${data.name}" في JSON (مؤقت)`);
-  return json[data.name];
+
+  let mongoResult = null;
+  if (mongoReady) {
+    mongoResult = await writeToMongo(name, doc);
+    if (mongoResult) console.log(`✅ embed: "${name}" → MongoDB`);
+    else console.log(`⚠️ embed: "${name}" → فشل MongoDB`);
+  }
+
+  // JSON دائماً
+  const json = readJSON();
+  if (json[name]) { console.log(`⚠️ embed: "${name}" موجود مسبقاً`); return null; }
+  json[name] = { ...doc, createdAt: now.toISOString(), updatedAt: now.toISOString() };
+  objToJson(json);
+  console.log(`✅ embed: "${name}" → JSON`);
+
+  return mongoResult || json[name];
 }
 
 async function updateEmbed(name, updates) {
-  updates.updatedAt = new Date().toISOString();
-  if (mongoReady) {
-    const updated = await mongoUpdate(name, updates);
-    if (updated) return updated;
-  }
+  updates.updatedAt = new Date();
+
+  let mongoResult = null;
+  if (mongoReady) mongoResult = await writeToMongo(name, updates);
+
   const json = readJSON();
-  if (!json[name]) return null;
-  json[name] = { ...json[name], ...updates };
-  writeJSON(json);
-  return json[name];
+  if (json[name]) {
+    json[name] = { ...json[name], ...updates, updatedAt: updates.updatedAt.toISOString() };
+    objToJson(json);
+  }
+
+  return mongoResult || json[name] || null;
 }
 
 async function deleteEmbed(name) {
-  if (mongoReady) {
-    const deleted = await mongoDelete(name);
-    if (deleted) return true;
-  }
+  if (mongoReady) await deleteFromMongo(name);
   const json = readJSON();
-  if (!json[name]) return false;
-  delete json[name];
-  writeJSON(json);
+  if (json[name]) { delete json[name]; objToJson(json); }
   return true;
 }
 
-async function incrementSendCount(name) {
-  if (mongoReady) {
-    await mongoIncrementCount(name);
-    return;
-  }
-  const json = readJSON();
-  if (json[name]) {
-    json[name].sendCount = (json[name].sendCount || 0) + 1;
-    json[name].updatedAt = new Date().toISOString();
-    writeJSON(json);
-  }
-}
-
 async function getEmbedsList() {
-  const embeds = await getAllEmbeds();
-  return embeds.map(e => ({
-    name: e.name,
-    title: e.title || '(بدون عنوان)',
-    color: e.color,
-    sendCount: e.sendCount || 0
+  const all = await getAllEmbeds();
+  return all.map(r => ({
+    name: r.name || r._id,
+    title: (r.title || '').slice(0, 50),
+    color: r.color || '#5865F2'
   }));
 }
 
-/** معرفة نوع التخزين المستخدم */
-function getStorageType() {
-  return storageType;
-}
-
 module.exports = {
-  initEmbedModel,
-  syncJsonToMongo,
-  getAllEmbeds,
-  getEmbed,
-  createEmbed,
-  updateEmbed,
-  deleteEmbed,
-  incrementSendCount,
-  getEmbedsList,
-  getStorageType
+  initEmbedModel, syncJsonToMongo,
+  getAllEmbeds, getEmbed, getEmbedsList,
+  createEmbed, updateEmbed, deleteEmbed
 };

@@ -1,5 +1,5 @@
 /**
- * autoReplyStorage.js - تخزين الردود التلقائية في MongoDB + JSON احتياطي
+ * autoReplyStorage.js - تخزين ثنائي (MongoDB + JSON) لضمان عدم فقدان البيانات
  */
 const mongoose = require('mongoose');
 const fs = require('fs');
@@ -15,27 +15,19 @@ const autoReplySchema = new mongoose.Schema({
   _id: String,
   name: { type: String, required: true },
   trigger: { type: String, required: true },
-  // contains = بحث ضمني (ON), exact = مطابقة تامة (OFF)
   triggerType: { type: String, default: 'contains' },
-  // نصوص الرد المتعددة
   responses: { type: [String], default: [] },
   randomReply: { type: Boolean, default: false },
-  // طريقة الإرسال
-  sendStyle: { type: String, default: 'reply_mention' }, // reply_mention, reply_no_mention, normal
-  // حذف رد البوت تلقائياً
+  sendStyle: { type: String, default: 'reply_mention' },
   autoDelete: { type: Boolean, default: false },
-  autoDeleteTime: { type: Number, default: 0 }, // milliseconds
-  // حذف رسالة العضو
+  autoDeleteTime: { type: Number, default: 0 },
   deleteUserMsg: { type: Boolean, default: false },
-  // تأخير الإرسال
   replyDelay: { type: Boolean, default: false },
-  replyDelayTime: { type: Number, default: 0 }, // milliseconds
-  // القوائم البيضاء والسوداء
+  replyDelayTime: { type: Number, default: 0 },
   roleWhitelist: { type: [String], default: [] },
   roleBlacklist: { type: [String], default: [] },
   channelWhitelist: { type: [String], default: [] },
   channelBlacklist: { type: [String], default: [] },
-  // الحقول القديمة للتوافق
   channelId: { type: String, default: null },
   ignoreBots: { type: Boolean, default: true },
   caseSensitive: { type: Boolean, default: false },
@@ -47,10 +39,8 @@ const autoReplySchema = new mongoose.Schema({
 
 let AutoReplyModel;
 let mongoReady = false;
-let storageType = 'غير متصل';
 
 // ---------- JSON helpers ----------
-
 function readJSON() {
   try {
     if (!fs.existsSync(AUTOREPLY_PATH)) return {};
@@ -63,31 +53,44 @@ function readJSON() {
 }
 
 function writeJSON(data) {
-  fs.writeFileSync(AUTOREPLY_PATH, JSON.stringify(data, null, 2), 'utf8');
+  try {
+    fs.writeFileSync(AUTOREPLY_PATH, JSON.stringify(data, null, 2), 'utf8');
+  } catch (e) {
+    console.error('❌ autoReply writeJSON:', e.message);
+  }
+}
+
+/** تحميل كل البيانات من JSON إلى object */
+function jsonToObj() {
+  return readJSON();
+}
+
+/** حفظ object كامل إلى JSON */
+function objToJson(obj) {
+  writeJSON(obj);
 }
 
 // ---------- التهيئة ----------
-
 function initAutoReplyModel() {
   if (mongoose.connection.readyState === 1) {
     AutoReplyModel = mongoose.models.AutoReply || mongoose.model('AutoReply', autoReplySchema);
     mongoReady = true;
-    storageType = '✅ MongoDB';
-    console.log('📦 autoReplyStorage →', storageType);
+    console.log('📦 autoReply → ✅ MongoDB');
     return true;
   }
   mongoReady = false;
-  storageType = '⚠️ JSON (محلي)';
-  console.log('📦 autoReplyStorage →', storageType);
+  console.log('📦 autoReply → ⚠️ JSON فقط');
   return false;
 }
 
-/** مزامنة JSON → MongoDB */
 async function syncJsonToMongo() {
   if (!mongoReady) return;
   const json = readJSON();
   const names = Object.keys(json);
-  if (names.length === 0) return;
+  if (names.length === 0) {
+    console.log('🔄 autoReply: JSON فاضي، لا يوجد شيء للمزامنة');
+    return;
+  }
   console.log(`🔄 مزامنة ${names.length} رد تلقائي من JSON إلى MongoDB...`);
   let synced = 0;
   for (const name of names) {
@@ -98,96 +101,75 @@ async function syncJsonToMongo() {
       console.error(`❌ فشل مزامنة ${name}:`, e.message);
     }
   }
-  console.log(`✅ تمت مزامنة ${synced}/${names.length} رد تلقائي`);
+  console.log(`✅ تمت مزامنة ${synced}/${names.length} رد`);
 }
 
-// ---------- MongoDB دوال ----------
+// ========== دوال الكتابة الثنائية (MongoDB + JSON) ==========
 
-async function mongoGetAll() {
-  try { return await AutoReplyModel.find().lean(); } catch { return null; }
-}
-
-async function mongoGetById(name) {
-  try { return await AutoReplyModel.findById(name).lean(); } catch { return null; }
-}
-
-async function mongoCreate(data) {
+/** كتابة سجل في MongoDB (مع تحديث JSON) */
+async function writeToMongo(name, data) {
+  if (!mongoReady) return null;
   try {
-    const doc = new AutoReplyModel({
-      _id: data.name, name: data.name,
-      trigger: data.trigger, triggerType: data.triggerType || 'contains',
-      responses: data.responses || [],
-      randomReply: data.randomReply || false,
-      sendStyle: data.sendStyle || 'reply_mention',
-      autoDelete: data.autoDelete || false,
-      autoDeleteTime: data.autoDeleteTime || 0,
-      deleteUserMsg: data.deleteUserMsg || false,
-      replyDelay: data.replyDelay || false,
-      replyDelayTime: data.replyDelayTime || 0,
-      roleWhitelist: data.roleWhitelist || [],
-      roleBlacklist: data.roleBlacklist || [],
-      channelWhitelist: data.channelWhitelist || [],
-      channelBlacklist: data.channelBlacklist || [],
-      channelId: data.channelId || null,
-      ignoreBots: data.ignoreBots !== false,
-      caseSensitive: data.caseSensitive || false,
-      enabled: data.enabled !== false,
-      useCount: 0,
-      createdAt: new Date(), updatedAt: new Date()
-    });
-    await doc.save();
-    return doc.toObject();
-  } catch { return null; }
+    const result = await AutoReplyModel.findByIdAndUpdate(
+      name,
+      { $set: { ...data, updatedAt: new Date() } },
+      { upsert: true, new: true }
+    ).lean();
+    return result;
+  } catch (e) {
+    console.error(`❌ autoReply MongoDB write error:`, e.message);
+    return null;
+  }
 }
 
-async function mongoUpdate(name, updates) {
+/** حذف من MongoDB */
+async function deleteFromMongo(name) {
+  if (!mongoReady) return false;
   try {
-    updates.updatedAt = new Date();
-    return await AutoReplyModel.findByIdAndUpdate(name, { $set: updates }, { new: true }).lean();
-  } catch { return null; }
+    await AutoReplyModel.findByIdAndDelete(name);
+    return true;
+  } catch { return false; }
 }
 
-async function mongoDelete(name) {
-  try { await AutoReplyModel.findByIdAndDelete(name); return true; } catch { return false; }
-}
-
-async function mongoIncrementCount(name) {
-  try {
-    await AutoReplyModel.findByIdAndUpdate(name, { $inc: { useCount: 1 }, $set: { updatedAt: new Date() } });
-  } catch {}
-}
-
-// ---------- API العامة ----------
+// ========== API العامة مع Dual-Write ==========
 
 async function getAllReplies() {
+  // حاول من MongoDB أولاً
   if (mongoReady) {
-    const data = await mongoGetAll();
-    if (data) return data;
+    try {
+      const data = await AutoReplyModel.find().lean();
+      if (data && data.length > 0) {
+        // حدّث JSON كنسخة احتياطية
+        const jsonObj = {};
+        for (const item of data) {
+          jsonObj[item.name] = { ...item, _id: item.name };
+        }
+        objToJson(jsonObj);
+        return data;
+      }
+    } catch {}
   }
+  // ارجع للـ JSON
   const json = readJSON();
   return Object.values(json);
 }
 
 async function getReply(name) {
+  // حاول من MongoDB
   if (mongoReady) {
-    const data = await mongoGetById(name);
-    if (data) return data;
+    try {
+      const data = await AutoReplyModel.findById(name).lean();
+      if (data) return data;
+    } catch {}
   }
+  // ارجع للـ JSON
   const json = readJSON();
   return json[name] || null;
 }
 
 async function createReply(data) {
-  if (mongoReady) {
-    const created = await mongoCreate(data);
-    if (created) {
-      console.log(`✅ autoReply: تم حفظ "${data.name}" في MongoDB`);
-      return created;
-    }
-  }
-  const json = readJSON();
-  if (json[data.name]) return null;
-  json[data.name] = {
+  const now = new Date();
+  const doc = {
     _id: data.name, name: data.name,
     trigger: data.trigger, triggerType: data.triggerType || 'contains',
     responses: data.responses || [],
@@ -201,68 +183,97 @@ async function createReply(data) {
     channelId: data.channelId || null,
     ignoreBots: data.ignoreBots !== false, caseSensitive: data.caseSensitive || false,
     enabled: data.enabled !== false, useCount: 0,
-    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+    createdAt: now, updatedAt: now
   };
-  writeJSON(json);
-  console.log(`⚠️ autoReply: تم حفظ "${data.name}" في JSON (مؤقت)`);
-  return json[data.name];
+
+  // 1. احفظ في MongoDB
+  let mongoResult = null;
+  if (mongoReady) {
+    mongoResult = await writeToMongo(data.name, doc);
+    if (mongoResult) {
+      console.log(`✅ autoReply: "${data.name}" → MongoDB`);
+    } else {
+      console.log(`⚠️ autoReply: "${data.name}" → فشل MongoDB`);
+    }
+  }
+
+  // 2. احفظ في JSON (دائماً)
+  const json = readJSON();
+  if (json[data.name]) {
+    console.log(`⚠️ autoReply: "${data.name}" موجود مسبقاً في JSON`);
+    return null;
+  }
+  json[data.name] = { ...doc, createdAt: now.toISOString(), updatedAt: now.toISOString() };
+  objToJson(json);
+  console.log(`✅ autoReply: "${data.name}" → JSON`);
+
+  return mongoResult || json[data.name];
 }
 
 async function updateReply(name, updates) {
-  updates.updatedAt = new Date().toISOString();
+  updates.updatedAt = new Date();
+
+  // 1. حدّث في MongoDB
+  let mongoResult = null;
   if (mongoReady) {
-    const updated = await mongoUpdate(name, updates);
-    if (updated) return updated;
+    mongoResult = await writeToMongo(name, updates);
   }
+
+  // 2. حدّث في JSON (دائماً)
   const json = readJSON();
-  if (!json[name]) return null;
-  json[name] = { ...json[name], ...updates };
-  writeJSON(json);
-  return json[name];
+  if (json[name]) {
+    json[name] = { ...json[name], ...updates, updatedAt: updates.updatedAt.toISOString() };
+    objToJson(json);
+  }
+
+  return mongoResult || json[name] || null;
 }
 
 async function deleteReply(name) {
+  // 1. احذف من MongoDB
+  let mongoOk = false;
   if (mongoReady) {
-    const deleted = await mongoDelete(name);
-    if (deleted) return true;
+    mongoOk = await deleteFromMongo(name);
   }
+
+  // 2. احذف من JSON (دائماً)
   const json = readJSON();
-  if (!json[name]) return false;
-  delete json[name];
-  writeJSON(json);
-  return true;
+  if (json[name]) {
+    delete json[name];
+    objToJson(json);
+  }
+
+  return mongoOk || true;
 }
 
 async function incrementUseCount(name) {
+  // MongoDB
   if (mongoReady) {
-    await mongoIncrementCount(name);
-    return;
+    try {
+      await AutoReplyModel.findByIdAndUpdate(name, { $inc: { useCount: 1 }, $set: { updatedAt: new Date() } });
+    } catch {}
   }
+  // JSON
   const json = readJSON();
   if (json[name]) {
     json[name].useCount = (json[name].useCount || 0) + 1;
     json[name].updatedAt = new Date().toISOString();
-    writeJSON(json);
+    objToJson(json);
   }
 }
 
-/** جلب جميع الردود المفعلة (للرسائل) */
 async function getEnabledReplies() {
   const all = await getAllReplies();
   return all.filter(r => r.enabled !== false);
 }
 
-/** قائمة مختصرة */
 async function getRepliesList() {
   const all = await getAllReplies();
   return all.map(r => ({
-    name: r.name,
-    trigger: r.trigger,
-    triggerType: r.triggerType,
+    name: r.name, trigger: r.trigger, triggerType: r.triggerType,
     responsesCount: (r.responses || []).length,
     sendStyle: r.sendStyle || 'reply_mention',
-    enabled: r.enabled !== false,
-    useCount: r.useCount || 0
+    enabled: r.enabled !== false, useCount: r.useCount || 0
   }));
 }
 
