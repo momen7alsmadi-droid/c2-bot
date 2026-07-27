@@ -84,23 +84,16 @@ async function handleArCreate(interaction) {
     new ActionRowBuilder().addComponents(
       new TextInputBuilder()
         .setCustomId('ar_name')
-        .setLabel('🏷️ الاسم الداخلي (للحفظ والبحث)')
+        .setLabel('🏷️ الاسم الداخلي (لسجل الإدارة)')
         .setPlaceholder('مثال: رد_ترحيب')
         .setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(50)
     ),
     new ActionRowBuilder().addComponents(
       new TextInputBuilder()
         .setCustomId('ar_trigger')
-        .setLabel('🔑 الكلمة المفتاحية (Trigger)')
+        .setLabel('🔑 الكلمة المحفزة (Trigger)')
         .setPlaceholder('مثال: مرحبا')
         .setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(500)
-    ),
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('ar_response')
-        .setLabel('💬 نص الرد (يمكنك إضافة المزيد لاحقاً)')
-        .setPlaceholder('أهلاً بك!')
-        .setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(2000)
     ),
   );
 
@@ -110,7 +103,6 @@ async function handleArCreate(interaction) {
 async function handleArCreateModal(interaction) {
   const name = interaction.fields.getTextInputValue('ar_name').trim();
   const trigger = interaction.fields.getTextInputValue('ar_trigger').trim();
-  const response = interaction.fields.getTextInputValue('ar_response').trim();
 
   const existing = await getReply(name);
   if (existing) {
@@ -119,7 +111,7 @@ async function handleArCreateModal(interaction) {
 
   const created = await createReply({
     name, trigger,
-    responses: [response],
+    responses: [],
     randomReply: false,
     sendStyle: 'reply_mention',
     autoDelete: false, autoDeleteTime: 0,
