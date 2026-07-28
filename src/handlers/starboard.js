@@ -457,26 +457,23 @@ async function handleStarboardReaction(reaction, user) {
 
 async function handleStarboardInteraction(interaction) {
   const id = interaction.customId;
-  const parts = id.split('_');
-  const prefix = parts[0];
-  if (prefix !== 'sb') return;
 
+  // أزرار المودال: تفتح Modal فوراً بدون أي defer أو استعلام قبل showModal
+  if (id === 'sb_add') return handleMainButton(interaction, 'add');
+  if (id.startsWith('sb_emoji_')) return handlePanelButton(interaction, 'emoji', id.replace('sb_emoji_', ''));
+  if (id.startsWith('sb_customcolor_')) return handlePanelButton(interaction, 'customcolor', id.replace('sb_customcolor_', ''));
+  if (id.startsWith('sb_thresh_')) return handlePanelButton(interaction, 'thresh', id.replace('sb_thresh_', ''));
+  if (id.startsWith('sb_del_yes_')) return handleDeleteConfirm(interaction, id.replace('sb_del_yes_', ''));
+
+  // كل الباقي (أزرار + قوائم) → deferUpdate فوراً قبل أي استعلام
   try {
-    // أزرار المودال (بدون defer)
-    if (id === 'sb_add') return handleMainButton(interaction, 'add');
-    if (id.startsWith('sb_emoji_')) { const n = id.replace('sb_emoji_', ''); return handlePanelButton(interaction, 'emoji', n); }
-    if (id.startsWith('sb_customcolor_')) { const n = id.replace('sb_customcolor_', ''); return handlePanelButton(interaction, 'customcolor', n); }
-    if (id.startsWith('sb_thresh_')) { const n = id.replace('sb_thresh_', ''); return handlePanelButton(interaction, 'thresh', n); }
-    if (id.startsWith('sb_del_yes_')) { const n = id.replace('sb_del_yes_', ''); return handleDeleteConfirm(interaction, n); }
-
-    // بقية الأزرار → deferUpdate
     await interaction.deferUpdate();
 
     if (id === 'sb_edit') return handleMainButton(interaction, 'edit');
     if (id === 'sb_delete') return handleMainButton(interaction, 'delete');
     if (id === 'sb_view') return handleMainButton(interaction, 'view');
     if (id === 'sb_back') return handleMainButton(interaction, 'back');
-    if (id === 'sb_refresh') return handleMainButton(interaction, 'back'); // refresh يعود للرئيسية
+    if (id === 'sb_refresh') return handleMainButton(interaction, 'back');
 
     // القوائم المنسدلة
     if (id.startsWith('sb_sel_') || id.startsWith('sb_readycolor_') || id.startsWith('sb_sel_source_') || id.startsWith('sb_sel_dest_')) {

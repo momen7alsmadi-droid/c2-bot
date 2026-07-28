@@ -131,16 +131,22 @@ const commands = [
 
 const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);
 
-async function deployCommands() {
+async function deployCommands(clientId) {
+  const id = clientId || process.env.CLIENT_ID;
+  if (!id) {
+    console.error('❌ deployCommands: CLIENT_ID غير موجود!');
+    return;
+  }
   try {
-    console.log('⏳ جاري تسجيل الأوامر...');
+    console.log('⏳ جاري تسجيل الأوامر... (CLIENT_ID:', id, ')');
     await rest.put(
-      Routes.applicationCommands(process.env.CLIENT_ID),
+      Routes.applicationCommands(id),
       { body: commands }
     );
     console.log('✅ تم تسجيل الأوامر بنجاح.');
   } catch (err) {
-    console.error('❌ فشل تسجيل الأوامر:', err);
+    console.error('❌ فشل تسجيل الأوامر:', err.message);
+    if (err.stack) console.error(err.stack);
   }
 }
 

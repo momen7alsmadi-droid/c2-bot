@@ -166,7 +166,8 @@ ID: ${guild.id}
     console.log(`✅ البوت شغّال باسم ${client.user.tag}`);
     
     // تسجيل الأوامر (Sync/Deploy) لمسح القديمة وإضافة الجديدة
-    deployCommands().then(() => console.log('📋 تمت مزامنة الأوامر مع Discord API'));
+    // استخدام client.user.id كـ fallback لو CLIENT_ID البيئي غير متوفر
+    deployCommands(client.user.id).then(() => console.log('📋 تمت مزامنة الأوامر مع Discord API'));
     
     // إرسال أول رسالة فور التشغيل
     setTimeout(() => sendPingMessage(), 5000);
