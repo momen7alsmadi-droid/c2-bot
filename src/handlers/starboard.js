@@ -44,7 +44,12 @@ async function respondOrUpdate(interaction, payload) {
 /** الأمر /لوحة_النجوم */
 async function handleStarboardMain(interaction) {
   try {
-    const panels = getAllPanels();
+    let panels = getAllPanels();
+    // إذا لا توجد لوحات, أنشئ لوحة افتراضية باسم 'main' للتوافق مع الإعدادات القديمة
+    if (panels.length === 0) {
+      savePanel('main', {});
+      panels = getAllPanels();
+    }
     const embed = new EmbedBuilder()
       .setTitle('⭐ لوحة النجوم')
       .setColor(0xF1C40F)
@@ -275,28 +280,41 @@ async function handleStarboardSelect(interaction) {
       });
     }
 
-    // استخراج اسم اللوحة من بقية الـ customIds
+    // استخراج اسم اللوحة من الـ customId
     let name, field;
     if (id.startsWith('sb_sel_source_')) { name = id.replace('sb_sel_source_', ''); field = 'sourceChannelId'; }
     else if (id.startsWith('sb_sel_dest_')) { name = id.replace('sb_sel_dest_', ''); field = 'destChannelId'; }
     else if (id.startsWith('sb_readycolor_')) { name = id.replace('sb_readycolor_', ''); field = 'embedColor'; }
+    // دعم توافقي للـ customIds القديمة (بدون اسم لوحة) ← استخدم 'main'
+    else if (id === 'sb_sel_source' || id === 'sb_sel_dest' || id === 'sb_readycolor') {
+      name = 'main';
+      if (id === 'sb_sel_source') field = 'sourceChannelId';
+      else if (id === 'sb_sel_dest') field = 'destChannelId';
+      else if (id === 'sb_readycolor') field = 'embedColor';
+    }
 
     if (name && field) {
-      const panel = getPanel(name);
-      if (!panel) return interaction.editReply({ content: '⚠️ اللوحة غير موجودة.' });
+      try {
+        const panel = getPanel(name);
+        if (!panel) return interaction.editReply({ content: '⚠️ اللوحة غير موجودة.' });
 
-      if (field === 'embedColor') panel.embedColor = selected;
-      else panel[field] = selected;
-      savePanel(name, panel);
+        if (field === 'embedColor') panel.embedColor = selected;
+        else panel[field] = selected;
+        savePanel(name, panel);
 
-      // منع @everyone من إضافة تفاعلات
-      if (field === 'sourceChannelId') {
-        try {
-          const channel = await interaction.guild.channels.fetch(selected);
-          if (channel) await channel.permissionOverwrites.edit(interaction.guild.id, { AddReactions: false }).catch(() => {});
-        } catch {}
+        // منع @everyone من إضافة تفاعلات في روم المصدر
+        if (field === 'sourceChannelId') {
+          try {
+            const channel = await interaction.guild.channels.fetch(selected);
+            if (channel) await channel.permissionOverwrites.edit(interaction.guild.id, { AddReactions: false }).catch(() => {});
+          } catch (e) { console.error('❌ sb permission edit:', e.message); }
+        }
+
+        return showPanelControl(interaction, name);
+      } catch (e) {
+        console.error('❌ handleStarboardSelect save error:', e.message);
+        return interaction.editReply({ content: '⚠️ خطأ في حفظ البيانات.' });
       }
-      return showPanelControl(interaction, name);
     }
   } catch (e) {
     console.error('❌ handleStarboardSelect:', e.message);
