@@ -138,7 +138,7 @@ async function showPanelControl(interaction, name) {
       ),
       // Row 5: تحديث + رجوع
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('sb_refresh').setLabel('🔄 تحديث').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(`sb_refresh_${name}`).setLabel('🔄 تحديث').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('sb_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary),
       ),
     ];
@@ -173,8 +173,7 @@ async function handleMainButton(interaction, action) {
       return interaction.showModal(modal);
     }
 
-    // --- بقية الأزرار → deferUpdate ---
-    await interaction.deferUpdate();
+    // --- بقية الأزرار (الموزع بالفعل أرسل deferUpdate قبل استدعاء هذه الدالة) ---
     const panels = getAllPanels();
     console.log(`🔍 handleMainButton: action=${action}, panels count=${panels?.length || 0}`);
 
@@ -302,7 +301,7 @@ async function handlePanelButton(interaction, action, name) {
 
 async function handleStarboardSelect(interaction) {
   try {
-    await interaction.deferUpdate();
+    // الموزع أرسل deferUpdate قبل الاستدعاء
     const id = interaction.customId;
     const selected = interaction.values[0];
 
@@ -429,7 +428,7 @@ async function handleStarboardModal(interaction) {
 
 async function handleDeleteConfirm(interaction, name) {
   try {
-    await interaction.deferUpdate();
+    // الموزع أرسل deferUpdate قبل الاستدعاء
     const modal = new ModalBuilder().setCustomId(`modal_sb_delete_yes_${name}`).setTitle('🗑️ تأكيد حذف اللوحة');
     modal.addComponents(new ActionRowBuilder().addComponents(
       new TextInputBuilder().setCustomId('sb_delete_confirm').setLabel(`اكتب DELETE لتأكيد حذف ${name}`)
@@ -532,7 +531,7 @@ async function handleStarboardInteraction(interaction) {
     if (id === 'sb_delete') return handleMainButton(interaction, 'delete');
     if (id === 'sb_view') return handleMainButton(interaction, 'view');
     if (id === 'sb_back') return handleMainButton(interaction, 'back');
-    if (id === 'sb_refresh') return handleMainButton(interaction, 'back');
+    if (id.startsWith('sb_refresh_')) return showPanelControl(interaction, id.replace('sb_refresh_', ''));
 
     // القوائم المنسدلة
     if (id.startsWith('sb_sel_') || id.startsWith('sb_readycolor_') || id.startsWith('sb_sel_source_') || id.startsWith('sb_sel_dest_')) {
