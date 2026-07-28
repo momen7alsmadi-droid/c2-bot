@@ -121,6 +121,12 @@ const commands = [
     .setDefaultMemberPermissions(8) // Administrator
     .toJSON(),
 
+  // ------------------- /اعدادات_المميزة -------------------
+  new SlashCommandBuilder()
+    .setName('اعدادات_المميزة')
+    .setDescription('⭐ إعدادات نظام المنشورات المميزة')
+    .setDefaultMemberPermissions(8) // Administrator
+    .toJSON(),
 ];
 
 const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);

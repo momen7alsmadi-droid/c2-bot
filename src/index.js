@@ -24,6 +24,8 @@ const { handleEmbedsInteraction, handleEmbedsModal, handleEmbedsMain } = require
 const { initEmbedModel } = require('./utils/embedStorage');
 const { handleAutoReplyInteraction, handleAutoReplyModal, handleAutoReplyMain, handleMessage } = require('./handlers/autoReply');
 const { handleReactInteraction, handleReactModal, handleReactMain, handleReactMessage } = require('./handlers/reactReply');
+const { handleFeaturedSettings, handleFeaturedInteraction, handleFeaturedModal, handleFeaturedMessage, handleFeaturedReaction } = require('./handlers/featured');
+const { initFeaturedModels, ensureFeaturedConfigLoaded, loadFeaturedPostsFromMongo } = require('./utils/featuredStorage');
 const { initAutoReplyModel, syncJsonToMongo: syncAr } = require('./utils/autoReplyStorage');
 const { initReactModel, syncJsonToMongo: syncRr } = require('./utils/reactionReplyStorage');
 
@@ -81,6 +83,7 @@ async function initialize() {
   const embedReady = initEmbedModel();
   const arReady = initAutoReplyModel();
   const rrReady = initReactModel();
+  const featReady = initFeaturedModels();
 
   // تأكيد حالة التخزين
   console.log('\n═══════════════════════════════════════');
@@ -102,6 +105,8 @@ async function initialize() {
     }
     if (arReady) { await syncAr(); }
     if (rrReady) { await syncRr(); }
+    await ensureFeaturedConfigLoaded();
+    await loadFeaturedPostsFromMongo();
   } else {
     console.log('⚠️ MongoDB غير متصل. التخزين عبر JSON فقط.');
     console.log('⚠️ سيتم إعادة محاولة الاتصال كل 30 ثانية...');
@@ -180,6 +185,7 @@ ID: ${guild.id}
     try {
       await handleMessage(message);
       await handleReactMessage(message);
+      await handleFeaturedMessage(message);
     } catch (e) {
       // لا تطبع خطأ للرسائل العادية
     }
@@ -309,6 +315,7 @@ async function handleSlashCommand(interaction) {
     case 'الألوان_المتوفرة': return handleColorsCommand(interaction);
     case 'ايمبد': return handleEmbedsMain(interaction);
     case 'الردود_التلقائية': return handleAutoReplyMain(interaction);
+    case 'اعدادات_المميزة': return handleFeaturedSettings(interaction);
   }
 }
 
@@ -317,6 +324,7 @@ async function handleModalSubmit(interaction) {
   if (interaction.customId.startsWith('modal_emb_')) return handleEmbedsModal(interaction);
   if (interaction.customId.startsWith('modal_ar_')) return handleAutoReplyModal(interaction);
   if (interaction.customId.startsWith('modal_rr_')) return handleReactModal(interaction);
+  if (interaction.customId.startsWith('modal_feat_')) return handleFeaturedModal(interaction);
   if (interaction.customId.startsWith('modal_blagh_')) {
     const { handleBlaghModal } = require('./handlers/report');
     return handleBlaghModal(interaction);
@@ -386,6 +394,11 @@ async function handleButton(interaction) {
     return handleReactInteraction(interaction);
   }
 
+  // أزرار نظام المنشورات المميزة
+  if (prefix === 'feat') {
+    return handleFeaturedInteraction(interaction);
+  }
+
   if (prefix === 'dev') {
     const action = parts[1];
     if (id === 'dev_check_db') return handleDevCheckDb(interaction);
@@ -401,5 +414,18 @@ async function handleButton(interaction) {
     await interaction.reply({ content: `⚠️ زر غير معروف: \`${id}\``, ephemeral: true }).catch(() => {});
   }
 }
+
+// ========== معالج التفاعلات (Reactions) ==========
+client.on('messageReactionAdd', async (reaction, user) => {
+  try {
+    // إذا كان التفاعل جزئياً (غير مخبأ)، نجلبه كاملاً
+    if (reaction.partial) {
+      try { await reaction.fetch(); } catch { return; }
+    }
+    await handleFeaturedReaction(reaction, user);
+  } catch (e) {
+    console.error('❌ reaction error:', e.message);
+  }
+});
 
 client.login(process.env.BOT_TOKEN);
