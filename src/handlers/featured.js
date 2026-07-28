@@ -129,6 +129,8 @@ async function handleFeaturedButton(interaction, action) {
 // ---------- معالج القوائم المنسدلة (اختيار الروم) ----------
 async function handleFeaturedSelect(interaction) {
   try {
+    await interaction.deferUpdate();
+
     const field = interaction.customId.replace('feat_sel_', '');
     const channelId = interaction.values[0];
     const cfg = getFeaturedConfig();
