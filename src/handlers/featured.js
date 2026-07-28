@@ -9,8 +9,7 @@ const {
 } = require('discord.js');
 const { version } = require('../utils/version');
 const {
-  getFeaturedConfig, saveFeaturedConfig,
-  getFeaturedPost, markAsFeatured, addLike
+  getFeaturedConfig, saveFeaturedConfig
 } = require('../utils/featuredStorage');
 
 // ---------- دالة مساعدة: تحديث أو رد حسب حالة الـ interaction ----------
@@ -315,8 +314,6 @@ async function handleFeaturedReaction(reaction, user) {
     }
 
     // ===== حساب عدد المستخدمين الحقيقيين (بدون البوت) =====
-    // reaction.count يشمل تفاعل البوت التلقائي، لذا نستخدم users.fetch()
-    // ونتأكد من عدم احتساب البوت
     const reactedUsers = await reaction.users.fetch();
     const realUserCount = reactedUsers.filter(u => !u.bot).size;
     console.log('📊 عدد المستخدمين الحقيقيين:', realUserCount, '(المطلوب:', cfg.threshold, ')');
@@ -334,13 +331,6 @@ async function handleFeaturedReaction(reaction, user) {
 
     const message = reaction.message;
 
-    // تأكد أن الرسالة لم تُنقل مسبقاً
-    const existing = getFeaturedPost(message.id);
-    if (existing && existing.featured) {
-      console.log('⏭️ الرسالة منقولة مسبقاً:', message.id);
-      return;
-    }
-
     console.log('✅ العدد كافٍ! ننقل الرسالة', message.id, 'إلى روم الوجهة');
 
     // جهز روم الوجهة
@@ -353,19 +343,22 @@ async function handleFeaturedReaction(reaction, user) {
       return;
     }
 
-    // بناء الإيمبد (فخم)
-    const content = message.content || '*(محتوى غير نصي)*';
+    // ===== شكل الإيمبد =====
+    const content = message.content || '';
+    const sourceChannelName = message.channel.name || 'مصدر';
+    const emoji = cfg.emoji || '⭐';
+
+    // السطر العلوي: "6 ⭐ | فعاليات"
+    const topLine = `${realUserCount} ${emoji} | ${sourceChannelName}`;
+
     const featuredEmbed = new EmbedBuilder()
-      .setTitle('⭐ اقتراح مميز')
-      .setColor(0xF1C40F)
-      .setDescription(content)
-      .addFields(
-        { name: '👤 مقدّم الاقتراح', value: `${message.author}`, inline: true },
-        { name: '🔗 الرابط', value: `[انتقل إلى الرسالة الأصلية](${message.url})`, inline: true },
-      )
       .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
-      .setFooter({ text: `⭐ تم التمييز تلقائياً` })
+      .setDescription(content)
+      .setColor(0xF1C40F)
       .setTimestamp();
+
+    // إضافة link في نهاية الوصف
+    featuredEmbed.setDescription(`${content}\n\n[Click to jump to message!](${message.url})`);
 
     if (message.attachments.size > 0) {
       const first = message.attachments.first();
@@ -374,53 +367,23 @@ async function handleFeaturedReaction(reaction, user) {
       }
     }
 
-    // زر ✅ إعجاب فقط (بدون ❌)
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`feat_like_${message.id}`)
-        .setEmoji('✅')
-        .setLabel('إعجاب')
-        .setStyle(ButtonStyle.Success)
-    );
-
+    // إرسال بدون أزرار (stateless)
     try {
-      const sentMsg = await destChannel.send({ embeds: [featuredEmbed], components: [row] });
+      const sentMsg = await destChannel.send({ content: topLine, embeds: [featuredEmbed] });
       console.log('✅ تم إرسال الاقتراح المميز إلى', destChannel.name, 'مع messageId:', sentMsg.id);
+
+      // إضافة تفاعل تلقائي على الرسالة المنقولة بنفس الإيموجي
+      await sentMsg.react(emoji).catch(err => {
+        console.error('❌ فشل إضافة التفاعل على الرسالة المنقولة:', err.message);
+      });
+      console.log('✅ تم إضافة', emoji, 'على الرسالة المنقولة', sentMsg.id);
     } catch (sendErr) {
-      console.error('❌ فشل إرسال الرسالة إلى روم الوجهة:', sendErr.message);
+      console.error('❌ فشل إرسال/تفاعل الرسالة إلى روم الوجهة:', sendErr.message);
       return;
     }
-
-    // حفظ في قاعدة البيانات
-    markAsFeatured(message.id, message.author.id, content, message.url);
-    console.log('✅ تم حفظ الاقتراح المميز في قاعدة البيانات');
   } catch (e) {
     console.error('❌ handleFeaturedReaction:', e.message);
     console.error('Stack:', e.stack);
-  }
-}
-
-// ---------- معالج زر ✅ الإعجاب ----------
-async function handleFeaturedLike(interaction, messageId) {
-  try {
-    await interaction.deferUpdate();
-
-    const post = getFeaturedPost(messageId);
-    if (!post) {
-      return interaction.editReply({ content: '⚠️ هذا المنشور غير مسجل في النظام.', embeds: [], components: [] });
-    }
-
-    addLike(messageId, interaction.user.id);
-
-    // تحديث الإيمبد بعدد الإعجابات
-    const embed = EmbedBuilder.from(interaction.message.embeds[0]);
-    const likes = post.likes ? post.likes.length : 0;
-    embed.setFooter({ text: `⭐ تم التمييز تلقائياً | ✅ ${likes} إعجاب` });
-
-    await interaction.editReply({ embeds: [embed], components: interaction.message.components });
-  } catch (e) {
-    console.error('❌ handleFeaturedLike:', e.message);
-    try { await interaction.editReply({ content: '⚠️ خطأ.', embeds: [], components: [] }); } catch {}
   }
 }
 
@@ -443,12 +406,6 @@ async function handleFeaturedInteraction(interaction) {
     // قوائم اختيار الروم (مصدر، وجهة) ← باترون settings.js
     if (id.startsWith('feat_sel_')) {
       return handleFeaturedSelect(interaction);
-    }
-
-    // زر ✅ الإعجاب
-    if (id.startsWith('feat_like_')) {
-      const messageId = id.replace('feat_like_', '');
-      return handleFeaturedLike(interaction, messageId);
     }
 
     console.warn('⚠️ feat unknown id:', id);
