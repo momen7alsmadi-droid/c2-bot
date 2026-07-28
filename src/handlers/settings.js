@@ -53,6 +53,7 @@ function getPageFromCustomId(id) {
     'report_allowedRole':    { type: 'report', page: 1 },
     'report_adminRole':      { type: 'report', page: 1 },
     'report_warning1':       { type: 'report', page: 1 },
+    'report_mentionRole':    { type: 'report', page: 1 },
     'report_warning2':       { type: 'report', page: 2 },
     'report_warning3':       { type: 'report', page: 2 },
     'report_upperMgmt':      { type: 'report', page: 2 },
@@ -170,6 +171,7 @@ async function showSettingsPage(interaction, type, page) {
         { name: '🎯 رتبة الاستخدام', value: rl(r.allowedRoleId) },
         { name: '🎖️ رتبة الإدارة', value: rl(r.adminRoleId) },
         { name: '⚠️ تحذير أول', value: rl(r.warning1RoleId) },
+        { name: '🔔 رتبة الإشعار (تُمنشن عند تقديم بلاغ)', value: rl(r.mentionRoleId) },
       );
       return respondOrUpdate(interaction, {
         embeds: [embed],
@@ -177,6 +179,7 @@ async function showSettingsPage(interaction, type, page) {
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_report_allowedRole').setPlaceholder('🎯 رتبة الاستخدام').setMaxValues(1)),
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_report_adminRole').setPlaceholder('🎖️ رتبة الإدارة').setMaxValues(1)),
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_report_warning1').setPlaceholder('⚠️ تحذير أول').setMaxValues(1)),
+          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_report_mentionRole').setPlaceholder('🔔 رتبة الإشعار').setMaxValues(1)),
           new ActionRowBuilder().addComponents(btnBack, new ButtonBuilder().setCustomId('set_report_2').setLabel('▶️ رتب 2/2').setStyle(ButtonStyle.Primary)),
         ]
       });
@@ -311,6 +314,7 @@ async function handleSettingsSelect(interaction) {
       'warning1': 'warning1RoleId',
       'warning2': 'warning2RoleId',
       'warning3': 'warning3RoleId',
+      'mentionRole': 'mentionRoleId',
       'upperMgmt': 'upperManagementRoleId',
     };
     const listFields = ['rolesToRemove'];

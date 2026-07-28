@@ -119,7 +119,13 @@ async function handleReportCommand(interaction, cfg) {
     .setFooter({ text: `الإصدار: ${version} | رقم البلاغ: ${id}` })
     .setTimestamp();
 
-  const sentMessage = await channel.send({ embeds: [mainEmbed], components: [buildReportButtons(id, false)] });
+  // منشن المُبلَّغ عنه + رتبة الإشعار (إن وجدت)
+  const mentionParts = [];
+  mentionParts.push(target.toString());
+  if (cfg.report.mentionRoleId) mentionParts.push(`<@&${cfg.report.mentionRoleId}>`);
+  const mentionContent = mentionParts.join(' ');
+
+  const sentMessage = await channel.send({ content: mentionContent, embeds: [mainEmbed], components: [buildReportButtons(id, false)] });
 
   const record = {
     id,
@@ -189,7 +195,9 @@ async function handleReportCommand(interaction, cfg) {
     )
     .setImage(evidenceList[0] || null)
     .setTimestamp();
-  await sendLog(interaction.guild, cfg.report.logChannelId, {
+  // إرسال اللوق (في حال ما في لوق، نرسله في روم الاستقبال نفسه)
+  const logTargetChannelId = cfg.report.logChannelId || cfg.report.channelId;
+  await sendLog(interaction.guild, logTargetChannelId, {
     embeds: [logEmbed, ...evidenceList.slice(1).filter(Boolean).map(url => new EmbedBuilder().setColor(REPORT_COLOR).setImage(url))],
   });
 }
