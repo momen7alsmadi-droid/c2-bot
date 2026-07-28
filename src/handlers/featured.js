@@ -347,9 +347,11 @@ async function handleFeaturedReaction(reaction, user) {
     const descContent = message.content || '';
     const emoji = cfg.emoji || '⭐';
 
-    // السطر العلوي: "1 ⭐ | #السورس" → كـ content خارج الإيمبد (مثل Dyno)
-    const sourceMention = `<#${cfg.sourceChannelId}>`;
-    const topLine = `${realUserCount} ${emoji} | ${sourceMention}`;
+    // السطر العلوي: "1 ⭐ | #المنشور" → كـ content خارج الإيمبد (مثل Dyno)
+    // نستخدم ID الـ Channel/Thread الذي نُشرت فيه الفكرة (message.channel.id)
+    // في الفورم: هذا هو ID الـ Thread → رابط مباشر للمنشور
+    const mentionLink = `<#${message.channel.id}>`;
+    const topLine = `${realUserCount} ${emoji} | ${mentionLink}`;
 
     const featuredEmbed = new EmbedBuilder()
       .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
