@@ -176,22 +176,30 @@ async function handleMainButton(interaction, action) {
     // --- بقية الأزرار → deferUpdate ---
     await interaction.deferUpdate();
     const panels = getAllPanels();
+    console.log(`🔍 handleMainButton: action=${action}, panels count=${panels?.length || 0}`);
 
     if (action === 'edit') {
-      if (panels.length === 0) {
+      if (!panels || panels.length === 0) {
+        console.log('❌ edit: لا توجد لوحات في قاعدة البيانات');
         return interaction.editReply({
-          content: '❌ لا توجد لوحات بعد.',
+          content: '❌ لا توجد لوحات حالياً لتعديلها، قم بإضافة لوحة أولاً.',
           components: [new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('sb_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
           )]
         });
+      }
+      const options = panels.filter(p => p && p.name).map(p => ({ label: p.name, value: p.name }));
+      console.log(`🔍 edit options: ${options.length}`);
+      if (options.length === 0) {
+        console.log('❌ edit: جميع اللوحات بدون اسم صالح');
+        return interaction.editReply({ content: '❌ البيانات غير صالحة.', components: [] });
       }
       return interaction.editReply({
         content: '✏️ اختر اللوحة التي تريد تعديلها:',
         components: [
           new ActionRowBuilder().addComponents(
             new StringSelectMenuBuilder().setCustomId('sb_sel_edit').setPlaceholder('اختر لوحة...')
-              .addOptions(panels.map(p => ({ label: p.name, value: p.name })))
+              .addOptions(options)
           ),
           new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('sb_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
@@ -201,20 +209,27 @@ async function handleMainButton(interaction, action) {
     }
 
     if (action === 'delete') {
-      if (panels.length === 0) {
+      if (!panels || panels.length === 0) {
+        console.log('❌ delete: لا توجد لوحات في قاعدة البيانات');
         return interaction.editReply({
-          content: '❌ لا توجد لوحات بعد.',
+          content: '❌ لا توجد لوحات حالياً لحذفها.',
           components: [new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('sb_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
           )]
         });
+      }
+      const options = panels.filter(p => p && p.name).map(p => ({ label: p.name, value: p.name }));
+      console.log(`🔍 delete options: ${options.length}`);
+      if (options.length === 0) {
+        console.log('❌ delete: جميع اللوحات بدون اسم صالح');
+        return interaction.editReply({ content: '❌ البيانات غير صالحة.', components: [] });
       }
       return interaction.editReply({
         content: '🗑️ اختر اللوحة التي تريد حذفها:',
         components: [
           new ActionRowBuilder().addComponents(
             new StringSelectMenuBuilder().setCustomId('sb_sel_delete').setPlaceholder('اختر لوحة...')
-              .addOptions(panels.map(p => ({ label: p.name, value: p.name })))
+              .addOptions(options)
           ),
           new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('sb_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
