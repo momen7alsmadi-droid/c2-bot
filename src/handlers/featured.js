@@ -197,18 +197,45 @@ async function handleFeaturedModal(interaction) {
 // ---------- معالج الرسائل الجديدة (وضع الإيموجي تلقائياً) ----------
 async function handleFeaturedMessage(message) {
   try {
-    if (message.author.bot) return;
-    if (!message.guild) return;
+    console.log('👀 handleFeaturedMessage:', message.id, 'channel:', message.channel?.id, 'author:', message.author?.tag);
+
+    if (message.author.bot) {
+      console.log('⏭️ رسالة بوت، تجاهل');
+      return;
+    }
+    if (!message.guild) {
+      console.log('⏭️ ليست في سيرفر، تجاهل');
+      return;
+    }
 
     const cfg = getFeaturedConfig();
-    if (!cfg.sourceChannelId || !cfg.emoji) return;
-    if (message.channel.id !== cfg.sourceChannelId) return;
+    console.log('📋 featuredConfig:', JSON.stringify(cfg));
 
-    if (cfg.emoji) {
-      await message.react(cfg.emoji).catch((err) => {
-        console.error('❌ فشل إضافة التفاعل التلقائي:', cfg.emoji, err.message);
-      });
-      console.log(`✅ تم إضافة ${cfg.emoji} تلقائياً على رسالة ${message.id} في ${message.channel.name}`);
+    if (!cfg.sourceChannelId) {
+      console.log('⏭️ لم يتم تحديد روم المصدر بعد');
+      return;
+    }
+    if (!cfg.emoji) {
+      console.log('⏭️ لم يتم تحديد الإيموجي بعد');
+      return;
+    }
+
+    console.log('🔍 مقارنة:', message.channel.id, '===', cfg.sourceChannelId, '?', message.channel.id === cfg.sourceChannelId);
+
+    if (message.channel.id !== cfg.sourceChannelId) {
+      console.log('⏭️ الروم الحالي ليس روم المصدر');
+      return;
+    }
+
+    console.log('✅ الروم يطابق روم المصدر، نحاول إضافة التفاعل', cfg.emoji);
+    try {
+      await message.react(cfg.emoji);
+      console.log('✅ تم إضافة', cfg.emoji, 'تلقائياً على رسالة', message.id);
+    } catch (reactErr) {
+      console.error('❌ فشل إضافة التفاعل التلقائي:', cfg.emoji, '| خطأ:', reactErr.message);
+      if (reactErr.code === 50013) {
+        console.error('⚠️ البوت لا يملك صلاحية AddReactions في هذا الروم!');
+      }
     }
   } catch (e) {
     console.error('❌ handleFeaturedMessage:', e.message);
@@ -218,39 +245,88 @@ async function handleFeaturedMessage(message) {
 // ---------- معالج إضافة التفاعل ----------
 async function handleFeaturedReaction(reaction, user) {
   try {
-    if (user.bot) return;
-    if (!reaction.message.guild) return;
+    console.log('👀 handleFeaturedReaction:', reaction.emoji?.name, 'من', user.tag, 'على رسالة', reaction.message?.id);
+
+    if (user.bot) {
+      console.log('⏭️ تفاعل بوت، تجاهل');
+      return;
+    }
+    if (!reaction.message.guild) {
+      console.log('⏭️ ليست في سيرفر، تجاهل');
+      return;
+    }
 
     const cfg = getFeaturedConfig();
-    if (!cfg.sourceChannelId || !cfg.emoji) return;
-    if (reaction.message.channel.id !== cfg.sourceChannelId) return;
+    console.log('📋 featuredConfig:', JSON.stringify(cfg));
+
+    if (!cfg.sourceChannelId) {
+      console.log('⏭️ لم يتم تحديد روم المصدر بعد');
+      return;
+    }
+    if (!cfg.emoji) {
+      console.log('⏭️ لم يتم تحديد الإيموجي بعد');
+      return;
+    }
+
+    console.log('🔍 مقارنة الروم:', reaction.message.channel.id, '===', cfg.sourceChannelId, '?', reaction.message.channel.id === cfg.sourceChannelId);
+
+    if (reaction.message.channel.id !== cfg.sourceChannelId) {
+      console.log('⏭️ الروم الحالي ليس روم المصدر');
+      return;
+    }
 
     // إن أضاف إيموجي مختلف عن المطلوب → احذفه
     const emojiStr = reaction.emoji.id ? reaction.emoji.toString() : reaction.emoji.name;
+    console.log('🔍 مقارنة الإيموجي:', emojiStr, '===', cfg.emoji, '?', emojiStr === cfg.emoji);
+
     if (emojiStr !== cfg.emoji) {
+      console.log('🗑️ نحاول حذف', emojiStr, 'للمستخدم', user.tag);
       try {
         await reaction.users.remove(user.id);
-        console.log(`🗑️ تم حذف ${emojiStr} (غير مصرح) من رسالة ${reaction.message.id} للمستخدم ${user.tag}`);
+        console.log('✅ تم حذف', emojiStr, '(غير مصرح) من رسالة', reaction.message.id);
       } catch (err) {
-        console.error('❌ فشل حذف التفاعل غير المصرح:', emojiStr, err.message);
+        console.error('❌ فشل حذف التفاعل غير المصرح:', emojiStr, '| خطأ:', err.message);
+        if (err.code === 50013) {
+          console.error('⚠️ البوت لا يملك صلاحية ManageMessages!');
+        }
       }
       return;
     }
 
     // تحقق من العدد
     const count = reaction.count;
-    if (count < cfg.threshold) return;
-    if (!cfg.destChannelId) return;
+    console.log('📊 عدد تفاعلات', cfg.emoji, '=', count, '(المطلوب:', cfg.threshold, ')');
+
+    if (count < cfg.threshold) {
+      console.log('⏭️ لم يصل للعدد المطلوب بعد');
+      return;
+    }
+
+    if (!cfg.destChannelId) {
+      console.log('⏭️ لم يتم تحديد روم الوجهة بعد');
+      return;
+    }
 
     const message = reaction.message;
 
     // تأكد أن الرسالة لم تُنقل مسبقاً
     const existing = getFeaturedPost(message.id);
-    if (existing && existing.featured) return;
+    if (existing && existing.featured) {
+      console.log('⏭️ الرسالة منقولة مسبقاً:', message.id);
+      return;
+    }
+
+    console.log('✅ العدد كافٍ! ننقل الرسالة', message.id, 'إلى روم الوجهة');
 
     // جهز روم الوجهة
-    const destChannel = await message.guild.channels.fetch(cfg.destChannelId).catch(() => null);
-    if (!destChannel) return;
+    const destChannel = await message.guild.channels.fetch(cfg.destChannelId).catch((err) => {
+      console.error('❌ فشل جلب روم الوجهة:', err.message);
+      return null;
+    });
+    if (!destChannel) {
+      console.error('❌ روم الوجهة غير موجود');
+      return;
+    }
 
     // بناء الإيمبد (فخم)
     const content = message.content || '*(محتوى غير نصي)*';
@@ -282,12 +358,20 @@ async function handleFeaturedReaction(reaction, user) {
         .setStyle(ButtonStyle.Success)
     );
 
-    const sentMsg = await destChannel.send({ embeds: [featuredEmbed], components: [row] });
+    try {
+      const sentMsg = await destChannel.send({ embeds: [featuredEmbed], components: [row] });
+      console.log('✅ تم إرسال الاقتراح المميز إلى', destChannel.name, 'مع messageId:', sentMsg.id);
+    } catch (sendErr) {
+      console.error('❌ فشل إرسال الرسالة إلى روم الوجهة:', sendErr.message);
+      return;
+    }
 
     // حفظ في قاعدة البيانات
     markAsFeatured(message.id, message.author.id, content, message.url);
+    console.log('✅ تم حفظ الاقتراح المميز في قاعدة البيانات');
   } catch (e) {
     console.error('❌ handleFeaturedReaction:', e.message);
+    console.error('Stack:', e.stack);
   }
 }
 

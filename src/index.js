@@ -182,13 +182,17 @@ ID: ${guild.id}
   setTimeout(() => { startupGrace = false; console.log('👂 فترة سماح بدء التشغيل انتهت — جاهز لاستقبال الرسائل'); }, 6000);
 
   client.on('messageCreate', async (message) => {
-    if (startupGrace) return; // تجاهل الرسائل خلال أول 6 ثوانٍ (لإعطاء القديم وقت للإطفاء)
+    if (startupGrace) {
+      console.log('⏳ فترة السماح... تجاهل رسالة', message.id);
+      return;
+    }
     try {
+      console.log('📨 رسالة جديدة:', message.id, 'channel:', message.channel?.id, 'author:', message.author?.tag);
       await handleMessage(message);
       await handleReactMessage(message);
       await handleFeaturedMessage(message);
     } catch (e) {
-      // لا تطبع خطأ للرسائل العادية
+      console.error('❌ messageCreate error:', e.message);
     }
   });
 }
@@ -262,6 +266,7 @@ client.on('interactionCreate', async (interaction) => {
         console.error('❌ Autocomplete error:', acErr.message);
       }
     } else if (interaction.isStringSelectMenu() || interaction.isRoleSelectMenu() || interaction.isChannelSelectMenu()) {
+      console.log('🔽 Select Menu:', interaction.customId, 'values:', interaction.values);
       if (interaction.customId.startsWith('emb_')) {
         await handleEmbedsInteraction(interaction);
       } else if (interaction.customId.startsWith('ar_') || interaction.customId.startsWith('rr_')) {
