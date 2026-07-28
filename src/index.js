@@ -5,7 +5,7 @@ const mongoose = require('mongoose');
 const { Client, GatewayIntentBits, Partials, EmbedBuilder } = require('discord.js');
 const express = require('express');
 const { connectDatabase } = require('./utils/database');
-const { getConfig, saveConfig, ensureConfigLoaded, initModels } = require('./utils/storage');
+const { getConfig, saveConfig, ensureConfigLoaded, ensureReportsLoaded, initModels } = require('./utils/storage');
 
 const {
   handleLeaveCommand, handleLeaveModalSubmit, handleLeaveButton,
@@ -94,6 +94,8 @@ async function initialize() {
   if (dbConnected) {
     await ensureConfigLoaded();
     console.log('📦 تم تحميل الإعدادات من MongoDB');
+    await ensureReportsLoaded();
+    console.log('📦 تم تحميل البلاغات من MongoDB');
     if (embedReady) {
       const { syncJsonToMongo } = require('./utils/embedStorage');
       await syncJsonToMongo();

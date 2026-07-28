@@ -226,6 +226,19 @@ function getReports() {
   return readJSON(REPORTS_PATH, {});
 }
 
+async function ensureReportsLoaded() {
+  if (!isMongoReady()) return;
+  const json = readJSON(REPORTS_PATH, {});
+  // إذا JSON فاضي أو ما فيه بلاغات، نجيب من MongoDB
+  if (Object.keys(json).length === 0) {
+    const mongoData = await mongoGetReports();
+    if (mongoData && Object.keys(mongoData).length > 0) {
+      writeJSON(REPORTS_PATH, mongoData);
+      console.log(`📦 تم تحميل ${Object.keys(mongoData).length} بلاغ من MongoDB`);
+    }
+  }
+}
+
 function saveReports(reports) {
   writeJSON(REPORTS_PATH, reports);
   if (isMongoReady()) mongoSaveReports(reports);
@@ -236,6 +249,7 @@ module.exports = {
   getLeaves, saveLeaves,
   getReports, saveReports,
   ensureConfigLoaded,
+  ensureReportsLoaded,
   initModels,
   isMongoReady
 };
