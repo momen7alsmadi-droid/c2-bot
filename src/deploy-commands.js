@@ -121,10 +121,10 @@ const commands = [
     .setDefaultMemberPermissions(8) // Administrator
     .toJSON(),
 
-  // ------------------- /اعدادات_الاقتراحات -------------------
+  // ------------------- /لوحة_النجوم -------------------
   new SlashCommandBuilder()
-    .setName('اعدادات_الاقتراحات')
-    .setDescription('⭐ إعدادات نظام الاقتراحات المميزة')
+    .setName('لوحة_النجوم')
+    .setDescription('⭐ نظام لوحة النجوم المتعدد - إدارة اللوحات والإعدادات')
     .setDefaultMemberPermissions(8) // Administrator
     .toJSON(),
 ];

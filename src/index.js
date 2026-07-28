@@ -24,8 +24,8 @@ const { handleEmbedsInteraction, handleEmbedsModal, handleEmbedsMain } = require
 const { initEmbedModel } = require('./utils/embedStorage');
 const { handleAutoReplyInteraction, handleAutoReplyModal, handleAutoReplyMain, handleMessage } = require('./handlers/autoReply');
 const { handleReactInteraction, handleReactModal, handleReactMain, handleReactMessage } = require('./handlers/reactReply');
-const { showFeaturedSettings, handleFeaturedInteraction, handleFeaturedModal, handleFeaturedMessage, handleFeaturedReaction } = require('./handlers/featured');
-const { initFeaturedModels, ensureFeaturedConfigLoaded, loadFeaturedPostsFromMongo } = require('./utils/featuredStorage');
+const { handleStarboardMain, handleStarboardInteraction, handleStarboardModal, handleStarboardMessage, handleStarboardReaction } = require('./handlers/starboard');
+const { initStarboardModels, ensureStarboardLoaded } = require('./utils/starboardStorage');
 const { initAutoReplyModel, syncJsonToMongo: syncAr } = require('./utils/autoReplyStorage');
 const { initReactModel, syncJsonToMongo: syncRr } = require('./utils/reactionReplyStorage');
 
@@ -84,7 +84,7 @@ async function initialize() {
   const embedReady = initEmbedModel();
   const arReady = initAutoReplyModel();
   const rrReady = initReactModel();
-  const featReady = initFeaturedModels();
+  const sbReady = initStarboardModels();
 
   // تأكيد حالة التخزين
   console.log('\n═══════════════════════════════════════');
@@ -93,6 +93,7 @@ async function initialize() {
   console.log(`   ${embedReady ? '✅' : '⚠️'} Embed Storage`);
   console.log(`   ${arReady ? '✅' : '⚠️'} AutoReply Storage`);
   console.log(`   ${rrReady ? '✅' : '⚠️'} Reaction Storage`);
+  console.log(`   ${sbReady ? '✅' : '⚠️'} Starboard Storage`);
   console.log('═══════════════════════════════════════\n');
 
   if (dbConnected) {
@@ -106,8 +107,7 @@ async function initialize() {
     }
     if (arReady) { await syncAr(); }
     if (rrReady) { await syncRr(); }
-    await ensureFeaturedConfigLoaded();
-    await loadFeaturedPostsFromMongo();
+    await ensureStarboardLoaded();
   } else {
     console.log('⚠️ MongoDB غير متصل. التخزين عبر JSON فقط.');
     console.log('⚠️ سيتم إعادة محاولة الاتصال كل 30 ثانية...');
@@ -190,7 +190,7 @@ ID: ${guild.id}
       console.log('📨 رسالة جديدة:', message.id, 'channel:', message.channel?.id, 'author:', message.author?.tag);
       await handleMessage(message);
       await handleReactMessage(message);
-      await handleFeaturedMessage(message);
+      await handleStarboardMessage(message);
     } catch (e) {
       console.error('❌ messageCreate error:', e.message);
     }
@@ -271,8 +271,8 @@ client.on('interactionCreate', async (interaction) => {
         await handleEmbedsInteraction(interaction);
       } else if (interaction.customId.startsWith('ar_') || interaction.customId.startsWith('rr_')) {
         await handleAutoReplyInteraction(interaction);
-      } else if (interaction.customId.startsWith('feat_')) {
-        await handleFeaturedInteraction(interaction);
+      } else if (interaction.customId.startsWith('sb_')) {
+        await handleStarboardInteraction(interaction);
       } else {
         await handleSettingsSelect(interaction);
       }
@@ -323,7 +323,7 @@ async function handleSlashCommand(interaction) {
     case 'الألوان_المتوفرة': return handleColorsCommand(interaction);
     case 'ايمبد': return handleEmbedsMain(interaction);
     case 'الردود_التلقائية': return handleAutoReplyMain(interaction);
-    case 'اعدادات_الاقتراحات': return showFeaturedSettings(interaction);
+    case 'لوحة_النجوم': return handleStarboardMain(interaction);
   }
 }
 
@@ -332,7 +332,7 @@ async function handleModalSubmit(interaction) {
   if (interaction.customId.startsWith('modal_emb_')) return handleEmbedsModal(interaction);
   if (interaction.customId.startsWith('modal_ar_')) return handleAutoReplyModal(interaction);
   if (interaction.customId.startsWith('modal_rr_')) return handleReactModal(interaction);
-  if (interaction.customId.startsWith('modal_feat_')) return handleFeaturedModal(interaction);
+  if (interaction.customId.startsWith('modal_sb_')) return handleStarboardModal(interaction);
   if (interaction.customId.startsWith('modal_blagh_')) {
     const { handleBlaghModal } = require('./handlers/report');
     return handleBlaghModal(interaction);
@@ -402,9 +402,9 @@ async function handleButton(interaction) {
     return handleReactInteraction(interaction);
   }
 
-  // أزرار نظام المنشورات المميزة
-  if (prefix === 'feat') {
-    return handleFeaturedInteraction(interaction);
+  // أزرار نظام لوحة النجوم
+  if (prefix === 'sb') {
+    return handleStarboardInteraction(interaction);
   }
 
   if (prefix === 'dev') {
@@ -434,7 +434,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
     if (reaction.message.partial) {
       try { await reaction.message.fetch(); } catch { return; }
     }
-    await handleFeaturedReaction(reaction, user);
+    await handleStarboardReaction(reaction, user);
   } catch (e) {
     console.error('❌ reaction error:', e.message);
   }
