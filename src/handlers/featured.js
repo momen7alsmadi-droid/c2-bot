@@ -1,6 +1,6 @@
 /**
  * featured.js - ⭐ نظام الاقتراحات المميزة
- * يتبع نفس نمط لوحات الإعدادات (settings.js) في التعامل مع الأزرار والقوائم
+ * يتبع نفس نمط لوحات الإعدادات (settings.js) في التصميم والتعامل مع القوائم
  */
 const {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder,
@@ -45,14 +45,25 @@ async function showFeaturedSettings(interaction) {
       .setTimestamp();
 
     const components = [
+      // كل خيار في صف مستقل مثل نمط settings.js
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('feat_source').setLabel('📥 روم المصدر').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId('feat_dest').setLabel('📤 روم الوجهة').setStyle(ButtonStyle.Primary),
+        new ChannelSelectMenuBuilder()
+          .setCustomId('feat_sel_source')
+          .setPlaceholder('📥 روم المصدر (الاقتراحات)')
+          .setMaxValues(1)
+          .setChannelTypes(ChannelType.GuildText, ChannelType.GuildForum, ChannelType.GuildAnnouncement)
       ),
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('feat_emoji').setLabel('😀 تغيير الإيموجي').setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId('feat_thresh').setLabel('🔢 تغيير العدد').setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId('feat_refresh').setLabel('🔄 تحديث').setStyle(ButtonStyle.Secondary),
+        new ChannelSelectMenuBuilder()
+          .setCustomId('feat_sel_dest')
+          .setPlaceholder('📤 روم الوجهة (المميزة)')
+          .setMaxValues(1)
+          .setChannelTypes(ChannelType.GuildText, ChannelType.GuildForum, ChannelType.GuildAnnouncement)
+      ),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('feat_emoji').setLabel('😀 الإيموجي المطلوب ⏵').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('feat_thresh').setLabel('🔢 العدد المطلوب ⏵').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('feat_refresh').setLabel('🔄 تحديث').setStyle(ButtonStyle.Primary),
       ),
     ];
 
@@ -63,34 +74,10 @@ async function showFeaturedSettings(interaction) {
   }
 }
 
-// ---------- معالج أزرار الإعدادات ----------
+// ---------- معالج أزرار الإعدادات (إيموجي + عدد + تحديث) ----------
 async function handleFeaturedButton(interaction, action) {
   try {
-    if (action === 'source' || action === 'dest') {
-      // استعمال deferUpdate() ثم إرسال رسالة جديدة بالقائمة
-      await interaction.deferUpdate();
-      const placeholder = action === 'source' ? '📥 اختر روم المصدر (الاقتراحات)' : '📤 اختر روم الوجهة (المميزة)';
-      const customId = action === 'source' ? 'feat_sel_source' : 'feat_sel_dest';
-
-      return interaction.editReply({
-        content: `##### اختر الروم المطلوب:`,
-        components: [
-          new ActionRowBuilder().addComponents(
-            new ChannelSelectMenuBuilder()
-              .setCustomId(customId)
-              .setPlaceholder(placeholder)
-              .setMaxValues(1)
-              .setChannelTypes(ChannelType.GuildText, ChannelType.GuildForum, ChannelType.GuildAnnouncement)
-          ),
-          new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('feat_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
-          )
-        ]
-      });
-    }
-
     if (action === 'emoji' || action === 'thresh') {
-      // المودال يجب أن يُرسل كرد أولي (لا يمكن بعد deferUpdate)
       const isEmoji = action === 'emoji';
       const modal = new ModalBuilder()
         .setCustomId(isEmoji ? 'modal_feat_emoji' : 'modal_feat_threshold')
@@ -108,7 +95,7 @@ async function handleFeaturedButton(interaction, action) {
       return interaction.showModal(modal);
     }
 
-    if (action === 'refresh' || action === 'back') {
+    if (action === 'refresh') {
       return showFeaturedSettings(interaction);
     }
   } catch (e) {
@@ -158,7 +145,11 @@ async function handleFeaturedSelect(interaction) {
     // العودة للوحة الإعدادات
     return showFeaturedSettings(interaction);
   } catch (e) {
-    console.error('❌ handleFeaturedSelect:', e.message);
+    console.error('========== ❌ handleFeaturedSelect ==========');
+    console.error('customId:', interaction.customId);
+    console.error('Message:', e.message);
+    console.error('Stack:', e.stack);
+    console.error('=============================================');
     return showFeaturedSettings(interaction);
   }
 }
@@ -190,7 +181,11 @@ async function handleFeaturedModal(interaction) {
       return showFeaturedSettings(interaction);
     }
   } catch (e) {
-    console.error('❌ handleFeaturedModal:', e.message);
+    console.error('========== ❌ handleFeaturedModal ==========');
+    console.error('customId:', interaction.customId);
+    console.error('Message:', e.message);
+    console.error('Stack:', e.stack);
+    console.error('=============================================');
     try {
       return interaction.editReply({ content: '⚠️ خطأ في معالجة الإدخال.' });
     } catch {
@@ -322,13 +317,13 @@ async function handleFeaturedInteraction(interaction) {
 
     if (prefix !== 'feat') return;
 
-    // أزرار الإعدادات
-    if (id === 'feat_source' || id === 'feat_dest' || id === 'feat_emoji' || id === 'feat_thresh' || id === 'feat_refresh' || id === 'feat_back') {
+    // أزرار الإعدادات (إيموجي، عدد، تحديث)
+    if (id === 'feat_emoji' || id === 'feat_thresh' || id === 'feat_refresh') {
       const action = parts[1];
       return handleFeaturedButton(interaction, action);
     }
 
-    // قوائم اختيار الروم
+    // قوائم اختيار الروم (مصدر، وجهة) ← باترون settings.js
     if (id.startsWith('feat_sel_')) {
       return handleFeaturedSelect(interaction);
     }
@@ -339,10 +334,13 @@ async function handleFeaturedInteraction(interaction) {
       return handleFeaturedLike(interaction, messageId);
     }
 
-    // أمر غير معروف
     console.warn('⚠️ feat unknown id:', id);
   } catch (e) {
-    console.error('❌ handleFeaturedInteraction:', e.message);
+    console.error('========== ❌ handleFeaturedInteraction ==========');
+    console.error('customId:', interaction.customId);
+    console.error('Message:', e.message);
+    console.error('Stack:', e.stack);
+    console.error('=============================================');
     try {
       if (interaction.deferred || interaction.replied) {
         await interaction.editReply({ content: '⚠️ خطأ غير متوقع.' });
