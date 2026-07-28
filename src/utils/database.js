@@ -64,6 +64,7 @@ async function connectDatabase() {
       // الاستماع لأحداث الاتصال
       mongoose.connection.on('error', (err) => {
         console.error('❌ خطأ في اتصال MongoDB:', err.message);
+        console.error('Stack:', err.stack);
         dbConnected = false;
       });
       mongoose.connection.on('disconnected', () => {
@@ -74,6 +75,9 @@ async function connectDatabase() {
       });
       mongoose.connection.on('reconnected', () => {
         console.log('✅ تمت إعادة الاتصال بقاعدة البيانات');
+        dbConnected = true;
+      });
+      mongoose.connection.on('connected', () => {
         dbConnected = true;
       });
 
@@ -110,8 +114,14 @@ async function tryReconnect(uri) {
     });
     console.log('✅ تمت إعادة الاتصال');
     dbConnected = true;
+    // إعادة تحميل اللوحات من MongoDB بعد استعادة الاتصال
+    try {
+      const { ensureStarboardLoaded } = require('./starboardStorage');
+      ensureStarboardLoaded();
+    } catch {}
   } catch (err) {
     console.error('❌ فشل إعادة الاتصال:', err.message);
+    console.error(err.stack);
     setTimeout(() => tryReconnect(uri), 60000); // حاول كل دقيقة
   }
 }

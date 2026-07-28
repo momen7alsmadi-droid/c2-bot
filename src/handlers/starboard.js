@@ -178,24 +178,48 @@ async function handleMainButton(interaction, action) {
     const panels = getAllPanels();
 
     if (action === 'edit') {
-      if (panels.length === 0) return interaction.editReply({ content: '❌ لا توجد لوحات بعد.' });
+      if (panels.length === 0) {
+        return interaction.editReply({
+          content: '❌ لا توجد لوحات بعد.',
+          components: [new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('sb_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
+          )]
+        });
+      }
       return interaction.editReply({
         content: '✏️ اختر اللوحة التي تريد تعديلها:',
-        components: [new ActionRowBuilder().addComponents(
-          new StringSelectMenuBuilder().setCustomId('sb_sel_edit').setPlaceholder('اختر لوحة...')
-            .addOptions(panels.map(p => ({ label: p.name, value: p.name })))
-        )]
+        components: [
+          new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder().setCustomId('sb_sel_edit').setPlaceholder('اختر لوحة...')
+              .addOptions(panels.map(p => ({ label: p.name, value: p.name })))
+          ),
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('sb_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
+          ),
+        ]
       });
     }
 
     if (action === 'delete') {
-      if (panels.length === 0) return interaction.editReply({ content: '❌ لا توجد لوحات بعد.' });
+      if (panels.length === 0) {
+        return interaction.editReply({
+          content: '❌ لا توجد لوحات بعد.',
+          components: [new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('sb_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
+          )]
+        });
+      }
       return interaction.editReply({
         content: '🗑️ اختر اللوحة التي تريد حذفها:',
-        components: [new ActionRowBuilder().addComponents(
-          new StringSelectMenuBuilder().setCustomId('sb_sel_delete').setPlaceholder('اختر لوحة...')
-            .addOptions(panels.map(p => ({ label: p.name, value: p.name })))
-        )]
+        components: [
+          new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder().setCustomId('sb_sel_delete').setPlaceholder('اختر لوحة...')
+              .addOptions(panels.map(p => ({ label: p.name, value: p.name })))
+          ),
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('sb_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
+          ),
+        ]
       });
     }
 
