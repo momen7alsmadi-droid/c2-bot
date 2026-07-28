@@ -3,13 +3,6 @@ const fs = require('fs');
 const path = require('path');
 
 let dbConnected = false;
-const MAX_RETRIES = 5;
-
-/** عرض أول 20 حرفاً من URI (للتشخيص دون كشف كلمة المرور) */
-function previewUri(uri) {
-  if (!uri) return '(فارغ)';
-  return uri.substring(0, 25) + '...' + uri.substring(uri.indexOf('@'));
-}
 
 async function connectDatabase() {
   // 1. من متغيرات البيئة (منصة الاستضافة)
@@ -46,91 +39,33 @@ async function connectDatabase() {
     return false;
   }
 
-  console.log(`🔍 URI: ${previewUri(uri)}`);
-
-  // محاولة الاتصال مع إعادة المحاولة
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      console.log(`🔄 محاولة الاتصال (${attempt}/${MAX_RETRIES})...`);
-      await mongoose.connect(uri, {
-        keepAlive: true,
-        keepAliveInitialDelay: 300000,
-        serverSelectionTimeoutMS: 5000,
-        socketTimeoutMS: 60000,
-        connectTimeoutMS: 20000,
-        heartbeatFrequencyMS: 10000,
-      });
-      console.log('✅ متصل بقاعدة بيانات MongoDB');
-      dbConnected = true;
-
-      // الاستماع لأحداث الاتصال
-      mongoose.connection.on('error', (err) => {
-        console.error('❌ خطأ في اتصال MongoDB:', err.message);
-        console.error('Stack:', err.stack);
-        dbConnected = false;
-      });
-      mongoose.connection.on('disconnected', () => {
-        console.log('⚠️ تم قطع اتصال MongoDB');
-        dbConnected = false;
-        // محاولة إعادة الاتصال تلقائياً
-        setTimeout(() => tryReconnect(uri), 30000);
-      });
-      mongoose.connection.on('reconnected', () => {
-        console.log('✅ تمت إعادة الاتصال بقاعدة البيانات');
-        dbConnected = true;
-      });
-      mongoose.connection.on('connected', () => {
-        dbConnected = true;
-      });
-
-      return true;
-    } catch (err) {
-      console.error(`❌ محاولة ${attempt}/${MAX_RETRIES} فشلت:`, err.message);
-      if (attempt < MAX_RETRIES) {
-        const delay = attempt * 3000;
-        console.log(`⏳ انتظار ${delay/1000} ثواني...`);
-        await new Promise(r => setTimeout(r, delay));
-      }
-    }
-  }
-
-  console.error('❌ فشل الاتصال بقاعدة البيانات بعد 5 محاولات.');
-  console.log('📦 التخزين عبر JSON فقط (بياناتك قد تختفي عند إعادة التشغيل).');
-  console.log('🔧 راجع الرابط وتأكد من:');
-  console.log('   1. صحة الرابط في Railway Dashboard');
-  console.log('   2. إضافة IP 0.0.0.0/0 في MongoDB Atlas Network Access');
-  return false;
-}
-
-/** محاولة إعادة الاتصال بعد انقطاع */
-async function tryReconnect(uri) {
-  if (mongoose.connection.readyState === 1) {
-    dbConnected = true;
-    return;
-  }
-  console.log('🔄 محاولة إعادة الاتصال بقاعدة البيانات...');
   try {
-    await mongoose.connect(uri, {
-      keepAlive: true,
-      keepAliveInitialDelay: 300000,
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 15000,
-    });
-    console.log('✅ تمت إعادة الاتصال');
+    console.log('🔄 جاري الاتصال بقاعدة بيانات MongoDB...');
+    await mongoose.connect(uri);
+    console.log('✅ متصل بقاعدة بيانات MongoDB');
     dbConnected = true;
-    // إعادة تحميل اللوحات من MongoDB بعد استعادة الاتصال
-    try {
-      const { ensureStarboardLoaded } = require('./starboardStorage');
-      ensureStarboardLoaded();
-    } catch {}
+
+    mongoose.connection.on('error', (err) => {
+      console.error('❌ MongoDB Error:', err);
+      dbConnected = false;
+    });
+    mongoose.connection.on('disconnected', () => {
+      console.log('⚠️ تم قطع اتصال MongoDB');
+      dbConnected = false;
+    });
+    mongoose.connection.on('reconnected', () => {
+      console.log('✅ تمت إعادة الاتصال بقاعدة البيانات');
+      dbConnected = true;
+    });
+
+    return true;
   } catch (err) {
-    console.error('❌ فشل إعادة الاتصال:', err.message);
-    console.error(err.stack);
-    setTimeout(() => tryReconnect(uri), 60000); // حاول كل دقيقة
+    console.error('❌ MongoDB Error:', err);
+    console.log('📦 التخزين عبر JSON فقط (بياناتك قد تختفي عند إعادة التشغيل).');
+    return false;
   }
 }
 
-/** هل قاعدة البيانات متصلة حالياً؟ */
 function isDbConnected() {
   return dbConnected && mongoose.connection.readyState === 1;
 }
