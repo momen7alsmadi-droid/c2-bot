@@ -170,7 +170,7 @@ async function handleMainButton(interaction, action) {
           .setMinLength(2)
           .setMaxLength(30)
       ));
-      return interaction.showModal(modal);
+      return await interaction.showModal(modal);
     }
 
     // --- بقية الأزرار (الموزع بالفعل أرسل deferUpdate قبل استدعاء هذه الدالة) ---
@@ -180,7 +180,7 @@ async function handleMainButton(interaction, action) {
     if (action === 'edit') {
       if (!panels || panels.length === 0) {
         console.log('❌ edit: لا توجد لوحات في قاعدة البيانات');
-        return interaction.editReply({
+        return await interaction.editReply({
           content: '❌ لا توجد لوحات حالياً لتعديلها، قم بإضافة لوحة أولاً.',
           components: [new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('sb_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
@@ -191,9 +191,9 @@ async function handleMainButton(interaction, action) {
       console.log(`🔍 edit options: ${options.length}`);
       if (options.length === 0) {
         console.log('❌ edit: جميع اللوحات بدون اسم صالح');
-        return interaction.editReply({ content: '❌ البيانات غير صالحة.', components: [] });
+        return await interaction.editReply({ content: '❌ البيانات غير صالحة.', components: [] });
       }
-      return interaction.editReply({
+      return await interaction.editReply({
         content: '✏️ اختر اللوحة التي تريد تعديلها:',
         components: [
           new ActionRowBuilder().addComponents(
@@ -210,7 +210,7 @@ async function handleMainButton(interaction, action) {
     if (action === 'delete') {
       if (!panels || panels.length === 0) {
         console.log('❌ delete: لا توجد لوحات في قاعدة البيانات');
-        return interaction.editReply({
+        return await interaction.editReply({
           content: '❌ لا توجد لوحات حالياً لحذفها.',
           components: [new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('sb_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
@@ -221,9 +221,9 @@ async function handleMainButton(interaction, action) {
       console.log(`🔍 delete options: ${options.length}`);
       if (options.length === 0) {
         console.log('❌ delete: جميع اللوحات بدون اسم صالح');
-        return interaction.editReply({ content: '❌ البيانات غير صالحة.', components: [] });
+        return await interaction.editReply({ content: '❌ البيانات غير صالحة.', components: [] });
       }
-      return interaction.editReply({
+      return await interaction.editReply({
         content: '🗑️ اختر اللوحة التي تريد حذفها:',
         components: [
           new ActionRowBuilder().addComponents(
@@ -238,11 +238,11 @@ async function handleMainButton(interaction, action) {
     }
 
     if (action === 'view') {
-      if (panels.length === 0) return interaction.editReply({ content: '📋 لا توجد لوحات بعد.' });
+      if (panels.length === 0) return await interaction.editReply({ content: '📋 لا توجد لوحات بعد.' });
       const lines = panels.map((p, i) =>
         `**${i + 1}.** \`${p.name}\`\n📥 <#${p.sourceChannelId || '❌'}>\n📤 <#${p.destChannelId || '❌'}>\n${p.emoji} | ${p.threshold} | 🎨 ${p.embedColor}`
       );
-      return interaction.editReply({
+      return await interaction.editReply({
         embeds: [new EmbedBuilder().setTitle('📋 جميع اللوحات').setColor(0x3498DB)
           .setDescription(lines.join('\n\n')).setFooter({ text: `الإصدار: ${version}` }).setTimestamp()],
         components: [new ActionRowBuilder().addComponents(
@@ -251,7 +251,7 @@ async function handleMainButton(interaction, action) {
       });
     }
 
-    if (action === 'back') return handleStarboardMain(interaction);
+    if (action === 'back') return await handleStarboardMain(interaction);
   } catch (e) {
     console.error('❌ handleMainButton:', action);
     console.error('Full error:', e);
@@ -273,7 +273,7 @@ async function handlePanelButton(interaction, action, name) {
         new TextInputBuilder().setCustomId('sb_emoji_val').setLabel('الإيموجي المطلوب')
           .setPlaceholder('مثال: ⭐').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(10)
       ));
-      return interaction.showModal(modal);
+      return await interaction.showModal(modal);
     }
     if (action === 'thresh') {
       const modal = new ModalBuilder().setCustomId(`modal_sb_thresh_${name}`).setTitle('🔢 العدد المطلوب للنقل');
@@ -281,7 +281,7 @@ async function handlePanelButton(interaction, action, name) {
         new TextInputBuilder().setCustomId('sb_thresh_val').setLabel('العدد (رقم صحيح أكبر من 0)')
           .setPlaceholder('مثال: 5').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(5)
       ));
-      return interaction.showModal(modal);
+      return await interaction.showModal(modal);
     }
     if (action === 'customcolor') {
       const modal = new ModalBuilder().setCustomId(`modal_sb_customcolor_${name}`).setTitle('🎨 لون مخصص');
@@ -289,7 +289,7 @@ async function handlePanelButton(interaction, action, name) {
         new TextInputBuilder().setCustomId('sb_customcolor_val').setLabel('أدخل رمز اللون السداسي (Hex Code)')
           .setPlaceholder('#3B82F6').setStyle(TextInputStyle.Short).setRequired(true).setMinLength(4).setMaxLength(7)
       ));
-      return interaction.showModal(modal);
+      return await interaction.showModal(modal);
     }
   } catch (e) {
     console.error('❌ handlePanelButton:', action, name, e.message);
@@ -306,11 +306,11 @@ async function handleStarboardSelect(interaction) {
     const selected = interaction.values[0];
 
     // اختيار لوحة للتعديل
-    if (id === 'sb_sel_edit') return showPanelControl(interaction, selected);
+    if (id === 'sb_sel_edit') return await showPanelControl(interaction, selected);
 
     // اختيار لوحة للحذف → تأكيد
     if (id === 'sb_sel_delete') {
-      return interaction.editReply({
+      return await interaction.editReply({
         embeds: [new EmbedBuilder().setTitle('🗑️ تأكيد حذف اللوحة').setColor(0xE74C3C)
           .setDescription(`هل أنت متأكد من حذف اللوحة **${selected}**؟`).setTimestamp()],
         components: [new ActionRowBuilder().addComponents(
@@ -336,7 +336,7 @@ async function handleStarboardSelect(interaction) {
     if (name && field) {
       try {
         const panel = getPanel(name);
-        if (!panel) return interaction.editReply({ content: '⚠️ اللوحة غير موجودة.' });
+        if (!panel) return await interaction.editReply({ content: '⚠️ اللوحة غير موجودة.' });
 
         if (field === 'embedColor') panel.embedColor = selected;
         else panel[field] = selected;
@@ -350,10 +350,10 @@ async function handleStarboardSelect(interaction) {
           } catch (e) { console.error('❌ sb permission edit:', e.message); }
         }
 
-        return showPanelControl(interaction, name);
+        return await showPanelControl(interaction, name);
       } catch (e) {
         console.error('❌ handleStarboardSelect save error:', e.message);
-        return interaction.editReply({ content: '⚠️ خطأ في حفظ البيانات.' });
+        return await interaction.editReply({ content: '⚠️ خطأ في حفظ البيانات.' });
       }
     }
   } catch (e) {
@@ -370,17 +370,17 @@ async function handleStarboardModal(interaction) {
     // إضافة لوحة جديدة
     if (id === 'modal_sb_add') {
       let name = interaction.fields.getTextInputValue('sb_name').trim().toLowerCase().replace(/\s+/g, '_');
-      if (!/^[a-zA-Z0-9_]+$/.test(name)) return interaction.reply({ content: '❌ الاسم يجب أن يحتوي على حروف إنجليزية وأرقام فقط.', ephemeral: true });
-      if (getPanel(name)) return interaction.reply({ content: `❌ اللوحة \`${name}\` موجودة مسبقاً.`, ephemeral: true });
+      if (!/^[a-zA-Z0-9_]+$/.test(name)) return await interaction.reply({ content: '❌ الاسم يجب أن يحتوي على حروف إنجليزية وأرقام فقط.', ephemeral: true });
+      if (getPanel(name)) return await interaction.reply({ content: `❌ اللوحة \`${name}\` موجودة مسبقاً.`, ephemeral: true });
       savePanel(name, {});
-      return showPanelControl(interaction, name);
+      return await showPanelControl(interaction, name);
     }
 
     // تأكيد حذف
     if (id.startsWith('modal_sb_delete_yes_')) {
       const name = id.replace('modal_sb_delete_yes_', '');
       deletePanel(name);
-      return handleStarboardMain(interaction);
+      return await handleStarboardMain(interaction);
     }
 
     // تعديل إيموجي
@@ -388,10 +388,10 @@ async function handleStarboardModal(interaction) {
       const name = id.replace('modal_sb_emoji_', '');
       await interaction.deferUpdate();
       const emoji = interaction.fields.getTextInputValue('sb_emoji_val').trim();
-      if (!emoji) return interaction.editReply({ content: '❌ الإيموجي مطلوب.', components: [] });
+      if (!emoji) return await interaction.editReply({ content: '❌ الإيموجي مطلوب.', components: [] });
       const panel = getPanel(name);
       if (panel) { panel.emoji = emoji; savePanel(name, panel); }
-      return showPanelControl(interaction, name);
+      return await showPanelControl(interaction, name);
     }
 
     // تعديل عدد
@@ -399,10 +399,10 @@ async function handleStarboardModal(interaction) {
       const name = id.replace('modal_sb_thresh_', '');
       await interaction.deferUpdate();
       const val = parseInt(interaction.fields.getTextInputValue('sb_thresh_val'), 10);
-      if (isNaN(val) || val < 1) return interaction.editReply({ content: '❌ أدخل رقماً صحيحاً أكبر من 0.', components: [] });
+      if (isNaN(val) || val < 1) return await interaction.editReply({ content: '❌ أدخل رقماً صحيحاً أكبر من 0.', components: [] });
       const panel = getPanel(name);
       if (panel) { panel.threshold = val; savePanel(name, panel); }
-      return showPanelControl(interaction, name);
+      return await showPanelControl(interaction, name);
     }
 
     // لون مخصص
@@ -410,10 +410,10 @@ async function handleStarboardModal(interaction) {
       const name = id.replace('modal_sb_customcolor_', '');
       await interaction.deferUpdate();
       const hex = interaction.fields.getTextInputValue('sb_customcolor_val').trim();
-      if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return interaction.editReply({ content: '❌ رمز اللون غير صالح. استخدم #RRGGBB مثل #FF0000', components: [] });
+      if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return await interaction.editReply({ content: '❌ رمز اللون غير صالح. استخدم #RRGGBB مثل #FF0000', components: [] });
       const panel = getPanel(name);
       if (panel) { panel.embedColor = hex.toUpperCase(); savePanel(name, panel); }
-      return showPanelControl(interaction, name);
+      return await showPanelControl(interaction, name);
     }
   } catch (e) {
     console.error('❌ handleStarboardModal:', id, e.message);
@@ -434,7 +434,7 @@ async function handleDeleteConfirm(interaction, name) {
       new TextInputBuilder().setCustomId('sb_delete_confirm').setLabel(`اكتب DELETE لتأكيد حذف ${name}`)
         .setPlaceholder('DELETE').setStyle(TextInputStyle.Short).setRequired(true).setMinLength(6).setMaxLength(6)
     ));
-    return interaction.showModal(modal);
+    return await interaction.showModal(modal);
   } catch (e) { console.error('❌ handleDeleteConfirm:', e.message); }
 }
 
@@ -531,7 +531,7 @@ async function handleStarboardInteraction(interaction) {
     if (id === 'sb_delete') return handleMainButton(interaction, 'delete');
     if (id === 'sb_view') return handleMainButton(interaction, 'view');
     if (id === 'sb_back') return handleMainButton(interaction, 'back');
-    if (id.startsWith('sb_refresh_')) return showPanelControl(interaction, id.replace('sb_refresh_', ''));
+    if (id.startsWith('sb_refresh_')) return await showPanelControl(interaction, id.replace('sb_refresh_', ''));
 
     // القوائم المنسدلة
     if (id.startsWith('sb_sel_') || id.startsWith('sb_readycolor_') || id.startsWith('sb_sel_source_') || id.startsWith('sb_sel_dest_')) {
