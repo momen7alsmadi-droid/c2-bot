@@ -327,6 +327,8 @@ async function handleSlashCommand(interaction) {
     case 'الألوان_المتوفرة': return handleColorsCommand(interaction);
     case 'ايمبد': return handleEmbedsMain(interaction);
     case 'الردود_التلقائية': return handleAutoReplyMain(interaction);
+    // ⚠️ دعم الاسم القديم مؤقتاً لحين انعاش الكاش
+    case 'اعدادات_الاقتراحات': return handleStarboardMain(interaction);
     case 'لوحة_النجوم': return handleStarboardMain(interaction);
   }
 }
