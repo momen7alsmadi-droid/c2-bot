@@ -81,7 +81,11 @@ async function handleResignButton(interaction, action, userId) {
   }
 
   // إزالة الرتب المحددة
-  const removedRoles = cfg.resign.rolesToRemove.filter(roleId => member.roles.cache.has(roleId));
+  // استثناء الرتب المستثناة من السحب
+  const exempted = cfg.resign.exemptedRoles || [];
+  const removedRoles = cfg.resign.rolesToRemove.filter(roleId =>
+    member.roles.cache.has(roleId) && !exempted.includes(roleId)
+  );
   if (removedRoles.length) {
     await member.roles.remove(removedRoles).catch(() => {});
   }

@@ -14,6 +14,7 @@ const DEFAULT_CONFIG = {
     allowedRoleId: null,
     requestChannelId: null,
     rolesToRemove: [],
+    exemptedRoles: [],
     leaveRoleId: null,
     logChannelId: null
   },
@@ -39,6 +40,7 @@ const DEFAULT_CONFIG = {
     allowedRoleId: null,
     logChannelId: null,
     rolesToRemove: [],
+    exemptedRoles: [],
     resignRoleId: null,
     upperManagementRoleId: null
   },

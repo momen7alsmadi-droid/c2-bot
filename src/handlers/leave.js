@@ -106,7 +106,11 @@ async function handleLeaveButton(interaction, action, userId, daysStr) {
     }
 
     const days = parseInt(daysStr, 10) || 7;
-    const removedRoles = cfg.leave.rolesToRemove.filter(roleId => member.roles.cache.has(roleId));
+    // استثناء الرتب المستثناة من السحب
+    const exempted = cfg.leave.exemptedRoles || [];
+    const removedRoles = cfg.leave.rolesToRemove.filter(roleId =>
+      member.roles.cache.has(roleId) && !exempted.includes(roleId)
+    );
 
     if (removedRoles.length) {
       await member.roles.remove(removedRoles).catch(() => {});

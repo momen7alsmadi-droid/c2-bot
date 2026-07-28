@@ -133,12 +133,14 @@ async function showSettingsPage(interaction, type, page) {
       embed.addFields(
         { name: '🎖️ رتبة الإجازة', value: rl(l.leaveRoleId) },
         { name: '🗑️ الرتب المُزالة', value: lst(l.rolesToRemove) },
+        { name: '🛡️ الرتب المستثناة (لا تُسحب)', value: lst(l.exemptedRoles) },
       );
       return respondOrUpdate(interaction, {
         embeds: [embed],
         components: [
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_leaveRole').setPlaceholder('🎖️ رتبة الإجازة').setMaxValues(1)),
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_rolesToRemove').setPlaceholder('🗑️ اختر أدنى وأعلى رتبة للنطاق').setMinValues(2).setMaxValues(2)),
+          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_exemptedRoles').setPlaceholder('🛡️ رتب مستثناة من السحب').setMinValues(1).setMaxValues(25)),
           new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('set_leave_1').setLabel('◀️ الأساسيات').setStyle(ButtonStyle.Primary), btnBack),
         ]
       });
@@ -256,11 +258,13 @@ async function showSettingsPage(interaction, type, page) {
       const r = cfg.resign;
       embed.addFields(
         { name: '🗑️ الرتب المُزالة', value: lst(r.rolesToRemove) },
+        { name: '🛡️ الرتب المستثناة (لا تُسحب)', value: lst(r.exemptedRoles) },
       );
       return respondOrUpdate(interaction, {
         embeds: [embed],
         components: [
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_rolesToRemove').setPlaceholder('🗑️ اختر أدنى وأعلى رتبة للنطاق').setMinValues(2).setMaxValues(2)),
+          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_exemptedRoles').setPlaceholder('🛡️ رتب مستثناة من السحب').setMinValues(1).setMaxValues(25)),
           new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('set_resign_1').setLabel('◀️ الأساسيات').setStyle(ButtonStyle.Primary), btnBack),
         ]
       });
@@ -317,7 +321,7 @@ async function handleSettingsSelect(interaction) {
       'mentionRole': 'mentionRoleId',
       'upperMgmt': 'upperManagementRoleId',
     };
-    const listFields = ['rolesToRemove'];
+    const listFields = ['rolesToRemove', 'exemptedRoles'];
 
     const mapKey = fieldMap[field] || field;
 

@@ -218,10 +218,10 @@ function safeGetConfig() {
     console.error('❌ safeGetConfig فشل:', e.message);
     // إرجاع إعدادات افتراضية آمنة
     return {
-      leave: { allowedRoleId: null, requestChannelId: null, rolesToRemove: [], leaveRoleId: null, logChannelId: null },
+      leave: { allowedRoleId: null, requestChannelId: null, rolesToRemove: [], exemptedRoles: [], leaveRoleId: null, logChannelId: null },
       daleel: { allowedRoleId: null, channelId: null, logChannelId: null },
       report: { allowedRoleId: null, adminRoleId: null, channelId: null, warning1RoleId: null, warning2RoleId: null, warning3RoleId: null, upperManagementRoleId: null, upperManagementChannelId: null, logChannelId: null, cooldownEnabled: true, cooldownDuration: 60 },
-      resign: { allowedRoleId: null, logChannelId: null, rolesToRemove: [], resignRoleId: null, upperManagementRoleId: null },
+      resign: { allowedRoleId: null, logChannelId: null, rolesToRemove: [], exemptedRoles: [], resignRoleId: null, upperManagementRoleId: null },
       disabledGuilds: []
     };
   }
