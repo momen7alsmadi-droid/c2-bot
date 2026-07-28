@@ -36,6 +36,7 @@ const commands = [
     .addStringOption(o => o.setName('السبب').setDescription('سبب البلاغ').setRequired(true))
     .addStringOption(o => o.setName('متى').setDescription('متى حدثت الواقعة؟').setRequired(true))
     .addChannelOption(o => o.setName('المكان').setDescription('أين حدثت؟').addChannelTypes(ChannelType.GuildText).setRequired(true))
+    .addStringOption(o => o.setName('ملاحظة').setDescription('ملاحظة إضافية (اختياري)').setRequired(false))
     .addStringOption(o => o.setName('شهود').setDescription('منشن الشهود (ضع منشنات مفصولة بمسافة)').setRequired(false))
     .addAttachmentOption(o => o.setName('دليل_1').setDescription('صورة دليل (اختياري)').setRequired(false))
     .addAttachmentOption(o => o.setName('دليل_2').setDescription('صورة دليل (اختياري)').setRequired(false))

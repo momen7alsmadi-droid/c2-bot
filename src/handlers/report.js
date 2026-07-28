@@ -14,8 +14,7 @@ function buildReportButtons(reportId, disableDecision) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`blagh_accept_${reportId}`).setLabel('قبول البلاغ').setEmoji('✅').setStyle(ButtonStyle.Success).setDisabled(Boolean(disableDecision)),
     new ButtonBuilder().setCustomId(`blagh_reject_${reportId}`).setLabel('رفض البلاغ').setEmoji('❌').setStyle(ButtonStyle.Danger).setDisabled(Boolean(disableDecision)),
-    new ButtonBuilder().setCustomId(`blagh_reporter_${reportId}`).setLabel('من قدّم البلاغ').setEmoji('🕵️').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`blagh_witnesses_${reportId}`).setLabel('الشهود').setEmoji('👥').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`blagh_details_${reportId}`).setLabel('تفاصيل البلاغ').setEmoji('📋').setStyle(ButtonStyle.Primary),
   );
 }
 
@@ -57,6 +56,9 @@ async function handleReportCommand(interaction, cfg) {
       return interaction.reply({ content: `⏳ يجب عليك الانتظار **${remaining} دقيقة** قبل تقديم بلاغ آخر.`, ephemeral: true });
     }
   }
+
+  // ملاحظة إضافية
+  const note = interaction.options.getString('ملاحظة') || '';
 
   // معالجة الشهود (نص منشنات)
   const witnessesRaw = interaction.options.getString('شهود') || '';
@@ -109,24 +111,17 @@ async function handleReportCommand(interaction, cfg) {
   const mainEmbed = new EmbedBuilder()
     .setTitle('🛡️ بلاغ جديد على إداري')
     .setColor(REPORT_COLOR)
-    .setDescription('🔒 بلاغ سري — هوية مقدّم البلاغ والشهود مخفية بالكامل، ولا يمكن كشفها إلا لأصحاب صلاحية Administrator عبر الأزرار بالأسفل.')
+    .setDescription('البلاغ قيد المراجعة من الإدارة')
     .addFields(
       { name: '— الإداري المُبلغ عنه', value: `${target}` },
-      { name: '— السبب', value: reason },
       { name: '— متى حدث', value: when },
       { name: '— أين حدث', value: `${whereChannel}` },
-      { name: '— مقدّم البلاغ', value: '🔒 مخفي — للإدارة فقط' },
-      { name: '— الشهود', value: witnesses.length ? '🔒 مخفي — للإدارة فقط' : 'لا يوجد شهود' },
       { name: '— الحالة', value: '⏳ قيد المراجعة' },
     )
-    .setImage(evidenceList[0] || null)
     .setFooter({ text: `الإصدار: ${version} | رقم البلاغ: ${id}` })
     .setTimestamp();
 
-  const extraEmbeds = evidenceList.slice(1).filter(Boolean).map(url => new EmbedBuilder().setColor(REPORT_COLOR).setImage(url));
-
-  const witnessMentions = witnesses.length ? witnesses.join(' ') : null;
-  const sentMessage = await channel.send({ content: witnessMentions, embeds: [mainEmbed, ...extraEmbeds], components: [buildReportButtons(id, false)] });
+  const sentMessage = await channel.send({ embeds: [mainEmbed], components: [buildReportButtons(id, false)] });
 
   const record = {
     id,
@@ -140,6 +135,7 @@ async function handleReportCommand(interaction, cfg) {
     reason,
     when,
     whereChannelId: whereChannel.id,
+    note,
     witnesses: witnesses.map(w => w.id),
     witnessTags: witnesses.map(w => w.tag),
     evidence: evidenceList.filter(Boolean),
@@ -158,8 +154,7 @@ async function handleReportCommand(interaction, cfg) {
   reportCooldowns.set(interaction.user.id, Date.now());
 
   await interaction.reply({
-    content:
-      '✅ تم إرسال بلاغك بسرية تامة، ولن يُكشف اسمك إلا لأصحاب صلاحية Administrator عبر زر مخصص.',
+    content: '✅ تم إرسال بلاغك بسرية تامة. الإدارة ستراجعه في أقرب وقت.',
     ephemeral: true,
   });
 
@@ -174,6 +169,7 @@ async function handleReportCommand(interaction, cfg) {
       { name: 'متى حدث', value: when },
       { name: 'أين حدث', value: `${whereChannel}` },
       { name: 'الشهود', value: witnesses.length ? witnesses.map(w => `${w} (${w.tag})`).join('\n') : 'لا يوجد' },
+      { name: 'ملاحظة', value: note || 'لا يوجد' },
       { name: 'عدد الأدلة', value: `${evidenceList.length}` },
       { name: 'الحالة', value: '⏳ قيد المراجعة' },
     )
@@ -199,15 +195,27 @@ async function handleReportButton(interaction, action, reportId) {
     return interaction.reply({ content: '⚠️ تعذر العثور على بيانات هذا البلاغ (ربما تم حذف بياناته).', ephemeral: true });
   }
 
-  if (action === 'reporter') {
-    return interaction.reply({ content: `🕵️ مقدّم هذا البلاغ: <@${record.reporterId}> (${record.reporterTag})`, ephemeral: true });
-  }
+  if (action === 'details') {
+    let details = `🕵️ **مقدّم البلاغ:** <@${record.reporterId}> (${record.reporterTag})\n\n`;
+    details += `📝 **السبب:** ${record.reason}\n\n`;
 
-  if (action === 'witnesses') {
-    const list = record.witnesses.length
-      ? record.witnesses.map((wid, i) => `${i + 1}. <@${wid}> (${record.witnessTags[i] || ''})`).join('\n')
-      : 'لا يوجد شهود مذكورين في هذا البلاغ.';
-    return interaction.reply({ content: `👥 الشهود:\n${list}`, ephemeral: true });
+    if (record.witnesses.length) {
+      details += `👥 **الشهود:**\n`;
+      details += record.witnesses.map((wid, i) => `${i + 1}. <@${wid}> (${record.witnessTags[i] || ''})`).join('\n');
+    } else {
+      details += '👥 **الشهود:** لا يوجد';
+    }
+
+    if (record.note) {
+      details += `\n\n📌 **ملاحظة:** ${record.note}`;
+    }
+
+    if (record.evidence && record.evidence.length) {
+      details += `\n\n🖼️ **الأدلة (${record.evidence.length}):**\n`;
+      details += record.evidence.map((url, i) => `${i + 1}. ${url}`).join('\n');
+    }
+
+    return interaction.reply({ content: details, ephemeral: true });
   }
 
   if (action !== 'accept' && action !== 'reject') return;
@@ -231,7 +239,7 @@ async function handleReportButton(interaction, action, reportId) {
     record.decidedAt = Date.now();
     saveReports(reports);
 
-    setFieldValue(newEmbed, '— الحالة', `❌ مرفوض بواسطة ${interaction.user.tag}`);
+    setFieldValue(newEmbed, '— الحالة', `❌ تم رفض البلاغ ضد ${record.targetTag}`);
     await interaction.update({ embeds: [newEmbed, ...otherEmbeds], components: [finalRow] });
 
     const logEmbed = new EmbedBuilder()
@@ -276,7 +284,7 @@ async function handleReportButton(interaction, action, reportId) {
     record.decidedAt = Date.now();
     saveReports(reports);
 
-    setFieldValue(newEmbed, '— الحالة', `✅ مقبول بواسطة ${interaction.user.tag} (⚠️ العضو غير موجود بالسيرفر، لم تُطبَّق أي رتبة)`);
+    setFieldValue(newEmbed, '— الحالة', `✅ تم قبول البلاغ ضد ${record.targetTag} (⚠️ العضو غير موجود بالسيرفر)`);
     await interaction.update({ embeds: [newEmbed, ...otherEmbeds], components: [finalRow] });
 
     // إرسال رسالة لمقدم البلاغ
@@ -344,7 +352,8 @@ async function handleReportButton(interaction, action, reportId) {
   record.decidedAt = Date.now();
   saveReports(reports);
 
-  setFieldValue(newEmbed, '— الحالة', `✅ مقبول بواسطة ${interaction.user.tag} — ${resultText}`);
+  const acceptText = `✅ تم قبول البلاغ ضد ${member} - ${levelName || resultText}`;
+  setFieldValue(newEmbed, '— الحالة', acceptText);
   await interaction.update({ embeds: [newEmbed, ...otherEmbeds], components: [finalRow] });
 
   // إرسال رسالة خاصة للإداري المُبلَّغ عنه
