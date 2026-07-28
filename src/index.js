@@ -2,7 +2,7 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
-const { Client, GatewayIntentBits, Partials, EmbedBuilder, REST, Routes, SlashCommandBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const express = require('express');
 const { connectDatabase } = require('./utils/database');
 const { getConfig, saveConfig, ensureConfigLoaded, ensureReportsLoaded, initModels } = require('./utils/storage');
@@ -167,19 +167,16 @@ ID: ${guild.id}
     
     // ========== Deploy Force: مسح الأوامر القديمة + تسجيل /لوحة_النجوم ==========
     (async () => {
-      const rest = new REST({ version: '10' }).setToken(process.env.TOKEN || process.env.BOT_TOKEN);
-      const command = new SlashCommandBuilder()
-        .setName('لوحة_النجوم')
-        .setDescription('⭐ نظام لوحة النجوم المتعدد - إدارة اللوحات والإعدادات')
-        .setDefaultMemberPermissions(8);
       try {
-        console.log('Clearing old commands...');
-        await rest.put(Routes.applicationCommands(client.user.id), { body: [] });
-        console.log('Registering new command /لوحة_النجوم...');
-        await rest.put(Routes.applicationCommands(client.user.id), { body: [command.toJSON()] });
-        console.log('Deploy Successful!');
+        const starboardCommand = new SlashCommandBuilder()
+          .setName('لوحة_النجوم')
+          .setDescription('⭐ نظام لوحة النجوم المتعدد - إدارة اللوحات والإعدادات')
+          .setDefaultMemberPermissions(8);
+        console.log('Clearing old commands via client.application.commands.set()...');
+        await client.application.commands.set([starboardCommand.toJSON()]);
+        console.log('✅ Deploy Force: تم استبدال جميع الأوامر بـ /لوحة_النجوم');
       } catch (error) {
-        console.error('Deploy Failed:', error);
+        console.error('❌ Deploy Force Failed:', error);
       }
     })();
 
