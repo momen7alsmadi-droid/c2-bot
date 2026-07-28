@@ -345,15 +345,18 @@ async function handleFeaturedReaction(reaction, user) {
 
     // ===== شكل الإيمبد (نمط Dyno Starboard) =====
     const descContent = message.content || '';
-    const sourceChannelName = message.channel.name || 'مصدر';
+    // إذا كان الروم Thread (فورم)، نأخذ اسم الأب (روم الفورم) وليس اسم الـ Thread
+    const chName = channel.isThread?.() && channel.parent
+      ? channel.parent.name
+      : (channel.name || 'مصدر');
     const emoji = cfg.emoji || '⭐';
 
     // السطر العلوي: "6 ⭐ | فعاليات" ← عنوان قابل للضغط
-    const topLine = `${realUserCount} ${emoji} | ${sourceChannelName}`;
+    const topLine = `${realUserCount} ${emoji} | ${chName}`;
 
     const featuredEmbed = new EmbedBuilder()
       .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
-      .setDescription(`${descContent}\n\n[Click to jump to message!](${message.url})`)
+      .setDescription(`${descContent}\n\n[📎 اضغط للانتقال إلى الرسالة الأصلية](${message.url})`)
       .setColor(0xF1C40F)
       .setTitle(topLine)
       .setURL(message.url)
