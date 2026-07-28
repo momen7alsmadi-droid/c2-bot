@@ -80,7 +80,10 @@ async function handleFeaturedButton(interaction, action) {
               .setCustomId(customId)
               .setPlaceholder(placeholder)
               .setMaxValues(1)
-              .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+              .setChannelTypes(ChannelType.GuildText, ChannelType.GuildForum, ChannelType.GuildAnnouncement)
+          ),
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('feat_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
           )
         ]
       });
@@ -108,7 +111,7 @@ async function handleFeaturedButton(interaction, action) {
       return interaction.showModal(modal);
     }
 
-    if (action === 'refresh') {
+    if (action === 'refresh' || action === 'back') {
       return showFeaturedSettings(interaction);
     }
   } catch (e) {
@@ -317,7 +320,7 @@ async function handleFeaturedInteraction(interaction) {
     if (prefix !== 'feat') return;
 
     // أزرار الإعدادات
-    if (id === 'feat_source' || id === 'feat_dest' || id === 'feat_emoji' || id === 'feat_thresh' || id === 'feat_refresh') {
+    if (id === 'feat_source' || id === 'feat_dest' || id === 'feat_emoji' || id === 'feat_thresh' || id === 'feat_refresh' || id === 'feat_back') {
       const action = parts[1];
       return handleFeaturedButton(interaction, action);
     }
