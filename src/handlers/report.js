@@ -60,8 +60,8 @@ async function handleReportCommand(interaction, cfg) {
     }
   }
 
-  // ملاحظة إضافية
-  const note = interaction.options.getString('ملاحظة') || '';
+  // ملاحظات إضافية
+  const note = interaction.options.getString('ملاحظات') || '';
 
   // معالجة الشهود (نص منشنات)
   const witnessesRaw = interaction.options.getString('شهود') || '';
@@ -230,28 +230,31 @@ async function handleReportButton(interaction, action, reportId) {
   }
 
   if (action === 'details') {
-    let details = `🕵️ **مقدّم البلاغ:** <@${record.reporterId}> (${record.reporterTag})\n\n`;
-    details += `📝 **السبب:** ${record.reason}\n`;
-    details += `🕰️ **متى حدث:** ${record.when}\n`;
-    details += `📍 **أين حدث:** <#${record.whereChannelId}>\n\n`;
+    const witnessList = record.witnesses.length
+      ? record.witnesses.map((wid, i) => `<@${wid}> (${record.witnessTags[i] || ''})`).join('\n')
+      : 'لا يوجد';
 
-    if (record.witnesses.length) {
-      details += `👥 **الشهود:**\n`;
-      details += record.witnesses.map((wid, i) => `${i + 1}. <@${wid}> (${record.witnessTags[i] || ''})`).join('\n');
-    } else {
-      details += '👥 **الشهود:** لا يوجد';
-    }
+    const evidenceList = (record.evidence && record.evidence.length)
+      ? record.evidence.map((url, i) => `[🔗 الدليل ${i + 1}](${url})`).join('\n')
+      : 'لا يوجد';
 
-    if (record.note) {
-      details += `\n\n📌 **ملاحظة:** ${record.note}`;
-    }
+    const detailsEmbed = new EmbedBuilder()
+      .setTitle('📋 التفاصيل الكاملة للبلاغ')
+      .setColor(0x3498DB)
+      .addFields(
+        { name: '🕵️ مقدم البلاغ', value: `<@${record.reporterId}> (${record.reporterTag})`, inline: false },
+        { name: '🎯 الإداري المُبلَّغ عنه', value: `<@${record.targetId}> (${record.targetTag})`, inline: false },
+        { name: '📝 السبب', value: record.reason, inline: false },
+        { name: '🕰️ متى حدث', value: record.when, inline: true },
+        { name: '📍 أين حدث', value: `<#${record.whereChannelId}>`, inline: true },
+        { name: '📌 ملاحظات', value: record.note || 'لا يوجد', inline: false },
+        { name: '👥 الشهود', value: witnessList, inline: false },
+        { name: '🖼️ الأدلة المرفقة', value: evidenceList, inline: false },
+      )
+      .setFooter({ text: `رقم البلاغ: ${reportId}` })
+      .setTimestamp();
 
-    if (record.evidence && record.evidence.length) {
-      details += `\n\n🖼️ **الأدلة (${record.evidence.length}):**\n`;
-      details += record.evidence.map((url, i) => `${i + 1}. ${url}`).join('\n');
-    }
-
-    return interaction.reply({ content: details, ephemeral: true });
+    return interaction.reply({ embeds: [detailsEmbed], ephemeral: true });
   }
 
   if (action !== 'accept' && action !== 'reject') return;
