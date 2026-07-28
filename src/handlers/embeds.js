@@ -1012,6 +1012,7 @@ async function handleEmbedsInteraction(interaction) {
       parts[1] === 'addfield' ||
       parts[1] === 'footer' ||
       parts[1] === 'sched' ||
+      parts[1] === 'custom_color' ||
       (parts[1] === 'edit' && (parts[2] === 'title' || parts[2] === 'desc'))
     ));
 
