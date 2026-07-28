@@ -345,21 +345,16 @@ async function handleFeaturedReaction(reaction, user) {
 
     // ===== شكل الإيمبد (نمط Dyno Starboard) =====
     const descContent = message.content || '';
-    // إذا كان الروم Thread (فورم)، نأخذ اسم الأب (روم الفورم) وليس اسم الـ Thread
-    const chName = channel.isThread?.() && channel.parent
-      ? channel.parent.name
-      : (channel.name || 'مصدر');
     const emoji = cfg.emoji || '⭐';
 
-    // السطر العلوي: "6 ⭐ | فعاليات" ← عنوان قابل للضغط
-    const topLine = `${realUserCount} ${emoji} | ${chName}`;
+    // السطر العلوي: "1 ⭐ | #السورس" → كـ content خارج الإيمبد (مثل Dyno)
+    const sourceMention = `<#${cfg.sourceChannelId}>`;
+    const topLine = `${realUserCount} ${emoji} | ${sourceMention}`;
 
     const featuredEmbed = new EmbedBuilder()
       .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
       .setDescription(`${descContent}\n\n[📎 اضغط للانتقال إلى الرسالة الأصلية](${message.url})`)
       .setColor(0xF1C40F)
-      .setTitle(topLine)
-      .setURL(message.url)
       .setTimestamp();
 
     if (message.attachments.size > 0) {
@@ -369,9 +364,9 @@ async function handleFeaturedReaction(reaction, user) {
       }
     }
 
-    // إرسال بدون أزرار (stateless) - السطر العلوي داخل عنوان الإيمبد
+    // إرسال: content (السطر العلوي) + embed (بدون title/url)
     try {
-      const sentMsg = await destChannel.send({ embeds: [featuredEmbed] });
+      const sentMsg = await destChannel.send({ content: topLine, embeds: [featuredEmbed] });
       console.log('✅ تم إرسال الاقتراح المميز إلى', destChannel.name, 'مع messageId:', sentMsg.id);
 
       // إضافة تفاعل تلقائي على الرسالة المنقولة بنفس الإيموجي
