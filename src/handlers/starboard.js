@@ -239,7 +239,9 @@ async function handleMainButton(interaction, action) {
 
     if (action === 'back') return handleStarboardMain(interaction);
   } catch (e) {
-    console.error('❌ handleMainButton:', action, e.message);
+    console.error('❌ handleMainButton:', action);
+    console.error('Full error:', e);
+    console.error(e.stack);
     try {
       if (interaction.deferred || interaction.replied) await interaction.editReply({ content: '⚠️ خطأ.', components: [] });
       else await interaction.reply({ content: '⚠️ خطأ.', ephemeral: true });

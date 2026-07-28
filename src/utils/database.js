@@ -53,7 +53,9 @@ async function connectDatabase() {
     try {
       console.log(`🔄 محاولة الاتصال (${attempt}/${MAX_RETRIES})...`);
       await mongoose.connect(uri, {
-        serverSelectionTimeoutMS: 20000,
+        keepAlive: true,
+        keepAliveInitialDelay: 300000,
+        serverSelectionTimeoutMS: 5000,
         socketTimeoutMS: 60000,
         connectTimeoutMS: 20000,
         heartbeatFrequencyMS: 10000,
@@ -109,7 +111,9 @@ async function tryReconnect(uri) {
   console.log('🔄 محاولة إعادة الاتصال بقاعدة البيانات...');
   try {
     await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 15000,
+      keepAlive: true,
+      keepAliveInitialDelay: 300000,
+      serverSelectionTimeoutMS: 5000,
       connectTimeoutMS: 15000,
     });
     console.log('✅ تمت إعادة الاتصال');
