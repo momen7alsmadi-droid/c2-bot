@@ -36,11 +36,14 @@ function getWarningLevel(member, cfg) {
 // ------------------- /بلاغ -------------------
 
 async function handleReportCommand(interaction, cfg) {
+  // ⚠️ defer فوراً قبل أي شيء لمنع Timeout
+  await interaction.deferReply({ ephemeral: true });
+
   if (cfg.report.allowedRoleId && !hasRole(interaction.member, cfg.report.allowedRoleId)) {
-    return interaction.reply({ content: '❌ ما عندك صلاحية استخدام هذا الأمر.', ephemeral: true });
+    return interaction.editReply({ content: '❌ ما عندك صلاحية استخدام هذا الأمر.' });
   }
   if (!cfg.report.channelId || !cfg.report.adminRoleId) {
-    return interaction.reply({ content: '⚠️ لم يتم إعداد نظام البلاغات بالكامل بعد (الروم أو رتبة الإدارة)، تواصل مع الإدارة العليا.', ephemeral: true });
+    return interaction.editReply({ content: '⚠️ لم يتم إعداد نظام البلاغات بالكامل بعد (الروم أو رتبة الإدارة)، تواصل مع الإدارة العليا.' });
   }
 
   const target = interaction.options.getUser('الاداري');
@@ -53,7 +56,7 @@ async function handleReportCommand(interaction, cfg) {
     const lastReport = reportCooldowns.get(interaction.user.id);
     if (lastReport && Date.now() - lastReport < cdMs) {
       const remaining = Math.ceil((cdMs - (Date.now() - lastReport)) / 60000);
-      return interaction.reply({ content: `⏳ يجب عليك الانتظار **${remaining} دقيقة** قبل تقديم بلاغ آخر.`, ephemeral: true });
+      return interaction.editReply({ content: `⏳ يجب عليك الانتظار **${remaining} دقيقة** قبل تقديم بلاغ آخر.` });
     }
   }
 
@@ -87,23 +90,23 @@ async function handleReportCommand(interaction, cfg) {
 
 
   if (target.id === interaction.user.id) {
-    return interaction.reply({ content: '❌ لا يمكنك تقديم بلاغ على نفسك.', ephemeral: true });
+    return interaction.editReply({ content: '❌ لا يمكنك تقديم بلاغ على نفسك.' });
   }
   if (target.bot) {
-    return interaction.reply({ content: '❌ لا يمكن تقديم بلاغ على بوت.', ephemeral: true });
+    return interaction.editReply({ content: '❌ لا يمكن تقديم بلاغ على بوت.' });
   }
 
   const targetMember = await interaction.guild.members.fetch(target.id).catch(() => null);
   if (!targetMember) {
-    return interaction.reply({ content: '⚠️ تعذر العثور على هذا العضو في السيرفر.', ephemeral: true });
+    return interaction.editReply({ content: '⚠️ تعذر العثور على هذا العضو في السيرفر.' });
   }
   if (!hasRole(targetMember, cfg.report.adminRoleId)) {
-    return interaction.reply({ content: '❌ الشخص الذي اخترته لا يملك رتبة الإدارة المحددة، لا يمكن تقديم بلاغ عليه.', ephemeral: true });
+    return interaction.editReply({ content: '❌ الشخص الذي اخترته لا يملك رتبة الإدارة المحددة، لا يمكن تقديم بلاغ عليه.' });
   }
 
   const channel = await interaction.guild.channels.fetch(cfg.report.channelId).catch(() => null);
   if (!channel) {
-    return interaction.reply({ content: '⚠️ لم أستطع الوصول إلى روم استقبال البلاغات، تأكد من الإعدادات.', ephemeral: true });
+    return interaction.editReply({ content: '⚠️ لم أستطع الوصول إلى روم استقبال البلاغات، تأكد من الإعدادات.' });
   }
 
   const id = generateId();
@@ -157,9 +160,8 @@ async function handleReportCommand(interaction, cfg) {
   // تسجيل وقت البلاغ للكولداون
   reportCooldowns.set(interaction.user.id, Date.now());
 
-  await interaction.reply({
+  await interaction.editReply({
     content: '✅ تم إرسال بلاغك بسرية تامة. الإدارة ستراجعه في أقرب وقت.',
-    ephemeral: true,
   });
 
   // إرسال رسالة خاصة للمُبلَّغ عنه: تم تقديم بلاغ عليك (نستخدم target مباشرة)
@@ -280,8 +282,11 @@ async function handleBlaghModal(interaction) {
   const action = parts[2];
   const reportId = parts.slice(3).join('_');
 
+  // ⚠️ deferUpdate فوراً قبل أي عملية لمنع انتهاء المهلة
+  await interaction.deferUpdate();
+
   if (!isAdmin(interaction.member)) {
-    return interaction.reply({ content: '❌ فقط من لديه صلاحية Administrator يقدر يستخدم هذه الأزرار.', ephemeral: true });
+    return interaction.editReply({ content: '❌ فقط من لديه صلاحية Administrator يقدر يستخدم هذه الأزرار.', components: [] });
   }
 
   const cfg = getConfig();
@@ -289,13 +294,13 @@ async function handleBlaghModal(interaction) {
   const record = reports[reportId];
 
   if (!record) {
-    return interaction.reply({ content: '⚠️ تعذر العثور على بيانات هذا البلاغ.', ephemeral: true });
+    return interaction.editReply({ content: '⚠️ تعذر العثور على بيانات هذا البلاغ.', components: [] });
   }
 
   if (record.status !== 'pending') {
-    return interaction.reply({
+    return interaction.editReply({
       content: `⚠️ تم اتخاذ قرار على هذا البلاغ مسبقاً (${record.status === 'accepted' ? 'مقبول' : 'مرفوض'}).`,
-      ephemeral: true,
+      components: [],
     });
   }
 
@@ -312,7 +317,7 @@ async function handleBlaghModal(interaction) {
     saveReports(reports);
 
     setFieldValue(newEmbed, '— الحالة', '❌ تم رفض البلاغ');
-    await interaction.update({ embeds: [newEmbed], components: [finalRow] });
+    await interaction.editReply({ embeds: [newEmbed], components: [finalRow] });
 
     // لوق
     const logEmbed = new EmbedBuilder()
@@ -424,7 +429,7 @@ async function handleBlaghModal(interaction) {
 
   const acceptText = `✅ تم قبول البلاغ ضد ${member || record.targetTag} - ${levelName || resultText}`;
   setFieldValue(newEmbed, '— الحالة', acceptText);
-  await interaction.update({ embeds: [newEmbed], components: [finalRow] });
+  await interaction.editReply({ embeds: [newEmbed], components: [finalRow] });
 
   // إرسال رسالة خاصة للإداري المُبلَّغ عنه (نستخدم member الموجود)
   try {

@@ -333,9 +333,9 @@ async function handleButton(interaction) {
     return handleLeaveButton(interaction, action, userId, daysStr);
   }
 
-  if (prefix === 'blagh') {
+  if (id.startsWith('blagh_')) {
     const action = parts[1];
-    const reportId = parts[2];
+    const reportId = parts.slice(2).join('_');
     return handleReportButton(interaction, action, reportId);
   }
 
