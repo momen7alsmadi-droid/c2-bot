@@ -138,11 +138,18 @@ async function deployCommands(clientId) {
     return;
   }
   try {
-    console.log('⏳ جاري تسجيل الأوامر... (CLIENT_ID:', id, ')');
-    await rest.put(
-      Routes.applicationCommands(id),
-      { body: commands }
-    );
+    console.log('⏳ جاري مسح الأوامر القديمة... (CLIENT_ID:', id, ')');
+    // الخطوة 1: مسح جميع الأوامر القديمة (Forces Discord cache refresh)
+    await rest.put(Routes.applicationCommands(id), { body: [] });
+    console.log('✅ تم مسح الأوامر القديمة.');
+  } catch (err) {
+    console.error('❌ فشل مسح الأوامر القديمة:', err.message);
+  }
+
+  try {
+    console.log('⏳ جاري تسجيل الأوامر الجديدة...');
+    // الخطوة 2: تسجيل الأوامر الجديدة فقط
+    await rest.put(Routes.applicationCommands(id), { body: commands });
     console.log('✅ تم تسجيل الأوامر بنجاح.');
   } catch (err) {
     console.error('❌ فشل تسجيل الأوامر:', err.message);
