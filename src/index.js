@@ -430,6 +430,10 @@ client.on('messageReactionAdd', async (reaction, user) => {
     if (reaction.partial) {
       try { await reaction.fetch(); } catch { return; }
     }
+    // تأكد من جلب الرسالة كاملة لضمان الحصول على ID الـ Thread الصحيح
+    if (reaction.message.partial) {
+      try { await reaction.message.fetch(); } catch { return; }
+    }
     await handleFeaturedReaction(reaction, user);
   } catch (e) {
     console.error('❌ reaction error:', e.message);

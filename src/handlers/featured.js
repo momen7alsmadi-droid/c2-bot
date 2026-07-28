@@ -350,6 +350,8 @@ async function handleFeaturedReaction(reaction, user) {
     // السطر العلوي: "1 ⭐ | #المنشور" → كـ content خارج الإيمبد (مثل Dyno)
     // نستخدم ID الـ Channel/Thread الذي نُشرت فيه الفكرة (message.channel.id)
     // في الفورم: هذا هو ID الـ Thread → رابط مباشر للمنشور
+    console.log('🔍 message.channel.id:', message.channel.id, '| isThread?', message.channel.isThread?.());
+    console.log('🔍 message.channel.parentId:', message.channel.parentId);
     const mentionLink = `<#${message.channel.id}>`;
     const topLine = `${realUserCount} ${emoji} | ${mentionLink}`;
 
