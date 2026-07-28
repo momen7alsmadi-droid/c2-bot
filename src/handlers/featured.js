@@ -197,7 +197,7 @@ async function handleFeaturedModal(interaction) {
 // ---------- معالج الرسائل الجديدة (وضع الإيموجي تلقائياً) ----------
 async function handleFeaturedMessage(message) {
   try {
-    console.log('👀 handleFeaturedMessage:', message.id, 'channel:', message.channel?.id, 'author:', message.author?.tag);
+    console.log('👀 handleFeaturedMessage:', message.id, 'channel:', message.channel?.id, 'type:', message.channel?.type, 'author:', message.author?.tag);
 
     if (message.author.bot) {
       console.log('⏭️ رسالة بوت، تجاهل');
@@ -220,10 +220,25 @@ async function handleFeaturedMessage(message) {
       return;
     }
 
-    console.log('🔍 مقارنة:', message.channel.id, '===', cfg.sourceChannelId, '?', message.channel.id === cfg.sourceChannelId);
+    // ===== دعم رومات الفورم (Forum Channels) =====
+    // في الفورم، كل منشور هو Thread. message.channel هو ID الـ Thread
+    // نحتاج لمقارنة parentId (روم الفورم الأصلي) بـ sourceChannelId
+    const isThread = message.channel.isThread?.();
+    const actualChannelId = isThread ? message.channel.parentId : message.channel.id;
+    const isStarterMessage = isThread ? (message.id === message.channel.id) : true;
 
-    if (message.channel.id !== cfg.sourceChannelId) {
+    console.log('🔍 isThread:', isThread, '| parentId:', isThread ? message.channel.parentId : '-', '| actualChannelId:', actualChannelId);
+    console.log('🔍 مقارنة:', actualChannelId, '===', cfg.sourceChannelId, '?', actualChannelId === cfg.sourceChannelId);
+
+    if (actualChannelId !== cfg.sourceChannelId) {
       console.log('⏭️ الروم الحالي ليس روم المصدر');
+      return;
+    }
+
+    // إذا كان Thread (فورم)، نضيف التفاعل فقط لرسالة البداية (starter message)
+    // message.id === message.channel.id هي رسالة البداية للـ Thread
+    if (!isStarterMessage) {
+      console.log('⏭️ هذه رد داخل منشور فورم، وليست رسالة البداية - نتجاهل');
       return;
     }
 
@@ -268,9 +283,15 @@ async function handleFeaturedReaction(reaction, user) {
       return;
     }
 
-    console.log('🔍 مقارنة الروم:', reaction.message.channel.id, '===', cfg.sourceChannelId, '?', reaction.message.channel.id === cfg.sourceChannelId);
+    // ===== دعم رومات الفورم (Forum Channels) =====
+    const channel = reaction.message.channel;
+    const isThread = channel.isThread?.();
+    const actualChannelId = isThread ? channel.parentId : channel.id;
 
-    if (reaction.message.channel.id !== cfg.sourceChannelId) {
+    console.log('🔍 isThread:', isThread, '| parentId:', isThread ? channel.parentId : '-', '| actualChannelId:', actualChannelId);
+    console.log('🔍 مقارنة الروم:', actualChannelId, '===', cfg.sourceChannelId, '?', actualChannelId === cfg.sourceChannelId);
+
+    if (actualChannelId !== cfg.sourceChannelId) {
       console.log('⏭️ الروم الحالي ليس روم المصدر');
       return;
     }
@@ -293,11 +314,15 @@ async function handleFeaturedReaction(reaction, user) {
       return;
     }
 
-    // تحقق من العدد
-    const count = reaction.count;
-    console.log('📊 عدد تفاعلات', cfg.emoji, '=', count, '(المطلوب:', cfg.threshold, ')');
+    // ===== حساب عدد المستخدمين الحقيقيين (بدون البوت) =====
+    // reaction.count يشمل تفاعل البوت التلقائي، لذا نستخدم users.fetch()
+    // ونتأكد من عدم احتساب البوت
+    const reactedUsers = await reaction.users.fetch();
+    const realUserCount = reactedUsers.filter(u => !u.bot).size;
+    console.log('📊 عدد المستخدمين الحقيقيين:', realUserCount, '(المطلوب:', cfg.threshold, ')');
+    console.log('   (reaction.count الكلي:', reaction.count, ')');
 
-    if (count < cfg.threshold) {
+    if (realUserCount < cfg.threshold) {
       console.log('⏭️ لم يصل للعدد المطلوب بعد');
       return;
     }
