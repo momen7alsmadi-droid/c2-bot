@@ -910,9 +910,10 @@ async function handleEmbCustomColor(interaction, embedName) {
   const input = new TextInputBuilder()
     .setCustomId('emb_custom_color_val')
     .setLabel('أدخل رمز اللون السداسي (Hex Code)')
-    .setPlaceholder('مثال: #FF0000')
+    .setPlaceholder('#3B82F6')
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
+    .setMinLength(4)
     .setMaxLength(7);
 
   modal.addComponents(new ActionRowBuilder().addComponents(input));
@@ -1008,11 +1009,11 @@ async function handleEmbedsInteraction(interaction) {
 
   // الأزرار التي تظهر مودال (نحتاج التفاعل فوراً، ما نعمل defer)
   const isModalAction = id === 'emb_create' ||
+    id.startsWith('emb_custom_color_') ||
     (prefix === 'emb' && (
       parts[1] === 'addfield' ||
       parts[1] === 'footer' ||
       parts[1] === 'sched' ||
-      parts[1] === 'custom_color' ||
       (parts[1] === 'edit' && (parts[2] === 'title' || parts[2] === 'desc'))
     ));
 
@@ -1191,13 +1192,19 @@ async function handleEmbedsModal(interaction) {
 
   // لون مخصص
   if (id.startsWith('modal_emb_custom_color_')) {
-    const embedName = id.replace('modal_emb_custom_color_', '');
-    const hex = interaction.fields.getTextInputValue('emb_custom_color_val').trim();
-    if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) {
-      return interaction.reply({ content: '❌ رمز اللون غير صالح. استخدم صيغة Hex مكونة من 6 أرقام/حروف، مثال: #FF0000', ephemeral: true });
+    try {
+      await interaction.deferUpdate();
+      const embedName = id.replace('modal_emb_custom_color_', '');
+      const hex = interaction.fields.getTextInputValue('emb_custom_color_val').trim();
+      if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) {
+        return interaction.editReply({ content: '❌ رمز اللون غير صالح. استخدم صيغة Hex مكونة من 6 أرقام/حروف، مثال: #FF0000', components: [] });
+      }
+      await updateEmbed(embedName, { color: hex.toUpperCase() });
+      return showEmbedControlPanel(interaction, embedName, true);
+    } catch (e) {
+      console.error('[Modal:CustomColor]', e);
+      try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch(_) {}
     }
-    await updateEmbed(embedName, { color: hex.toUpperCase() });
-    return showEmbedControlPanel(interaction, embedName, true);
   }
 
   return interaction.reply({ content: '⚠️ Modal غير معروف.', ephemeral: true });

@@ -129,9 +129,10 @@ async function handleFeaturedButton(interaction, action) {
       const input = new TextInputBuilder()
         .setCustomId('feat_custom_color_val')
         .setLabel('أدخل رمز اللون السداسي (Hex Code)')
-        .setPlaceholder('مثال: #FF0000')
+        .setPlaceholder('#3B82F6')
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
+        .setMinLength(4)
         .setMaxLength(7);
 
       modal.addComponents(new ActionRowBuilder().addComponents(input));
@@ -237,14 +238,20 @@ async function handleFeaturedModal(interaction) {
     }
 
     if (customId === 'modal_feat_custom_color') {
-      const hex = interaction.fields.getTextInputValue('feat_custom_color_val').trim();
-      if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) {
-        return interaction.reply({ content: '❌ رمز اللون غير صالح. استخدم صيغة Hex مكونة من 6 أرقام/حروف، مثال: #FF0000', ephemeral: true });
+      try {
+        await interaction.deferUpdate();
+        const hex = interaction.fields.getTextInputValue('feat_custom_color_val').trim();
+        if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) {
+          return interaction.editReply({ content: '❌ رمز اللون غير صالح. استخدم صيغة Hex مكونة من 6 أرقام/حروف، مثال: #FF0000', components: [] });
+        }
+        const cfg = getFeaturedConfig();
+        cfg.embedColor = hex.toUpperCase();
+        saveFeaturedConfig(cfg);
+        return showFeaturedSettings(interaction);
+      } catch (e) {
+        console.error('[Modal:FeatCustomColor]', e);
+        try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch(_) {}
       }
-      const cfg = getFeaturedConfig();
-      cfg.embedColor = hex.toUpperCase();
-      saveFeaturedConfig(cfg);
-      return showFeaturedSettings(interaction);
     }
   } catch (e) {
     console.error('========== ❌ handleFeaturedModal ==========');
