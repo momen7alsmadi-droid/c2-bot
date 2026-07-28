@@ -4,7 +4,7 @@
  */
 const {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder,
-  ChannelSelectMenuBuilder, StringSelectMenuBuilder,
+  ChannelSelectMenuBuilder,
   ModalBuilder, TextInputBuilder, TextInputStyle,
   ChannelType
 } = require('discord.js');
@@ -32,11 +32,13 @@ async function respondOrUpdate(interaction, payload) {
 async function showFeaturedSettings(interaction) {
   try {
     const cfg = getFeaturedConfig();
-    const currentColorName = COLORS.find(c => c.value === (cfg.embedColor || '#F1C40F'))?.name || 'ذهبي (Gold)';
+    const currentColorHex = cfg.embedColor || '#F1C40F';
+    const currentColorName = COLORS.find(c => c.value === currentColorHex)?.name || 'ذهبي (Gold)';
+    const embedColorInt = parseInt(currentColorHex.replace('#', ''), 16) || 0xF1C40F;
 
     const embed = new EmbedBuilder()
       .setTitle('⭐ إعدادات نظام الاقتراحات')
-      .setColor(0xF1C40F)
+      .setColor(embedColorInt) // ← معاينة حية للون المختار
       .setDescription('تحكم في نظام ترشيح الاقتراحات المميزة')
       .addFields(
         { name: '📥 روم المصدر (الاقتراحات)', value: cfg.sourceChannelId ? `<#${cfg.sourceChannelId}>` : '❌ غير محدد', inline: false },
@@ -45,16 +47,8 @@ async function showFeaturedSettings(interaction) {
         { name: '🔢 العدد المطلوب للنقل', value: `${cfg.threshold || 5}`, inline: true },
         { name: '🎨 لون الإيمبد', value: currentColorName, inline: true },
       )
-      .setFooter({ text: `الإصدار: ${version}` })
+      .setFooter({ text: `الإصدار: ${version} | اكتب اسم اللون (عربي/إنجليزي) في المودال` })
       .setTimestamp();
-
-    // بناء قائمة الألوان (أول 25 لون + الباقي يظهر بالبحث)
-    const colorOptions = COLORS.map((c, i) => ({
-      label: c.name,
-      value: c.value,
-      // أول 25 لون تظهر مباشرة
-      default: c.value === (cfg.embedColor || '#F1C40F')
-    }));
 
     const components = [
       new ActionRowBuilder().addComponents(
@@ -73,14 +67,11 @@ async function showFeaturedSettings(interaction) {
       ),
       new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('feat_emoji').setLabel('😀 الإيموجي المطلوب ⏵').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('feat_color').setLabel('🎨 لون الإيمبد ⏵').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('feat_thresh').setLabel('🔢 العدد المطلوب ⏵').setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId('feat_refresh').setLabel('🔄 تحديث').setStyle(ButtonStyle.Primary),
       ),
       new ActionRowBuilder().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId('feat_color')
-          .setPlaceholder('🎨 اختر لون الإيمبد')
-          .addOptions(colorOptions.slice(0, 25)) // أول 25 لون (حد Discord)
+        new ButtonBuilder().setCustomId('feat_refresh').setLabel('🔄 تحديث').setStyle(ButtonStyle.Primary),
       ),
     ];
 
@@ -91,7 +82,7 @@ async function showFeaturedSettings(interaction) {
   }
 }
 
-// ---------- معالج أزرار الإعدادات (إيموجي + عدد + تحديث) ----------
+// ---------- معالج أزرار الإعدادات (إيموجي + عدد + لون + تحديث) ----------
 async function handleFeaturedButton(interaction, action) {
   try {
     if (action === 'emoji' || action === 'thresh') {
@@ -107,6 +98,23 @@ async function handleFeaturedButton(interaction, action) {
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
         .setMaxLength(isEmoji ? 10 : 5);
+
+      modal.addComponents(new ActionRowBuilder().addComponents(input));
+      return interaction.showModal(modal);
+    }
+
+    if (action === 'color') {
+      const modal = new ModalBuilder()
+        .setCustomId('modal_feat_color')
+        .setTitle('🎨 اختيار لون الإيمبد');
+
+      const input = new TextInputBuilder()
+        .setCustomId('feat_color_val')
+        .setLabel('اسم اللون أو قيمته السداسية (عربي/إنجليزي)')
+        .setPlaceholder('مثال: ذهبي أو Gold أو #FFD700')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setMaxLength(100);
 
       modal.addComponents(new ActionRowBuilder().addComponents(input));
       return interaction.showModal(modal);
@@ -136,19 +144,9 @@ async function handleFeaturedSelect(interaction) {
   try {
     await interaction.deferUpdate();
 
-    const id = interaction.customId;
-    const cfg = getFeaturedConfig();
-
-    if (id === 'feat_color') {
-      // اختيار لون الإيمبد
-      cfg.embedColor = interaction.values[0];
-      saveFeaturedConfig(cfg);
-      return showFeaturedSettings(interaction);
-    }
-
-    // الخيارات القديمة (feat_sel_source / feat_sel_dest)
-    const field = id.replace('feat_sel_', '');
+    const field = interaction.customId.replace('feat_sel_', '');
     const channelId = interaction.values[0];
+    const cfg = getFeaturedConfig();
 
     if (field === 'source') {
       cfg.sourceChannelId = channelId;
@@ -208,6 +206,37 @@ async function handleFeaturedModal(interaction) {
       cfg.threshold = threshold;
       saveFeaturedConfig(cfg);
       return showFeaturedSettings(interaction);
+    }
+
+    if (customId === 'modal_feat_color') {
+      const input = interaction.fields.getTextInputValue('feat_color_val').trim();
+      if (!input) {
+        return interaction.reply({ content: '❌ الرجاء إدخال اسم أو قيمة اللون.', ephemeral: true });
+      }
+
+      // البحث عن اللون في قائمة COLORS
+      const normalizedInput = input.toLowerCase().replace(/[#\s]/g, '');
+      const matchedColor = COLORS.find(c =>
+        c.value.replace('#', '').toLowerCase() === normalizedInput || // hex
+        c.name.toLowerCase().includes(normalizedInput) // اسم
+      );
+
+      if (matchedColor) {
+        const cfg = getFeaturedConfig();
+        cfg.embedColor = matchedColor.value;
+        saveFeaturedConfig(cfg);
+        return showFeaturedSettings(interaction);
+      }
+
+      // محاولة interpret الـ hex مباشرة
+      if (/^[0-9A-Fa-f]{6}$/.test(normalizedInput)) {
+        const cfg = getFeaturedConfig();
+        cfg.embedColor = '#' + normalizedInput.toUpperCase();
+        saveFeaturedConfig(cfg);
+        return showFeaturedSettings(interaction);
+      }
+
+      return interaction.reply({ content: `❌ لم أجد لوناً يطابق \"${input}\". اكتب اسم اللون (مثل: أحمر، Gold) أو قيمته السداسية (مثل: #FF0000).`, ephemeral: true });
     }
   } catch (e) {
     console.error('========== ❌ handleFeaturedModal ==========');
@@ -437,19 +466,14 @@ async function handleFeaturedInteraction(interaction) {
 
     if (prefix !== 'feat') return;
 
-    // أزرار الإعدادات (إيموجي، عدد، تحديث)
-    if (id === 'feat_emoji' || id === 'feat_thresh' || id === 'feat_refresh') {
+    // أزرار الإعدادات (إيموجي، عدد، لون، تحديث)
+    if (id === 'feat_emoji' || id === 'feat_color' || id === 'feat_thresh' || id === 'feat_refresh') {
       const action = parts[1];
       return handleFeaturedButton(interaction, action);
     }
 
     // قوائم اختيار الروم (مصدر، وجهة) ← باترون settings.js
     if (id.startsWith('feat_sel_')) {
-      return handleFeaturedSelect(interaction);
-    }
-
-    // قائمة اختيار لون الإيمبد
-    if (id === 'feat_color') {
       return handleFeaturedSelect(interaction);
     }
 
