@@ -114,8 +114,6 @@ async function handleReportCommand(interaction, cfg) {
     .setDescription('البلاغ قيد المراجعة من الإدارة')
     .addFields(
       { name: '— الإداري المُبلغ عنه', value: `${target}` },
-      { name: '— متى حدث', value: when },
-      { name: '— أين حدث', value: `${whereChannel}` },
       { name: '— الحالة', value: '⏳ قيد المراجعة' },
     )
     .setFooter({ text: `الإصدار: ${version} | رقم البلاغ: ${id}` })
@@ -197,7 +195,9 @@ async function handleReportButton(interaction, action, reportId) {
 
   if (action === 'details') {
     let details = `🕵️ **مقدّم البلاغ:** <@${record.reporterId}> (${record.reporterTag})\n\n`;
-    details += `📝 **السبب:** ${record.reason}\n\n`;
+    details += `📝 **السبب:** ${record.reason}\n`;
+    details += `🕰️ **متى حدث:** ${record.when}\n`;
+    details += `📍 **أين حدث:** <#${record.whereChannelId}>\n\n`;
 
     if (record.witnesses.length) {
       details += `👥 **الشهود:**\n`;
