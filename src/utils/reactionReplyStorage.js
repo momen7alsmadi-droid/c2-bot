@@ -79,7 +79,11 @@ async function syncJsonToMongo() {
 
 async function writeToMongo(name, data) {
   if (!isMongoReady()) return null;
-  try { return await ReactModel.findByIdAndUpdate(name, { $set: { ...data, updatedAt: new Date() } }, { upsert: true, new: true }).lean(); } catch (e) { console.error(`❌ reaction MongoDB error:`, e.message); return null; }
+  try {
+    const { _id, ...safeData } = data || {};
+    safeData.updatedAt = new Date();
+    return await ReactModel.findByIdAndUpdate(name, { $set: safeData }, { upsert: true, new: true }).lean();
+  } catch (e) { console.error(`❌ reaction MongoDB error:`, e.message); return null; }
 }
 
 async function deleteFromMongo(name) {
@@ -90,18 +94,26 @@ async function deleteFromMongo(name) {
 // ========== API ==========
 
 async function getAllReacts() {
+  const jsonData = readJSON();
+  const jsonReacts = Object.values(jsonData);
+
   if (isMongoReady()) {
     try {
-      const data = await ReactModel.find().lean();
-      if (data && data.length > 0) {
-        const jsonObj = {};
-        for (const item of data) jsonObj[item.name] = { ...item, _id: item.name };
-        objToJson(jsonObj);
-        return data;
+      const mongoData = await ReactModel.find().lean();
+      if (mongoData && mongoData.length > 0) {
+        for (const item of mongoData) {
+          const key = item.name;
+          if (key) {
+            jsonData[key] = { ...(jsonData[key] || {}), ...item, _id: key };
+          }
+        }
+        objToJson(jsonData);
+        return Object.values(jsonData);
       }
     } catch (e) { console.error('❌ reaction getAll MongoDB:', e.message); }
   }
-  return Object.values(readJSON());
+
+  return jsonReacts;
 }
 
 async function getReact(name) {

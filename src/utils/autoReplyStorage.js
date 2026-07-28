@@ -107,9 +107,12 @@ async function syncJsonToMongo() {
 async function writeToMongo(name, data) {
   if (!isMongoReady()) return null;
   try {
+    // نزيل _id لأن MongoDB لا يسمح بتعديله عبر $set
+    const { _id, ...safeData } = data || {};
+    safeData.updatedAt = new Date();
     return await AutoReplyModel.findByIdAndUpdate(
       name,
-      { $set: { ...data, updatedAt: new Date() } },
+      { $set: safeData },
       { upsert: true, new: true }
     ).lean();
   } catch (e) {
@@ -126,21 +129,28 @@ async function deleteFromMongo(name) {
 // ========== API العامة ==========
 
 async function getAllReplies() {
-  // حاول من MongoDB أولاً
+  // نجلب من JSON أولاً (المصدر الأساسي)
+  const jsonData = readJSON();
+  const jsonReplies = Object.values(jsonData);
+
+  // ندمج مع MongoDB (إذا كان متصلاً)
   if (isMongoReady()) {
     try {
-      const data = await AutoReplyModel.find().lean();
-      if (data && data.length > 0) {
-        // مزامنة إلى JSON كنسخة احتياطية
-        const jsonObj = {};
-        for (const item of data) jsonObj[item.name] = { ...item, _id: item.name };
-        objToJson(jsonObj);
-        return data;
+      const mongoData = await AutoReplyModel.find().lean();
+      if (mongoData && mongoData.length > 0) {
+        for (const item of mongoData) {
+          const key = item.name;
+          if (key) {
+            jsonData[key] = { ...(jsonData[key] || {}), ...item, _id: key };
+          }
+        }
+        objToJson(jsonData);
+        return Object.values(jsonData);
       }
     } catch (e) { console.error('❌ autoReply getAll MongoDB:', e.message); }
   }
-  // ارجع للـ JSON
-  return Object.values(readJSON());
+
+  return jsonReplies;
 }
 
 async function getReply(name) {
