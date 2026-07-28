@@ -90,11 +90,8 @@ async function handleFeaturedButton(interaction, action) {
     }
 
     if (action === 'emoji' || action === 'thresh') {
-      // استعمال deferUpdate() ثم عرض المودال
-      await interaction.deferUpdate();
+      // المودال يجب أن يُرسل كرد أولي (لا يمكن بعد deferUpdate)
       const isEmoji = action === 'emoji';
-      const cfg = getFeaturedConfig();
-
       const modal = new ModalBuilder()
         .setCustomId(isEmoji ? 'modal_feat_emoji' : 'modal_feat_threshold')
         .setTitle(isEmoji ? '😀 تغيير الإيموجي المطلوب' : '🔢 العدد المطلوب للنقل');
@@ -115,7 +112,11 @@ async function handleFeaturedButton(interaction, action) {
       return showFeaturedSettings(interaction);
     }
   } catch (e) {
-    console.error('❌ handleFeaturedButton:', e.message);
+    console.error('========== ❌ handleFeaturedButton ==========');
+    console.error('Action:', action);
+    console.error('Message:', e.message);
+    console.error('Stack:', e.stack);
+    console.error('=============================================');
     try {
       if (interaction.deferred || interaction.replied) {
         await interaction.editReply({ content: '⚠️ خطأ.', components: [] });
