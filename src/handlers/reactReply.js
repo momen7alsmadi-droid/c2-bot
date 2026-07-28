@@ -447,6 +447,13 @@ async function handleReactModal(interaction) {
 async function handleReactInteraction(interaction) {
   const id = interaction.customId;
 
+  // الأزرار اللي تظهر مودال ما نعمل لها defer
+  const isModalAction = id === 'rr_create';
+
+  if (!isModalAction) {
+    try { await interaction.deferUpdate(); } catch {}
+  }
+
   if (id === 'rr_main') return handleReactMain(interaction);
   if (id === 'rr_create') return handleRrCreate(interaction);
   if (id === 'rr_list') return handleRrList(interaction);

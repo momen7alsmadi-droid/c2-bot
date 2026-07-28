@@ -982,6 +982,20 @@ async function handleEmbedsInteraction(interaction) {
   const parts = id.split('_');
   const prefix = parts[0];
 
+  // الأزرار التي تظهر مودال (نحتاج التفاعل فوراً، ما نعمل defer)
+  const isModalAction = id === 'emb_create' ||
+    (prefix === 'emb' && (
+      parts[1] === 'addfield' ||
+      parts[1] === 'footer' ||
+      parts[1] === 'sched' ||
+      (parts[1] === 'edit' && (parts[2] === 'title' || parts[2] === 'desc'))
+    ));
+
+  // نعمل deferUpdate عشان ناخذ وقت (إلا الأزرار اللي تظهر مودال)
+  if (!isModalAction) {
+    try { await interaction.deferUpdate(); } catch { /* إذا كان مؤجلاً مسبقاً نكمل */ }
+  }
+
   // الأزرار الرئيسية
   if (id === 'emb_main') return handleEmbedsMain(interaction);
   if (id === 'emb_create') return handleEmbCreate(interaction);

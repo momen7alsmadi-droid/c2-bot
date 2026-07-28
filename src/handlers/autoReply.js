@@ -974,6 +974,14 @@ async function handleAutoReplyInteraction(interaction) {
   const parts = id.split('_');
   const prefix = parts[0];
 
+  // الأزرار اللي تظهر مودال ما نعمل لها defer
+  const isModalAction = id === 'ar_create' ||
+    (prefix === 'ar' && (parts[1] === 'responses' || parts[1] === 'embed' || parts[1] === 'embedcolor'));
+
+  if (!isModalAction) {
+    try { await interaction.deferUpdate(); } catch {}
+  }
+
   // الأزرار الرئيسية
   if (id === 'ar_main') return handleAutoReplyMain(interaction);
   if (id === 'ar_create') return handleArCreate(interaction);
