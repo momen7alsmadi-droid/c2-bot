@@ -347,20 +347,17 @@ async function handleFeaturedReaction(reaction, user) {
     const descContent = message.content || '';
     const emoji = cfg.emoji || '⭐';
 
-    // ===== تشخيص: طباعة الـ IDs جنباً إلى جنب =====
+    // ===== تشخيص: طباعة القيمة قبل بناء الرابط =====
     console.log('\n========== 🔍 تشخيص ID المنشن ==========');
-    console.log('📌 message.channelId         :', message.channelId);
-    console.log('📌 message.channel?.id        :', message.channel?.id);
-    console.log('📌 message.channel?.parentId  :', message.channel?.parentId);
-    console.log('📌 هل channel.isThread?       :', message.channel?.isThread?.());
-    console.log('📌 هل هذه رسالة بداية؟        :', message.id === message.channel?.id);
+    console.log('📌 message.channel.id         :', message.channel?.id);
+    console.log('📌 message.channel.parentId   :', message.channel?.parentId);
+    console.log('📌 هل هما متساويان؟            :', message.channel?.id === message.channel?.parentId);
     console.log('==========================================\n');
 
-    // نستخدم message.channelId (خاصية مباشرة من API، لا تعتمد على كاش القنوات)
-    // في الفورم: channelId = ID الـ Thread الخاص بالفكرة (يتغير مع كل فكرة)
-    // parentId = ID روم الفورم الثابت (نفسه لكل الفكر)
-    const threadId = message.channelId || message.channel?.id;
-    console.log('✅ سنستخدم ID:', threadId, 'في المنشن');
+    // نستخدم message.channel.id فقط (لا parent ولا إعدادات)
+    // message هنا هي الرسالة الأصلية في روم المصدر (reaction.message)
+    const threadId = message.channel?.id;
+    console.log('✅ قيمة threadId المُستخدمة:', threadId);
     const mentionLink = `<#${threadId}>`;
     const topLine = `${realUserCount} ${emoji} | ${mentionLink}`;
 
