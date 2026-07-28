@@ -4,7 +4,7 @@
  */
 const {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder,
-  ChannelSelectMenuBuilder,
+  ChannelSelectMenuBuilder, StringSelectMenuBuilder,
   ModalBuilder, TextInputBuilder, TextInputStyle,
   ChannelType
 } = require('discord.js');
@@ -13,6 +13,11 @@ const {
   getFeaturedConfig, saveFeaturedConfig
 } = require('../utils/featuredStorage');
 const { COLORS } = require('../utils/colors');
+
+// ---------- دالة مساعدة: تحويل hex (#RRGGBB) إلى integer لـ discord.js ----------
+function hexToInt(hex) {
+  return parseInt((hex || '#F1C40F').replace('#', ''), 16) || 0xF1C40F;
+}
 
 // ---------- دالة مساعدة: تحديث أو رد حسب حالة الـ interaction ----------
 async function respondOrUpdate(interaction, payload) {
@@ -34,11 +39,11 @@ async function showFeaturedSettings(interaction) {
     const cfg = getFeaturedConfig();
     const currentColorHex = cfg.embedColor || '#F1C40F';
     const currentColorName = COLORS.find(c => c.value === currentColorHex)?.name || 'ذهبي (Gold)';
-    const embedColorInt = parseInt(currentColorHex.replace('#', ''), 16) || 0xF1C40F;
+    const embedColorInt = hexToInt(currentColorHex);
 
     const embed = new EmbedBuilder()
       .setTitle('⭐ إعدادات نظام الاقتراحات')
-      .setColor(embedColorInt) // ← معاينة حية للون المختار
+      .setColor(embedColorInt)
       .setDescription('تحكم في نظام ترشيح الاقتراحات المميزة')
       .addFields(
         { name: '📥 روم المصدر (الاقتراحات)', value: cfg.sourceChannelId ? `<#${cfg.sourceChannelId}>` : '❌ غير محدد', inline: false },
@@ -47,8 +52,15 @@ async function showFeaturedSettings(interaction) {
         { name: '🔢 العدد المطلوب للنقل', value: `${cfg.threshold || 5}`, inline: true },
         { name: '🎨 لون الإيمبد', value: currentColorName, inline: true },
       )
-      .setFooter({ text: `الإصدار: ${version} | اكتب اسم اللون (عربي/إنجليزي) في المودال` })
+      .setFooter({ text: `الإصدار: ${version}` })
       .setTimestamp();
+
+    // قائمة الألوان الجاهزة (أول 25 لون)
+    const readyColorOptions = COLORS.slice(0, 25).map(c => ({
+      label: c.name,
+      value: c.value,
+      default: c.value === currentColorHex
+    }));
 
     const components = [
       new ActionRowBuilder().addComponents(
@@ -67,8 +79,14 @@ async function showFeaturedSettings(interaction) {
       ),
       new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('feat_emoji').setLabel('😀 الإيموجي المطلوب ⏵').setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId('feat_color').setLabel('🎨 لون الإيمبد ⏵').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('feat_custom_color').setLabel('لون مخصص 🎨').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('feat_thresh').setLabel('🔢 العدد المطلوب ⏵').setStyle(ButtonStyle.Secondary),
+      ),
+      new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId('feat_readycolor')
+          .setPlaceholder('🎨 ألوان جاهزة')
+          .addOptions(readyColorOptions)
       ),
       new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('feat_refresh').setLabel('🔄 تحديث').setStyle(ButtonStyle.Primary),
@@ -103,18 +121,18 @@ async function handleFeaturedButton(interaction, action) {
       return interaction.showModal(modal);
     }
 
-    if (action === 'color') {
+    if (action === 'custom_color') {
       const modal = new ModalBuilder()
-        .setCustomId('modal_feat_color')
-        .setTitle('🎨 اختيار لون الإيمبد');
+        .setCustomId('modal_feat_custom_color')
+        .setTitle('🎨 لون مخصص');
 
       const input = new TextInputBuilder()
-        .setCustomId('feat_color_val')
-        .setLabel('اسم اللون أو قيمته السداسية (عربي/إنجليزي)')
-        .setPlaceholder('مثال: ذهبي أو Gold أو #FFD700')
+        .setCustomId('feat_custom_color_val')
+        .setLabel('أدخل رمز اللون السداسي (Hex Code)')
+        .setPlaceholder('مثال: #FF0000')
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
-        .setMaxLength(100);
+        .setMaxLength(7);
 
       modal.addComponents(new ActionRowBuilder().addComponents(input));
       return interaction.showModal(modal);
@@ -144,9 +162,19 @@ async function handleFeaturedSelect(interaction) {
   try {
     await interaction.deferUpdate();
 
-    const field = interaction.customId.replace('feat_sel_', '');
-    const channelId = interaction.values[0];
+    const id = interaction.customId;
     const cfg = getFeaturedConfig();
+
+    // قائمة الألوان الجاهزة
+    if (id === 'feat_readycolor') {
+      cfg.embedColor = interaction.values[0];
+      saveFeaturedConfig(cfg);
+      return showFeaturedSettings(interaction);
+    }
+
+    // قوائم اختيار الروم (feat_sel_source / feat_sel_dest)
+    const field = id.replace('feat_sel_', '');
+    const channelId = interaction.values[0];
 
     if (field === 'source') {
       cfg.sourceChannelId = channelId;
@@ -208,35 +236,15 @@ async function handleFeaturedModal(interaction) {
       return showFeaturedSettings(interaction);
     }
 
-    if (customId === 'modal_feat_color') {
-      const input = interaction.fields.getTextInputValue('feat_color_val').trim();
-      if (!input) {
-        return interaction.reply({ content: '❌ الرجاء إدخال اسم أو قيمة اللون.', ephemeral: true });
+    if (customId === 'modal_feat_custom_color') {
+      const hex = interaction.fields.getTextInputValue('feat_custom_color_val').trim();
+      if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) {
+        return interaction.reply({ content: '❌ رمز اللون غير صالح. استخدم صيغة Hex مكونة من 6 أرقام/حروف، مثال: #FF0000', ephemeral: true });
       }
-
-      // البحث عن اللون في قائمة COLORS
-      const normalizedInput = input.toLowerCase().replace(/[#\s]/g, '');
-      const matchedColor = COLORS.find(c =>
-        c.value.replace('#', '').toLowerCase() === normalizedInput || // hex
-        c.name.toLowerCase().includes(normalizedInput) // اسم
-      );
-
-      if (matchedColor) {
-        const cfg = getFeaturedConfig();
-        cfg.embedColor = matchedColor.value;
-        saveFeaturedConfig(cfg);
-        return showFeaturedSettings(interaction);
-      }
-
-      // محاولة interpret الـ hex مباشرة
-      if (/^[0-9A-Fa-f]{6}$/.test(normalizedInput)) {
-        const cfg = getFeaturedConfig();
-        cfg.embedColor = '#' + normalizedInput.toUpperCase();
-        saveFeaturedConfig(cfg);
-        return showFeaturedSettings(interaction);
-      }
-
-      return interaction.reply({ content: `❌ لم أجد لوناً يطابق \"${input}\". اكتب اسم اللون (مثل: أحمر، Gold) أو قيمته السداسية (مثل: #FF0000).`, ephemeral: true });
+      const cfg = getFeaturedConfig();
+      cfg.embedColor = hex.toUpperCase();
+      saveFeaturedConfig(cfg);
+      return showFeaturedSettings(interaction);
     }
   } catch (e) {
     console.error('========== ❌ handleFeaturedModal ==========');
@@ -421,7 +429,7 @@ async function handleFeaturedReaction(reaction, user) {
     const topLine = `${realUserCount} ${emoji} | ${mentionLink}`;
 
     const embedColorHex = cfg.embedColor || '#F1C40F';
-    const embedColorInt = parseInt(embedColorHex.replace('#', ''), 16) || 0xF1C40F;
+    const embedColorInt = hexToInt(embedColorHex);
 
     const featuredEmbed = new EmbedBuilder()
       .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
@@ -466,14 +474,19 @@ async function handleFeaturedInteraction(interaction) {
 
     if (prefix !== 'feat') return;
 
-    // أزرار الإعدادات (إيموجي، عدد، لون، تحديث)
-    if (id === 'feat_emoji' || id === 'feat_color' || id === 'feat_thresh' || id === 'feat_refresh') {
+    // أزرار الإعدادات (إيموجي، عدد، لون مخصص، تحديث)
+    if (id === 'feat_emoji' || id === 'feat_custom_color' || id === 'feat_thresh' || id === 'feat_refresh') {
       const action = parts[1];
       return handleFeaturedButton(interaction, action);
     }
 
     // قوائم اختيار الروم (مصدر، وجهة) ← باترون settings.js
     if (id.startsWith('feat_sel_')) {
+      return handleFeaturedSelect(interaction);
+    }
+
+    // قائمة الألوان الجاهزة
+    if (id === 'feat_readycolor') {
       return handleFeaturedSelect(interaction);
     }
 

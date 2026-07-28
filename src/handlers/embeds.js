@@ -229,9 +229,14 @@ async function showEmbedControlPanel(interaction, embedName, editMode = false) {
     row4.addComponents(new ButtonBuilder().setCustomId('emb_edit').setLabel('🔙 لقائمة التعديل').setStyle(ButtonStyle.Secondary));
   }
 
+  // الصف الخامس: زر لون مخصص (بجانب القائمة المنسدلة دون المساس بها)
+  const row5 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`emb_custom_color_${embedName}`).setLabel('لون مخصص 🎨').setStyle(ButtonStyle.Secondary),
+  );
+
   return respondOrUpdate(interaction, {
     embeds: [infoEmbed, embed],
-    components: [row1, row2, row3, row4]
+    components: [row1, row2, row3, row4, row5]
   });
 }
 
@@ -895,6 +900,25 @@ async function handleEmbColor(interaction, embedName, colorValue) {
   return showEmbedControlPanel(interaction, embedName, true);
 }
 
+// ================== لون مخصص (Modal مع Hex) ==================
+
+async function handleEmbCustomColor(interaction, embedName) {
+  const modal = new ModalBuilder()
+    .setCustomId(`modal_emb_custom_color_${embedName}`)
+    .setTitle('🎨 لون مخصص');
+
+  const input = new TextInputBuilder()
+    .setCustomId('emb_custom_color_val')
+    .setLabel('أدخل رمز اللون السداسي (Hex Code)')
+    .setPlaceholder('مثال: #FF0000')
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setMaxLength(7);
+
+  modal.addComponents(new ActionRowBuilder().addComponents(input));
+  return interaction.showModal(modal);
+}
+
 // ================== معالجات التعديل (عنوان/محتوى) ==================
 
 async function handleEmbEditTitle(interaction, embedName) {
@@ -1069,11 +1093,17 @@ async function handleEmbedsInteraction(interaction) {
     return handleEmbAddField(interaction, name);
   }
 
-  // اختيار لون
+  // اختيار لون (قائمة جاهزة)
   if (prefix === 'emb' && parts[1] === 'color') {
     const name = parts.slice(2).join('_');
     const [realName, colorValue] = interaction.values[0].split('|');
     return handleEmbColor(interaction, realName, colorValue);
+  }
+
+  // لون مخصص (زر Modal)
+  if (prefix === 'emb' && parts[1] === 'custom_color') {
+    const name = parts.slice(2).join('_');
+    return handleEmbCustomColor(interaction, name);
   }
 
   // تعديل التذييل
@@ -1156,6 +1186,17 @@ async function handleEmbedsModal(interaction) {
   // إرسال بمؤقت
   if (id.startsWith('modal_emb_sched_')) {
     return handleEmbSchedModal(interaction);
+  }
+
+  // لون مخصص
+  if (id.startsWith('modal_emb_custom_color_')) {
+    const embedName = id.replace('modal_emb_custom_color_', '');
+    const hex = interaction.fields.getTextInputValue('emb_custom_color_val').trim();
+    if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) {
+      return interaction.reply({ content: '❌ رمز اللون غير صالح. استخدم صيغة Hex مكونة من 6 أرقام/حروف، مثال: #FF0000', ephemeral: true });
+    }
+    await updateEmbed(embedName, { color: hex.toUpperCase() });
+    return showEmbedControlPanel(interaction, embedName, true);
   }
 
   return interaction.reply({ content: '⚠️ Modal غير معروف.', ephemeral: true });
