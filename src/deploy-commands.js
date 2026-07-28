@@ -32,13 +32,15 @@ const commands = [
   new SlashCommandBuilder()
     .setName('بلاغ')
     .setDescription('تقديم بلاغ سري على إداري')
+    // ====== خيارات إلزامية أولاً ======
     .addUserOption(o => o.setName('الاداري').setDescription('الإداري المبلغ عنه').setRequired(true))
     .addStringOption(o => o.setName('السبب').setDescription('سبب البلاغ').setRequired(true))
     .addStringOption(o => o.setName('متى').setDescription('متى حدثت الواقعة؟').setRequired(true))
     .addChannelOption(o => o.setName('المكان').setDescription('أين حدثت؟').addChannelTypes(ChannelType.GuildText).setRequired(true))
-    .addStringOption(o => o.setName('ملاحظات').setDescription('ملاحظات إضافية (اختياري)').setRequired(false))
-    .addStringOption(o => o.setName('شهود').setDescription('منشن الشهود بـ @ مثال: @witness1 @witness2').setRequired(false))
     .addAttachmentOption(o => o.setName('دليل_1').setDescription('صورة الدليل الأولى (إلزامي)').setRequired(true))
+    // ====== خيارات اختيارية بعدها ======
+    .addStringOption(o => o.setName('شهود').setDescription('منشن الشهود بـ @ مثال: @witness1 @witness2').setRequired(false))
+    .addStringOption(o => o.setName('ملاحظات').setDescription('ملاحظات إضافية (اختياري)').setRequired(false))
     .addAttachmentOption(o => o.setName('دليل_2').setDescription('صورة دليل (اختياري)').setRequired(false))
     .addAttachmentOption(o => o.setName('دليل_3').setDescription('صورة دليل (اختياري)').setRequired(false))
     .addAttachmentOption(o => o.setName('دليل_4').setDescription('صورة دليل (اختياري)').setRequired(false))
