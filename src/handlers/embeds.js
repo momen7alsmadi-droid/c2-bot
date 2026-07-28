@@ -1103,8 +1103,8 @@ async function handleEmbedsInteraction(interaction) {
   }
 
   // لون مخصص (زر Modal)
-  if (prefix === 'emb' && parts[1] === 'custom_color') {
-    const name = parts.slice(2).join('_');
+  if (id.startsWith('emb_custom_color_')) {
+    const name = id.replace('emb_custom_color_', '');
     return handleEmbCustomColor(interaction, name);
   }
 

@@ -482,10 +482,10 @@ async function handleFeaturedInteraction(interaction) {
     if (prefix !== 'feat') return;
 
     // أزرار الإعدادات (إيموجي، عدد، لون مخصص، تحديث)
-    if (id === 'feat_emoji' || id === 'feat_custom_color' || id === 'feat_thresh' || id === 'feat_refresh') {
-      const action = parts[1];
-      return handleFeaturedButton(interaction, action);
-    }
+    if (id === 'feat_emoji') return handleFeaturedButton(interaction, 'emoji');
+    if (id === 'feat_custom_color') return handleFeaturedButton(interaction, 'custom_color');
+    if (id === 'feat_thresh') return handleFeaturedButton(interaction, 'thresh');
+    if (id === 'feat_refresh') return handleFeaturedButton(interaction, 'refresh');
 
     // قوائم اختيار الروم (مصدر، وجهة) ← باترون settings.js
     if (id.startsWith('feat_sel_')) {
