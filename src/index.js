@@ -265,6 +265,8 @@ client.on('interactionCreate', async (interaction) => {
         await handleEmbedsInteraction(interaction);
       } else if (interaction.customId.startsWith('ar_') || interaction.customId.startsWith('rr_')) {
         await handleAutoReplyInteraction(interaction);
+      } else if (interaction.customId.startsWith('feat_')) {
+        await handleFeaturedInteraction(interaction);
       } else {
         await handleSettingsSelect(interaction);
       }
