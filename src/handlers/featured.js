@@ -204,7 +204,12 @@ async function handleFeaturedMessage(message) {
     if (!cfg.sourceChannelId || !cfg.emoji) return;
     if (message.channel.id !== cfg.sourceChannelId) return;
 
-    await message.react(cfg.emoji).catch(() => {});
+    if (cfg.emoji) {
+      await message.react(cfg.emoji).catch((err) => {
+        console.error('❌ فشل إضافة التفاعل التلقائي:', cfg.emoji, err.message);
+      });
+      console.log(`✅ تم إضافة ${cfg.emoji} تلقائياً على رسالة ${message.id} في ${message.channel.name}`);
+    }
   } catch (e) {
     console.error('❌ handleFeaturedMessage:', e.message);
   }
@@ -225,7 +230,10 @@ async function handleFeaturedReaction(reaction, user) {
     if (emojiStr !== cfg.emoji) {
       try {
         await reaction.users.remove(user.id);
-      } catch {}
+        console.log(`🗑️ تم حذف ${emojiStr} (غير مصرح) من رسالة ${reaction.message.id} للمستخدم ${user.tag}`);
+      } catch (err) {
+        console.error('❌ فشل حذف التفاعل غير المصرح:', emojiStr, err.message);
+      }
       return;
     }
 

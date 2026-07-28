@@ -50,7 +50,11 @@ function readJSON(filePath, fallback) {
 }
 
 function writeJSON(filePath, data) {
-  try { fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8'); } catch {}
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+  } catch (e) {
+    console.error('❌ featuredStorage writeJSON فشل في كتابة الملف:', filePath, e.message);
+  }
 }
 
 // ========== الإعدادات ==========
