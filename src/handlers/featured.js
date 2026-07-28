@@ -4,13 +4,15 @@
  */
 const {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder,
-  ChannelSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle,
+  ChannelSelectMenuBuilder, StringSelectMenuBuilder,
+  ModalBuilder, TextInputBuilder, TextInputStyle,
   ChannelType
 } = require('discord.js');
 const { version } = require('../utils/version');
 const {
   getFeaturedConfig, saveFeaturedConfig
 } = require('../utils/featuredStorage');
+const { COLORS } = require('../utils/colors');
 
 // ---------- دالة مساعدة: تحديث أو رد حسب حالة الـ interaction ----------
 async function respondOrUpdate(interaction, payload) {
@@ -30,6 +32,8 @@ async function respondOrUpdate(interaction, payload) {
 async function showFeaturedSettings(interaction) {
   try {
     const cfg = getFeaturedConfig();
+    const currentColorName = COLORS.find(c => c.value === (cfg.embedColor || '#F1C40F'))?.name || 'ذهبي (Gold)';
+
     const embed = new EmbedBuilder()
       .setTitle('⭐ إعدادات نظام الاقتراحات')
       .setColor(0xF1C40F)
@@ -39,12 +43,20 @@ async function showFeaturedSettings(interaction) {
         { name: '📤 روم الوجهة (المميزة)', value: cfg.destChannelId ? `<#${cfg.destChannelId}>` : '❌ غير محدد', inline: false },
         { name: '😀 الإيموجي المطلوب', value: cfg.emoji || '⭐', inline: true },
         { name: '🔢 العدد المطلوب للنقل', value: `${cfg.threshold || 5}`, inline: true },
+        { name: '🎨 لون الإيمبد', value: currentColorName, inline: true },
       )
       .setFooter({ text: `الإصدار: ${version}` })
       .setTimestamp();
 
+    // بناء قائمة الألوان (أول 25 لون + الباقي يظهر بالبحث)
+    const colorOptions = COLORS.map((c, i) => ({
+      label: c.name,
+      value: c.value,
+      // أول 25 لون تظهر مباشرة
+      default: c.value === (cfg.embedColor || '#F1C40F')
+    }));
+
     const components = [
-      // كل خيار في صف مستقل مثل نمط settings.js
       new ActionRowBuilder().addComponents(
         new ChannelSelectMenuBuilder()
           .setCustomId('feat_sel_source')
@@ -63,6 +75,12 @@ async function showFeaturedSettings(interaction) {
         new ButtonBuilder().setCustomId('feat_emoji').setLabel('😀 الإيموجي المطلوب ⏵').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('feat_thresh').setLabel('🔢 العدد المطلوب ⏵').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('feat_refresh').setLabel('🔄 تحديث').setStyle(ButtonStyle.Primary),
+      ),
+      new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId('feat_color')
+          .setPlaceholder('🎨 اختر لون الإيمبد')
+          .addOptions(colorOptions.slice(0, 25)) // أول 25 لون (حد Discord)
       ),
     ];
 
@@ -118,9 +136,19 @@ async function handleFeaturedSelect(interaction) {
   try {
     await interaction.deferUpdate();
 
-    const field = interaction.customId.replace('feat_sel_', '');
-    const channelId = interaction.values[0];
+    const id = interaction.customId;
     const cfg = getFeaturedConfig();
+
+    if (id === 'feat_color') {
+      // اختيار لون الإيمبد
+      cfg.embedColor = interaction.values[0];
+      saveFeaturedConfig(cfg);
+      return showFeaturedSettings(interaction);
+    }
+
+    // الخيارات القديمة (feat_sel_source / feat_sel_dest)
+    const field = id.replace('feat_sel_', '');
+    const channelId = interaction.values[0];
 
     if (field === 'source') {
       cfg.sourceChannelId = channelId;
@@ -130,15 +158,17 @@ async function handleFeaturedSelect(interaction) {
     saveFeaturedConfig(cfg);
 
     // تعديل صلاحيات الروم لمنع @everyone من إضافة تفاعلات
-    try {
-      const channel = await interaction.guild.channels.fetch(channelId);
-      if (channel) {
-        await channel.permissionOverwrites.edit(interaction.guild.id, {
-          AddReactions: false
-        }).catch(() => {});
+    if (field === 'source' || field === 'dest') {
+      try {
+        const channel = await interaction.guild.channels.fetch(channelId);
+        if (channel) {
+          await channel.permissionOverwrites.edit(interaction.guild.id, {
+            AddReactions: false
+          }).catch(() => {});
+        }
+      } catch (e) {
+        console.error('❌ feat permission edit:', e.message);
       }
-    } catch (e) {
-      console.error('❌ feat permission edit:', e.message);
     }
 
     // العودة للوحة الإعدادات
@@ -361,10 +391,13 @@ async function handleFeaturedReaction(reaction, user) {
     const mentionLink = `<#${threadId}>`;
     const topLine = `${realUserCount} ${emoji} | ${mentionLink}`;
 
+    const embedColorHex = cfg.embedColor || '#F1C40F';
+    const embedColorInt = parseInt(embedColorHex.replace('#', ''), 16) || 0xF1C40F;
+
     const featuredEmbed = new EmbedBuilder()
       .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
-      .setDescription(`${descContent}\n\n[📎 اضغط للانتقال إلى الرسالة الأصلية](${message.url})`)
-      .setColor(0xF1C40F)
+      .setDescription(`${descContent}\n👤 ${message.author}\n\n[📎 اضغط للانتقال إلى الرسالة الأصلية](${message.url})`)
+      .setColor(embedColorInt)
       .setTimestamp();
 
     if (message.attachments.size > 0) {
@@ -412,6 +445,11 @@ async function handleFeaturedInteraction(interaction) {
 
     // قوائم اختيار الروم (مصدر، وجهة) ← باترون settings.js
     if (id.startsWith('feat_sel_')) {
+      return handleFeaturedSelect(interaction);
+    }
+
+    // قائمة اختيار لون الإيمبد
+    if (id === 'feat_color') {
       return handleFeaturedSelect(interaction);
     }
 

@@ -16,7 +16,8 @@ const DEFAULT_FEATURED_CONFIG = {
   sourceChannelId: null,
   destChannelId: null,
   emoji: '⭐',
-  threshold: 5
+  threshold: 5,
+  embedColor: '#F1C40F'
 };
 
 // ---------- MongoDB Schema ----------
