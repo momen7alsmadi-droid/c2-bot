@@ -25,6 +25,7 @@ const { initEmbedModel } = require('./utils/embedStorage');
 const { handleAutoReplyInteraction, handleAutoReplyModal, handleAutoReplyMain, handleMessage } = require('./handlers/autoReply');
 const { handleReactInteraction, handleReactModal, handleReactMain, handleReactMessage } = require('./handlers/reactReply');
 const { handleStarboardMain, handleStarboardInteraction, handleStarboardModal, handleStarboardMessage, handleStarboardReaction } = require('./handlers/starboard');
+const { deployCommands } = require('./deploy-commands');
 const { initStarboardModels, ensureStarboardLoaded } = require('./utils/starboardStorage');
 const { initAutoReplyModel, syncJsonToMongo: syncAr } = require('./utils/autoReplyStorage');
 const { initReactModel, syncJsonToMongo: syncRr } = require('./utils/reactionReplyStorage');
@@ -163,6 +164,9 @@ ID: ${guild.id}
   // بدء إرسال رسالة كل 14 دقيقة بعد ما البوت يشتغل
   client.once('ready', () => {
     console.log(`✅ البوت شغّال باسم ${client.user.tag}`);
+    
+    // تسجيل الأوامر (Sync/Deploy) لمسح القديمة وإضافة الجديدة
+    deployCommands().then(() => console.log('📋 تمت مزامنة الأوامر مع Discord API'));
     
     // إرسال أول رسالة فور التشغيل
     setTimeout(() => sendPingMessage(), 5000);

@@ -131,7 +131,7 @@ const commands = [
 
 const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);
 
-(async () => {
+async function deployCommands() {
   try {
     console.log('⏳ جاري تسجيل الأوامر...');
     await rest.put(
@@ -142,4 +142,11 @@ const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);
   } catch (err) {
     console.error('❌ فشل تسجيل الأوامر:', err);
   }
-})();
+}
+
+// إذا شُغّل كسكريبت مستقل
+if (require.main === module) {
+  deployCommands();
+}
+
+module.exports = { deployCommands };
