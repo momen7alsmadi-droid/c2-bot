@@ -138,7 +138,7 @@ async function showSettingsPage(interaction, type, page) {
         embeds: [embed],
         components: [
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_leaveRole').setPlaceholder('🎖️ رتبة الإجازة').setMaxValues(1)),
-          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_rolesToRemove').setPlaceholder('🗑️ رتب للإزالة').setMaxValues(25)),
+          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_rolesToRemove').setPlaceholder('🗑️ اختر أدنى وأعلى رتبة للنطاق').setMinValues(2).setMaxValues(2)),
           new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('set_leave_1').setLabel('◀️ الأساسيات').setStyle(ButtonStyle.Primary), btnBack),
         ]
       });
@@ -260,7 +260,7 @@ async function showSettingsPage(interaction, type, page) {
       return respondOrUpdate(interaction, {
         embeds: [embed],
         components: [
-          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_rolesToRemove').setPlaceholder('🗑️ رتب للإزالة').setMaxValues(25)),
+          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_rolesToRemove').setPlaceholder('🗑️ اختر أدنى وأعلى رتبة للنطاق').setMinValues(2).setMaxValues(2)),
           new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('set_resign_1').setLabel('◀️ الأساسيات').setStyle(ButtonStyle.Primary), btnBack),
         ]
       });
@@ -322,7 +322,22 @@ async function handleSettingsSelect(interaction) {
     const mapKey = fieldMap[field] || field;
 
     if (listFields.includes(field)) {
-      cfg[system].rolesToRemove = values || [];
+      // نظام النطاق الهرمي: منشن رتبتين فقط، نحسب الرتب بينهما
+      if (field === 'rolesToRemove' && values.length === 2) {
+        const roleA = interaction.guild.roles.cache.get(values[0]);
+        const roleB = interaction.guild.roles.cache.get(values[1]);
+        if (roleA && roleB) {
+          const minPos = Math.min(roleA.position, roleB.position);
+          const maxPos = Math.max(roleA.position, roleB.position);
+          // نجمع كل الرتب بين أقل position وأعلى position (شاملاً)
+          const rolesInRange = interaction.guild.roles.cache.filter(r => r.position >= minPos && r.position <= maxPos && r.id !== interaction.guild.id);
+          cfg[system].rolesToRemove = rolesInRange.map(r => r.id);
+        } else {
+          cfg[system].rolesToRemove = values || [];
+        }
+      } else {
+        cfg[system].rolesToRemove = values || [];
+      }
     } else {
       cfg[system][mapKey] = values[0] || null;
     }
