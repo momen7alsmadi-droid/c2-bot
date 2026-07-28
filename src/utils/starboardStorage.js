@@ -1,6 +1,5 @@
 /**
  * starboardStorage.js - تخزين نظام لوحة النجوم (MongoDB + JSON مع Fallback آمن)
- * يدعم لوحات متعددة مثل نظام الإيمبدات
  */
 const mongoose = require('mongoose');
 const fs = require('fs');
@@ -9,65 +8,33 @@ const path = require('path');
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const PANELS_PATH = path.join(DATA_DIR, 'starboard-panels.json');
+const CONFIG_PATH = path.join(DATA_DIR, 'starboard-config.json');
 
-// ---------- القيم الافتراضية للوحة جديدة ----------
-function defaultPanel(name) {
-  return {
-    name,
-    sourceChannelId: null,
-    destChannelId: null,
-    emoji: '⭐',
-    threshold: 5,
-    embedColor: '#F1C40F',
-    createdAt: Date.now(),
-    updatedAt: Date.now()
-  };
-}
+// ---------- القيم الافتراضية ----------
+const DEFAULT_CONFIG = {
+  sourceChannelId: null,
+  destChannelId: null,
+  emoji: '⭐',
+  threshold: 5,
+  embedColor: '#F1C40F'
+};
 
 // ---------- MongoDB Schema ----------
-const panelSchema = new mongoose.Schema({
-  _id: String, // اسم اللوحة (مفتاح فريد)
-  name: { type: String, required: true },
-  sourceChannelId: { type: String, default: null },
-  destChannelId: { type: String, default: null },
-  emoji: { type: String, default: '⭐' },
-  threshold: { type: Number, default: 5 },
-  embedColor: { type: String, default: '#F1C40F' },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-}, { collection: 'starboard_panels', versionKey: false });
+const configSchema = new mongoose.Schema({
+  _id: String,
+  data: mongoose.Schema.Types.Mixed
+}, { collection: 'starboard_config', versionKey: false });
 
-let PanelModel;
+let ConfigModel;
 
-// ---------- JSON helpers ----------
-function readJSON() {
-  try {
-    if (!fs.existsSync(PANELS_PATH)) return [];
-    const raw = fs.readFileSync(PANELS_PATH, 'utf8');
-    return raw.trim() ? JSON.parse(raw) : [];
-  } catch (e) {
-    console.error('❌ starboardStorage readJSON:', e.message);
-    return [];
-  }
-}
-
-function writeJSON(data) {
-  try {
-    fs.writeFileSync(PANELS_PATH, JSON.stringify(data, null, 2), 'utf8');
-  } catch (e) {
-    console.error('❌ starboardStorage writeJSON:', e.message);
-  }
-}
-
-// ---------- التحقق من MongoDB ----------
 function isMongoReady() {
   if (mongoose.connection.readyState !== 1) return false;
-  if (PanelModel) return true;
-  try {
-    PanelModel = mongoose.models.StarboardPanel || mongoose.model('StarboardPanel', panelSchema);
-    return true;
-  } catch { return false; }
+  if (!ConfigModel) {
+    try {
+      ConfigModel = mongoose.models.StarboardConfig || mongoose.model('StarboardConfig', configSchema);
+    } catch { return false; }
+  }
+  return true;
 }
 
 function initStarboardModels() {
@@ -75,82 +42,69 @@ function initStarboardModels() {
   console.log('📦 starboard → ⚠️ JSON فقط'); return false;
 }
 
-// ========== API العامة ==========
-
-/** تجلب كل اللوحات من JSON */
-function getAllPanels() {
-  return readJSON();
-}
-
-/** تجلب لوحة واحدة بالاسم */
-function getPanel(name) {
-  const panels = readJSON();
-  return panels.find(p => p.name === name) || null;
-}
-
-/** تحفظ لوحة (إضافة أو تحديث) */
-function savePanel(name, data) {
-  const panels = readJSON();
-  const idx = panels.findIndex(p => p.name === name);
-  const panel = { ...defaultPanel(name), ...data, name, updatedAt: Date.now() };
-
-  if (idx >= 0) {
-    panels[idx] = panel;
-  } else {
-    panel.createdAt = Date.now();
-    panels.push(panel);
+// ========== JSON helpers ==========
+function readJSON(filePath, fallback) {
+  try {
+    if (!fs.existsSync(filePath)) return fallback;
+    const raw = fs.readFileSync(filePath, 'utf8');
+    if (!raw.trim()) return fallback;
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error('❌ starboardStorage readJSON:', filePath, e.message);
+    return fallback;
   }
+}
 
-  writeJSON(panels);
+function writeJSON(filePath, data) {
+  try {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+  } catch (e) {
+    console.error('❌ starboardStorage writeJSON:', filePath, e.message);
+  }
+}
 
-  // حفظ في MongoDB (غير متزامن)
+// ========== الإعدادات ==========
+
+function getStarboardConfig() {
+  const jsonData = readJSON(CONFIG_PATH, null);
+  if (jsonData && typeof jsonData === 'object' && jsonData.sourceChannelId !== undefined) {
+    return jsonData;
+  }
+  console.warn('⚠️ starboard-config.json غير موجود/تالف، نرجع القيم الافتراضية');
+  return { ...DEFAULT_CONFIG };
+}
+
+function saveStarboardConfig(cfg) {
+  writeJSON(CONFIG_PATH, cfg);
   if (isMongoReady()) {
-    PanelModel.findByIdAndUpdate(name, panel, { upsert: true })
+    ConfigModel.findByIdAndUpdate('main', { data: cfg }, { upsert: true })
       .then(() => {})
-      .catch(e => console.error('❌ starboard MongoDB save error:', e.message));
-  }
-  return panel;
-}
-
-/** تحذف لوحة */
-function deletePanel(name) {
-  let panels = readJSON();
-  panels = panels.filter(p => p.name !== name);
-  writeJSON(panels);
-
-  if (isMongoReady()) {
-    PanelModel.findByIdAndDelete(name)
-      .then(() => {})
-      .catch(e => console.error('❌ starboard MongoDB delete error:', e.message));
+      .catch(e => console.error('❌ starboardConfig MongoDB save error:', e.message));
   }
 }
 
-/** تحميل اللوحات من MongoDB إلى JSON عند بدء التشغيل */
 async function ensureStarboardLoaded() {
   if (!isMongoReady()) {
     console.log('⚠️ ensureStarboardLoaded: MongoDB غير جاهز');
     return;
   }
-
   try {
-    const docs = await PanelModel.find().lean();
-    if (docs && docs.length > 0) {
-      writeJSON(docs);
-      console.log(`📦 starboard → تم تحميل ${docs.length} لوحة من MongoDB`);
+    const mDoc = await ConfigModel.findById('main').lean();
+    if (mDoc && mDoc.data && typeof mDoc.data === 'object') {
+      writeJSON(CONFIG_PATH, mDoc.data);
+      console.log('📦 starboardConfig → تم التحميل من MongoDB');
       return;
     }
   } catch (e) {
     console.error('❌ ensureStarboardLoaded MongoDB read error:', e.message);
   }
-
-  // إذا JSON موجود، ادفعه إلى MongoDB
-  const jsonData = readJSON();
-  if (jsonData.length > 0 && isMongoReady()) {
+  const jsonData = readJSON(CONFIG_PATH, null);
+  if (jsonData && typeof jsonData === 'object' && jsonData.sourceChannelId !== undefined) {
     try {
-      for (const panel of jsonData) {
-        await PanelModel.findByIdAndUpdate(panel.name, panel, { upsert: true });
-      }
-      console.log(`📦 starboard → تم دفع ${jsonData.length} لوحة إلى MongoDB`);
+      await ConfigModel.findByIdAndUpdate('main', { data: jsonData }, { upsert: true });
+      console.log('📦 starboardConfig → تم الدفع إلى MongoDB من JSON');
     } catch (e) {
       console.error('❌ ensureStarboardLoaded MongoDB write error:', e.message);
     }
@@ -159,10 +113,6 @@ async function ensureStarboardLoaded() {
 
 module.exports = {
   initStarboardModels,
-  getAllPanels,
-  getPanel,
-  savePanel,
-  deletePanel,
-  ensureStarboardLoaded,
+  getStarboardConfig, saveStarboardConfig, ensureStarboardLoaded,
   isMongoReady
 };
