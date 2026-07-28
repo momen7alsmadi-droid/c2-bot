@@ -315,6 +315,10 @@ async function handleModalSubmit(interaction) {
   if (interaction.customId.startsWith('modal_emb_')) return handleEmbedsModal(interaction);
   if (interaction.customId.startsWith('modal_ar_')) return handleAutoReplyModal(interaction);
   if (interaction.customId.startsWith('modal_rr_')) return handleReactModal(interaction);
+  if (interaction.customId.startsWith('modal_blagh_')) {
+    const { handleBlaghModal } = require('./handlers/report');
+    return handleBlaghModal(interaction);
+  }
 }
 
 async function handleButton(interaction) {

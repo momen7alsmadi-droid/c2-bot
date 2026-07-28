@@ -1,5 +1,5 @@
 const { version } = require('../utils/version');
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const { getConfig, saveConfig, getReports, saveReports } = require('../utils/storage');
 const { hasRole, isAdmin, setFieldValue, generateId, sendLog } = require('../utils/helpers');
 
@@ -156,6 +156,25 @@ async function handleReportCommand(interaction, cfg) {
     ephemeral: true,
   });
 
+  // إرسال رسالة خاصة للمُبلَّغ عنه: تم تقديم بلاغ عليك
+  try {
+    const targetUser = await interaction.client.users.fetch(target.id).catch(() => null);
+    if (targetUser) {
+      const noticeEmbed = new EmbedBuilder()
+        .setTitle('📬 تنبيه: تم تقديم بلاغ عليك')
+        .setColor(0xFFFF00)
+        .setDescription(`عزيزي ${targetUser}، تم تقديم بلاغ عليك من قبل أحد الأعضاء.\n\nالبلاغ قيد المراجعة من الإدارة.`)
+        .addFields(
+          { name: 'رقم البلاغ', value: id },
+          { name: 'الحالة', value: '⏳ قيد المراجعة' },
+        )
+        .setTimestamp();
+      await targetUser.send({ embeds: [noticeEmbed] });
+    }
+  } catch (e) {
+    console.error('فشل إرسال رسالة للمُبلَّغ عنه:', e.message);
+  }
+
   const logEmbed = new EmbedBuilder()
     .setTitle('🛡️ بلاغ جديد على إداري')
     .setColor(REPORT_COLOR)
@@ -227,9 +246,57 @@ async function handleReportButton(interaction, action, reportId) {
     });
   }
 
+  // نعرض مودال لكتابة سبب القبول أو الرفض
+  const isAccept = action === 'accept';
+  const modal = new ModalBuilder()
+    .setCustomId(`modal_blagh_${action}_${reportId}`)
+    .setTitle(isAccept ? '✅ قبول البلاغ' : '❌ رفض البلاغ');
+
+  const reasonInput = new TextInputBuilder()
+    .setCustomId('blagh_decision_reason')
+    .setLabel(isAccept ? 'سبب القبول' : 'سبب الرفض')
+    .setPlaceholder(isAccept ? 'اكتب سبب قبول البلاغ...' : 'اكتب سبب رفض البلاغ...')
+    .setStyle(TextInputStyle.Paragraph)
+    .setRequired(true)
+    .setMaxLength(500);
+
+  modal.addComponents(new ActionRowBuilder().addComponents(reasonInput));
+
+  return interaction.showModal(modal);
+}
+
+// ------------------- معالج مودال القبول/الرفض -------------------
+
+async function handleBlaghModal(interaction) {
+  // نحدد الإجراء: modal_blagh_accept_REPORTID أو modal_blagh_reject_REPORTID
+  const customId = interaction.customId;
+  const parts = customId.split('_');
+  // parts[0]='modal', parts[1]='blagh', parts[2]='accept'/'reject', باقي الأجزاء = reportId
+  const action = parts[2];
+  const reportId = parts.slice(3).join('_');
+
+  if (!isAdmin(interaction.member)) {
+    return interaction.reply({ content: '❌ فقط من لديه صلاحية Administrator يقدر يستخدم هذه الأزرار.', ephemeral: true });
+  }
+
+  const cfg = getConfig();
+  const reports = getReports();
+  const record = reports[reportId];
+
+  if (!record) {
+    return interaction.reply({ content: '⚠️ تعذر العثور على بيانات هذا البلاغ.', ephemeral: true });
+  }
+
+  if (record.status !== 'pending') {
+    return interaction.reply({
+      content: `⚠️ تم اتخاذ قرار على هذا البلاغ مسبقاً (${record.status === 'accepted' ? 'مقبول' : 'مرفوض'}).`,
+      ephemeral: true,
+    });
+  }
+
+  const reason = interaction.fields.getTextInputValue('blagh_decision_reason').trim();
   const guild = interaction.guild;
   const newEmbed = EmbedBuilder.from(interaction.message.embeds[0]);
-  const otherEmbeds = interaction.message.embeds.slice(1);
   const finalRow = buildReportButtons(reportId, true);
 
   if (action === 'reject') {
@@ -239,21 +306,23 @@ async function handleReportButton(interaction, action, reportId) {
     record.decidedAt = Date.now();
     saveReports(reports);
 
-    setFieldValue(newEmbed, '— الحالة', `❌ تم رفض البلاغ ضد ${record.targetTag}`);
-    await interaction.update({ embeds: [newEmbed, ...otherEmbeds], components: [finalRow] });
+    setFieldValue(newEmbed, '— الحالة', '❌ تم رفض البلاغ');
+    await interaction.update({ embeds: [newEmbed], components: [finalRow] });
 
+    // لوق
     const logEmbed = new EmbedBuilder()
       .setTitle('❌ تم رفض بلاغ')
       .setColor(REPORT_COLOR)
       .addFields(
         { name: 'رقم البلاغ', value: reportId },
         { name: 'الإداري المُبلغ عنه', value: `<@${record.targetId}> (${record.targetTag})` },
+        { name: 'سبب الرفض', value: reason },
         { name: 'رُفض بواسطة', value: `${interaction.user} (${interaction.user.tag})` },
       )
       .setTimestamp();
     await sendLog(guild, cfg.report.logChannelId, { embeds: [logEmbed] });
 
-    // إرسال رسالة لمقدم البلاغ بأن بلاغه رُفض
+    // إرسال رسالة لمقدم البلاغ بأن بلاغه رُفض مع ذكر سبب الرفض
     try {
       const reporterUser = await interaction.client.users.fetch(record.reporterId).catch(() => null);
       if (reporterUser) {
@@ -262,7 +331,7 @@ async function handleReportButton(interaction, action, reportId) {
           .setColor(REPORT_COLOR)
           .setDescription(`عزيزي ${reporterUser}، تم رفض بلاغك على ${record.targetTag}.`)
           .addFields(
-            { name: 'السبب', value: record.reason },
+            { name: 'سبب الرفض', value: reason },
           )
           .setTimestamp();
         await reporterUser.send({ embeds: [dmEmbed] });
@@ -274,75 +343,53 @@ async function handleReportButton(interaction, action, reportId) {
     return;
   }
 
-  // action === 'accept'
+  // ======== action === 'accept' ========
   const member = await guild.members.fetch(record.targetId).catch(() => null);
 
-  if (!member) {
-    record.status = 'accepted';
-    record.decidedBy = interaction.user.id;
-    record.decidedByTag = interaction.user.tag;
-    record.decidedAt = Date.now();
-    saveReports(reports);
-
-    setFieldValue(newEmbed, '— الحالة', `✅ تم قبول البلاغ ضد ${record.targetTag} (⚠️ العضو غير موجود بالسيرفر)`);
-    await interaction.update({ embeds: [newEmbed, ...otherEmbeds], components: [finalRow] });
-
-    // إرسال رسالة لمقدم البلاغ
-    try {
-      const reporterUser = await interaction.client.users.fetch(record.reporterId).catch(() => null);
-      if (reporterUser) {
-        const dmEmbed = new EmbedBuilder()
-          .setTitle('✅ تم قبول بلاغك')
-          .setColor(ACCEPT_COLOR)
-          .setDescription(`عزيزي ${reporterUser}، تم قبول بلاغك على ${record.targetTag}، لكن العضو غير موجود حالياً في السيرفر.`)
-          .addFields({ name: 'السبب', value: record.reason })
-          .setTimestamp();
-        await reporterUser.send({ embeds: [dmEmbed] });
-      }
-    } catch (e) {
-      console.error('فشل إرسال رسالة لمقدم البلاغ:', e.message);
-    }
-
-    return;
-  }
-
-  const level = getWarningLevel(member, cfg);
   let resultText;
   let levelName = '';
 
-  if (level >= 3) {
-    resultText = '⚠️ العضو وصل مسبقاً لأقصى مستوى (الفصل من الإدارة)، لم تُضف أي رتبة جديدة.';
-    levelName = 'فصل من الإدارة 🚫';
+  if (!member) {
+    resultText = '⚠️ العضو غير موجود بالسيرفر، لم تُطبَّق أي رتبة.';
+    levelName = '';
   } else {
-    const newLevel = level + 1;
-    const roleToAdd = getWarningRoleId(cfg, newLevel);
-    const roleToRemove = level > 0 ? getWarningRoleId(cfg, level) : null;
+    const level = getWarningLevel(member, cfg);
 
-    if (roleToRemove && member.roles.cache.has(roleToRemove)) {
-      await member.roles.remove(roleToRemove).catch(() => {});
-    }
-    if (roleToAdd) {
-      await member.roles.add(roleToAdd).catch(() => {});
-    }
+    if (level >= 3) {
+      resultText = 'العضو وصل مسبقاً لأقصى مستوى (الفصل من الإدارة)، لم تُضف أي رتبة جديدة.';
+      levelName = 'فصل من الإدارة 🚫';
+    } else {
+      const newLevel = level + 1;
+      const roleToAdd = getWarningRoleId(cfg, newLevel);
+      const roleToRemove = level > 0 ? getWarningRoleId(cfg, level) : null;
 
-    const levelNames = { 1: 'تحذير أول ⚠️', 2: 'تحذير ثاني ⚠️⚠️', 3: 'فصل من الإدارة 🚫' };
-    levelName = levelNames[newLevel];
-    resultText = `تم إعطاء: **${levelName}**`;
-    record.warningLevelAssigned = newLevel;
+      if (roleToRemove && member.roles.cache.has(roleToRemove)) {
+        await member.roles.remove(roleToRemove).catch(() => {});
+      }
+      if (roleToAdd) {
+        await member.roles.add(roleToAdd).catch(() => {});
+      }
 
-    if (newLevel === 3) {
-      const mgmtMention = cfg.report.upperManagementRoleId ? `<@&${cfg.report.upperManagementRoleId}>` : undefined;
-      const noticeEmbed = new EmbedBuilder()
-        .setTitle('🚨 إشعار فصل من الإدارة')
-        .setColor(DISMISS_COLOR)
-        .setDescription(`العضو ${member} وصل إلى **3 تحذيرات** وتم فصله من الإدارة تلقائياً.`)
-        .addFields(
-          { name: 'رقم البلاغ', value: reportId },
-          { name: 'قرار الفصل بواسطة', value: `${interaction.user} (${interaction.user.tag})` },
-        )
-        .setTimestamp();
-      const noticeChannelId = cfg.report.upperManagementChannelId || cfg.report.logChannelId || record.channelId;
-      await sendLog(guild, noticeChannelId, { content: mgmtMention, embeds: [noticeEmbed] });
+      const levelNames = { 1: 'تحذير أول ⚠️', 2: 'تحذير ثاني ⚠️⚠️', 3: 'فصل من الإدارة 🚫' };
+      levelName = levelNames[newLevel];
+      resultText = levelName;
+      record.warningLevelAssigned = newLevel;
+
+      if (newLevel === 3) {
+        const mgmtMention = cfg.report.upperManagementRoleId ? `<@&${cfg.report.upperManagementRoleId}>` : undefined;
+        const noticeEmbed = new EmbedBuilder()
+          .setTitle('🚨 إشعار فصل من الإدارة')
+          .setColor(DISMISS_COLOR)
+          .setDescription(`العضو ${member} وصل إلى **3 تحذيرات** وتم فصله من الإدارة تلقائياً.`)
+          .addFields(
+            { name: 'رقم البلاغ', value: reportId },
+            { name: 'قرار الفصل بواسطة', value: `${interaction.user} (${interaction.user.tag})` },
+            { name: 'سبب القبول', value: reason },
+          )
+          .setTimestamp();
+        const noticeChannelId = cfg.report.upperManagementChannelId || cfg.report.logChannelId || record.channelId;
+        await sendLog(guild, noticeChannelId, { content: mgmtMention, embeds: [noticeEmbed] });
+      }
     }
   }
 
@@ -352,22 +399,25 @@ async function handleReportButton(interaction, action, reportId) {
   record.decidedAt = Date.now();
   saveReports(reports);
 
-  const acceptText = `✅ تم قبول البلاغ ضد ${member} - ${levelName || resultText}`;
+  const acceptText = `✅ تم قبول البلاغ ضد ${member || record.targetTag} - ${levelName || resultText}`;
   setFieldValue(newEmbed, '— الحالة', acceptText);
-  await interaction.update({ embeds: [newEmbed, ...otherEmbeds], components: [finalRow] });
+  await interaction.update({ embeds: [newEmbed], components: [finalRow] });
 
   // إرسال رسالة خاصة للإداري المُبلَّغ عنه
   try {
-    const dmEmbed = new EmbedBuilder()
-      .setTitle('📬 بلاغ على إداري')
-      .setColor(ACCEPT_COLOR)
-      .setDescription(`عزيزي ${member}، تم تقديم بلاغ بحقك وتم قبوله.`)
-      .addFields(
-        { name: 'السبب', value: record.reason },
-        { name: 'النتيجة', value: levelName || resultText },
-      )
-      .setTimestamp();
-    await member.send({ embeds: [dmEmbed] });
+    const memberUser = await interaction.client.users.fetch(record.targetId).catch(() => null);
+    if (memberUser) {
+      const dmEmbed = new EmbedBuilder()
+        .setTitle('📬 تم قبول بلاغ ضدك')
+        .setColor(ACCEPT_COLOR)
+        .setDescription(`عزيزي ${memberUser}، تم تقديم بلاغ بحقك وتم قبوله.`)
+        .addFields(
+          { name: 'سبب القبول', value: reason },
+          { name: 'النتيجة', value: levelName || resultText },
+        )
+        .setTimestamp();
+      await memberUser.send({ embeds: [dmEmbed] });
+    }
   } catch (e) {
     console.error('فشل إرسال رسالة خاصة للإداري:', e.message);
   }
@@ -379,9 +429,8 @@ async function handleReportButton(interaction, action, reportId) {
       const dmEmbed = new EmbedBuilder()
         .setTitle('✅ تم قبول بلاغك')
         .setColor(ACCEPT_COLOR)
-        .setDescription(`عزيزي ${reporterUser}، تم قبول بلاغك على ${member}.`)
+        .setDescription(`عزيزي ${reporterUser}، تم قبول بلاغك على ${member || record.targetTag} من قبل الإدارة العليا.`)
         .addFields(
-          { name: 'السبب', value: record.reason },
           { name: 'النتيجة', value: `الإداري حصل على: ${levelName || resultText}` },
         )
         .setTimestamp();
@@ -396,7 +445,8 @@ async function handleReportButton(interaction, action, reportId) {
     .setColor(ACCEPT_COLOR)
     .addFields(
       { name: 'رقم البلاغ', value: reportId },
-      { name: 'الإداري المُبلغ عنه', value: `${member} (${member.user.tag} | ${member.id})` },
+      { name: 'الإداري المُبلغ عنه', value: `${member || record.targetTag} (${record.targetTag} | ${record.targetId})` },
+      { name: 'سبب القبول', value: reason },
       { name: 'النتيجة', value: resultText },
       { name: 'قُبل بواسطة', value: `${interaction.user} (${interaction.user.tag})` },
     )
@@ -492,4 +542,4 @@ async function handleReportSettings(interaction, cfg) {
   }
 }
 
-module.exports = { handleReportCommand, handleReportButton, handleReportSettings };
+module.exports = { handleReportCommand, handleReportButton, handleBlaghModal, handleReportSettings };
