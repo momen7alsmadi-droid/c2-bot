@@ -156,23 +156,20 @@ async function handleReportCommand(interaction, cfg) {
     ephemeral: true,
   });
 
-  // إرسال رسالة خاصة للمُبلَّغ عنه: تم تقديم بلاغ عليك
+  // إرسال رسالة خاصة للمُبلَّغ عنه: تم تقديم بلاغ عليك (نستخدم target مباشرة)
   try {
-    const targetUser = await interaction.client.users.fetch(target.id).catch(() => null);
-    if (targetUser) {
-      const noticeEmbed = new EmbedBuilder()
-        .setTitle('📬 تنبيه: تم تقديم بلاغ عليك')
-        .setColor(0xFFFF00)
-        .setDescription(`عزيزي ${targetUser}، تم تقديم بلاغ عليك من قبل أحد الأعضاء.\n\nالبلاغ قيد المراجعة من الإدارة.`)
-        .addFields(
-          { name: 'رقم البلاغ', value: id },
-          { name: 'الحالة', value: '⏳ قيد المراجعة' },
-        )
-        .setTimestamp();
-      await targetUser.send({ embeds: [noticeEmbed] });
-    }
+    const noticeEmbed = new EmbedBuilder()
+      .setTitle('📬 تنبيه: تم تقديم بلاغ عليك')
+      .setColor(0xFFFF00)
+      .setDescription(`عزيزي ${target}، تم تقديم بلاغ عليك من قبل أحد الأعضاء.\n\nالبلاغ قيد المراجعة من الإدارة.`)
+      .addFields(
+        { name: 'رقم البلاغ', value: id },
+        { name: 'الحالة', value: '⏳ قيد المراجعة' },
+      )
+      .setTimestamp();
+    await target.send({ embeds: [noticeEmbed] });
   } catch (e) {
-    console.error('فشل إرسال رسالة للمُبلَّغ عنه:', e.message);
+    console.error(`❌ فشل إرسال رسالة للمُبلَّغ عنه (${target.tag}):`, e.message);
   }
 
   const logEmbed = new EmbedBuilder()
@@ -322,6 +319,24 @@ async function handleBlaghModal(interaction) {
       .setTimestamp();
     await sendLog(guild, cfg.report.logChannelId, { embeds: [logEmbed] });
 
+    // إرسال رسالة للمُبلَّغ عنه: تم رفض البلاغ المقدم ضده
+    try {
+      const targetMember = await guild.members.fetch(record.targetId).catch(() => null);
+      if (targetMember) {
+        const dmEmbed = new EmbedBuilder()
+          .setTitle('❌ تم رفض بلاغ ضدك')
+          .setColor(REPORT_COLOR)
+          .setDescription(`عزيزي ${targetMember}، تم رفض البلاغ المقدم ضدك.`)
+          .addFields(
+            { name: 'سبب الرفض', value: reason },
+          )
+          .setTimestamp();
+        await targetMember.send({ embeds: [dmEmbed] });
+      }
+    } catch (e) {
+      console.error(`❌ فشل إرسال رسالة للمُبلَّغ عنه بالرفض (${record.targetTag}):`, e.message);
+    }
+
     // إرسال رسالة لمقدم البلاغ بأن بلاغه رُفض مع ذكر سبب الرفض
     try {
       const reporterUser = await interaction.client.users.fetch(record.reporterId).catch(() => null);
@@ -337,7 +352,7 @@ async function handleBlaghModal(interaction) {
         await reporterUser.send({ embeds: [dmEmbed] });
       }
     } catch (e) {
-      console.error('فشل إرسال رسالة لمقدم البلاغ برفض البلاغ:', e.message);
+      console.error('❌ فشل إرسال رسالة لمقدم البلاغ برفض البلاغ:', e.message);
     }
 
     return;
@@ -403,23 +418,37 @@ async function handleBlaghModal(interaction) {
   setFieldValue(newEmbed, '— الحالة', acceptText);
   await interaction.update({ embeds: [newEmbed], components: [finalRow] });
 
-  // إرسال رسالة خاصة للإداري المُبلَّغ عنه
+  // إرسال رسالة خاصة للإداري المُبلَّغ عنه (نستخدم member الموجود)
   try {
-    const memberUser = await interaction.client.users.fetch(record.targetId).catch(() => null);
-    if (memberUser) {
+    if (member) {
       const dmEmbed = new EmbedBuilder()
         .setTitle('📬 تم قبول بلاغ ضدك')
         .setColor(ACCEPT_COLOR)
-        .setDescription(`عزيزي ${memberUser}، تم تقديم بلاغ بحقك وتم قبوله.`)
+        .setDescription(`عزيزي ${member}، تم تقديم بلاغ بحقك وتم قبوله.`)
         .addFields(
           { name: 'سبب القبول', value: reason },
           { name: 'النتيجة', value: levelName || resultText },
         )
         .setTimestamp();
-      await memberUser.send({ embeds: [dmEmbed] });
+      await member.send({ embeds: [dmEmbed] });
+    } else {
+      // إذا العضو مش في السيرفر، نجرب نرسل على الخاص باليوزر آيدي
+      const userFallback = await interaction.client.users.fetch(record.targetId).catch(() => null);
+      if (userFallback) {
+        const dmEmbed = new EmbedBuilder()
+          .setTitle('📬 تم قبول بلاغ ضدك')
+          .setColor(ACCEPT_COLOR)
+          .setDescription(`عزيزي ${userFallback}، تم تقديم بلاغ بحقك وتم قبوله.`)
+          .addFields(
+            { name: 'سبب القبول', value: reason },
+            { name: 'النتيجة', value: levelName || resultText },
+          )
+          .setTimestamp();
+        await userFallback.send({ embeds: [dmEmbed] });
+      }
     }
   } catch (e) {
-    console.error('فشل إرسال رسالة خاصة للإداري:', e.message);
+    console.error(`❌ فشل إرسال رسالة للمُبلَّغ عنه بالقبول (${record.targetTag}):`, e.message);
   }
 
   // إرسال رسالة خاصة لمقدّم البلاغ
@@ -437,7 +466,7 @@ async function handleBlaghModal(interaction) {
       await reporterUser.send({ embeds: [dmEmbed] });
     }
   } catch (e) {
-    console.error('فشل إرسال رسالة خاصة لمقدم البلاغ:', e.message);
+    console.error('❌ فشل إرسال رسالة لمقدم البلاغ بالقبول:', e.message);
   }
 
   const logEmbed = new EmbedBuilder()
