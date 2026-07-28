@@ -121,10 +121,10 @@ const commands = [
     .setDefaultMemberPermissions(8) // Administrator
     .toJSON(),
 
-  // ------------------- /اعدادات_المميزة -------------------
+  // ------------------- /اعدادات_الاقتراحات -------------------
   new SlashCommandBuilder()
-    .setName('اعدادات_المميزة')
-    .setDescription('⭐ إعدادات نظام المنشورات المميزة')
+    .setName('اعدادات_الاقتراحات')
+    .setDescription('⭐ إعدادات نظام الاقتراحات المميزة')
     .setDefaultMemberPermissions(8) // Administrator
     .toJSON(),
 ];

@@ -1,9 +1,11 @@
 /**
- * featured.js - نظام المنشورات المميزة
+ * featured.js - ⭐ نظام الاقتراحات المميزة
+ * يتبع نفس نمط لوحات الإعدادات (settings.js) في التعامل مع الأزرار والقوائم
  */
 const {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder,
-  ChannelSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle
+  ChannelSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle,
+  ChannelType
 } = require('discord.js');
 const { version } = require('../utils/version');
 const {
@@ -11,15 +13,28 @@ const {
   getFeaturedPost, markAsFeatured, addLike
 } = require('../utils/featuredStorage');
 
-// ========== لوحة الإعدادات ==========
+// ---------- دالة مساعدة: تحديث أو رد حسب حالة الـ interaction ----------
+async function respondOrUpdate(interaction, payload) {
+  if (interaction.deferred) {
+    return interaction.editReply(payload).catch(() => {});
+  }
+  if (interaction.isCommand() || interaction.isModalSubmit()) {
+    return interaction.reply({ ...payload, ephemeral: true });
+  }
+  if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+    return interaction.update(payload);
+  }
+  return interaction.editReply(payload).catch(() => interaction.reply({ ...payload, ephemeral: true }).catch(() => {}));
+}
 
-async function handleFeaturedSettings(interaction) {
+// ---------- عرض لوحة الإعدادات ----------
+async function showFeaturedSettings(interaction) {
   try {
     const cfg = getFeaturedConfig();
     const embed = new EmbedBuilder()
-      .setTitle('⭐ إعدادات المنشورات المميزة')
+      .setTitle('⭐ إعدادات نظام الاقتراحات')
       .setColor(0xF1C40F)
-      .setDescription('تحكم في نظام ترشيح المنشورات المميزة')
+      .setDescription('تحكم في نظام ترشيح الاقتراحات المميزة')
       .addFields(
         { name: '📥 روم المصدر (الاقتراحات)', value: cfg.sourceChannelId ? `<#${cfg.sourceChannelId}>` : '❌ غير محدد', inline: false },
         { name: '📤 روم الوجهة (المميزة)', value: cfg.destChannelId ? `<#${cfg.destChannelId}>` : '❌ غير محدد', inline: false },
@@ -36,91 +51,82 @@ async function handleFeaturedSettings(interaction) {
       ),
       new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('feat_emoji').setLabel('😀 تغيير الإيموجي').setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId('feat_threshold').setLabel('🔢 تغيير العدد').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('feat_thresh').setLabel('🔢 تغيير العدد').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('feat_refresh').setLabel('🔄 تحديث').setStyle(ButtonStyle.Secondary),
       ),
     ];
 
-    return interaction.reply({ embeds: [embed], components, ephemeral: true });
+    return respondOrUpdate(interaction, { embeds: [embed], components });
   } catch (e) {
-    console.error('❌ featured settings:', e.message);
-    return interaction.reply({ content: '⚠️ خطأ في عرض الإعدادات.', ephemeral: true }).catch(() => {});
+    console.error('❌ showFeaturedSettings:', e.message);
+    return respondOrUpdate(interaction, { content: '⚠️ خطأ في عرض الإعدادات.' });
   }
 }
 
-// ========== معالج أزرار الإعدادات ==========
-
+// ---------- معالج أزرار الإعدادات ----------
 async function handleFeaturedButton(interaction, action) {
   try {
     if (action === 'source' || action === 'dest') {
-      // عرض ChannelSelectMenu لاختيار الروم
+      // استعمال deferUpdate() ثم إرسال رسالة جديدة بالقائمة
+      await interaction.deferUpdate();
       const placeholder = action === 'source' ? '📥 اختر روم المصدر (الاقتراحات)' : '📤 اختر روم الوجهة (المميزة)';
-      const customId = action === 'source' ? 'feat_ch_source' : 'feat_ch_dest';
+      const customId = action === 'source' ? 'feat_sel_source' : 'feat_sel_dest';
 
-      return interaction.reply({
-        content: `اختر الروم المطلوب:`,
+      return interaction.editReply({
+        content: `##### اختر الروم المطلوب:`,
         components: [
           new ActionRowBuilder().addComponents(
             new ChannelSelectMenuBuilder()
               .setCustomId(customId)
               .setPlaceholder(placeholder)
               .setMaxValues(1)
+              .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
           )
-        ],
-        ephemeral: true
+        ]
       });
     }
 
-    if (action === 'emoji') {
-      // مودال لإدخال الإيموجي
-      const modal = new ModalBuilder()
-        .setCustomId('modal_feat_emoji')
-        .setTitle('😀 تغيير الإيموجي المطلوب');
-
-      const input = new TextInputBuilder()
-        .setCustomId('feat_emoji_input')
-        .setLabel('الإيموجي')
-        .setPlaceholder('مثال: ⭐ أو 👍')
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-        .setMaxLength(10);
-
-      modal.addComponents(new ActionRowBuilder().addComponents(input));
-      return interaction.showModal(modal);
-    }
-
-    if (action === 'threshold') {
-      // مودال لإدخال العدد
+    if (action === 'emoji' || action === 'thresh') {
+      // استعمال deferUpdate() ثم عرض المودال
+      await interaction.deferUpdate();
+      const isEmoji = action === 'emoji';
       const cfg = getFeaturedConfig();
+
       const modal = new ModalBuilder()
-        .setCustomId('modal_feat_threshold')
-        .setTitle('🔢 العدد المطلوب للنقل');
+        .setCustomId(isEmoji ? 'modal_feat_emoji' : 'modal_feat_threshold')
+        .setTitle(isEmoji ? '😀 تغيير الإيموجي المطلوب' : '🔢 العدد المطلوب للنقل');
 
       const input = new TextInputBuilder()
-        .setCustomId('feat_threshold_input')
-        .setLabel('العدد المطلوب من الإيموجي')
-        .setPlaceholder('مثال: 5')
+        .setCustomId(isEmoji ? 'feat_emoji_val' : 'feat_threshold_val')
+        .setLabel(isEmoji ? 'الإيموجي' : 'العدد (رقم صحيح)')
+        .setPlaceholder(isEmoji ? 'مثال: ⭐' : 'مثال: 5')
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
-        .setMaxLength(5);
+        .setMaxLength(isEmoji ? 10 : 5);
 
       modal.addComponents(new ActionRowBuilder().addComponents(input));
       return interaction.showModal(modal);
     }
 
     if (action === 'refresh') {
-      return handleFeaturedSettings(interaction);
+      return showFeaturedSettings(interaction);
     }
   } catch (e) {
-    console.error('❌ featured button:', e.message);
-    try { await interaction.reply({ content: '⚠️ خطأ.', ephemeral: true }); } catch {}
+    console.error('❌ handleFeaturedButton:', e.message);
+    try {
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply({ content: '⚠️ خطأ.', components: [] });
+      } else {
+        await interaction.reply({ content: '⚠️ خطأ.', ephemeral: true });
+      }
+    } catch {}
   }
 }
 
-// ========== معالج اختيار الروم ==========
-
-async function handleFeaturedChannelSelect(interaction, field) {
+// ---------- معالج القوائم المنسدلة (اختيار الروم) ----------
+async function handleFeaturedSelect(interaction) {
   try {
+    const field = interaction.customId.replace('feat_sel_', '');
     const channelId = interaction.values[0];
     const cfg = getFeaturedConfig();
 
@@ -139,53 +145,55 @@ async function handleFeaturedChannelSelect(interaction, field) {
           AddReactions: false
         }).catch(() => {});
       }
-    } catch {}
+    } catch (e) {
+      console.error('❌ feat permission edit:', e.message);
+    }
 
-    await interaction.deferUpdate();
-    return handleFeaturedSettings(interaction);
+    // العودة للوحة الإعدادات
+    return showFeaturedSettings(interaction);
   } catch (e) {
-    console.error('❌ featured channel select:', e.message);
-    try { await interaction.reply({ content: '⚠️ خطأ.', ephemeral: true }); } catch {}
+    console.error('❌ handleFeaturedSelect:', e.message);
+    return showFeaturedSettings(interaction);
   }
 }
 
-// ========== معالج المودال ==========
-
+// ---------- معالج المودال ----------
 async function handleFeaturedModal(interaction) {
   try {
     const customId = interaction.customId;
 
     if (customId === 'modal_feat_emoji') {
-      const emoji = interaction.fields.getTextInputValue('feat_emoji_input').trim();
+      const emoji = interaction.fields.getTextInputValue('feat_emoji_val').trim();
       if (!emoji) {
         return interaction.reply({ content: '❌ الإيموجي مطلوب.', ephemeral: true });
       }
       const cfg = getFeaturedConfig();
       cfg.emoji = emoji;
       saveFeaturedConfig(cfg);
-      await interaction.deferUpdate();
-      return handleFeaturedSettings(interaction);
+      return showFeaturedSettings(interaction);
     }
 
     if (customId === 'modal_feat_threshold') {
-      const threshold = parseInt(interaction.fields.getTextInputValue('feat_threshold_input'), 10);
+      const threshold = parseInt(interaction.fields.getTextInputValue('feat_threshold_val'), 10);
       if (isNaN(threshold) || threshold < 1) {
         return interaction.reply({ content: '❌ الرجاء إدخال رقم صحيح أكبر من 0.', ephemeral: true });
       }
       const cfg = getFeaturedConfig();
       cfg.threshold = threshold;
       saveFeaturedConfig(cfg);
-      await interaction.deferUpdate();
-      return handleFeaturedSettings(interaction);
+      return showFeaturedSettings(interaction);
     }
   } catch (e) {
-    console.error('❌ featured modal:', e.message);
-    try { await interaction.reply({ content: '⚠️ خطأ.', ephemeral: true }); } catch {}
+    console.error('❌ handleFeaturedModal:', e.message);
+    try {
+      return interaction.editReply({ content: '⚠️ خطأ في معالجة الإدخال.' });
+    } catch {
+      return interaction.reply({ content: '⚠️ خطأ في معالجة الإدخال.', ephemeral: true });
+    }
   }
 }
 
-// ========== معالج الرسائل الجديدة ==========
-
+// ---------- معالج الرسائل الجديدة (وضع الإيموجي تلقائياً) ----------
 async function handleFeaturedMessage(message) {
   try {
     if (message.author.bot) return;
@@ -195,15 +203,13 @@ async function handleFeaturedMessage(message) {
     if (!cfg.sourceChannelId || !cfg.emoji) return;
     if (message.channel.id !== cfg.sourceChannelId) return;
 
-    // وضع الإيموجي المطلوب تلقائياً
     await message.react(cfg.emoji).catch(() => {});
   } catch (e) {
-    console.error('❌ featured message:', e.message);
+    console.error('❌ handleFeaturedMessage:', e.message);
   }
 }
 
-// ========== معالج إضافة التفاعل ==========
-
+// ---------- معالج إضافة التفاعل ----------
 async function handleFeaturedReaction(reaction, user) {
   try {
     if (user.bot) return;
@@ -213,70 +219,70 @@ async function handleFeaturedReaction(reaction, user) {
     if (!cfg.sourceChannelId || !cfg.emoji) return;
     if (reaction.message.channel.id !== cfg.sourceChannelId) return;
 
-    // إذا أضاف إيموجي مختلف عن المطلوب، احذفه
-    if (reaction.emoji.name !== cfg.emoji && (!reaction.emoji.id || reaction.emoji.toString() !== cfg.emoji)) {
+    // إن أضاف إيموجي مختلف عن المطلوب → احذفه
+    const emojiStr = reaction.emoji.id ? reaction.emoji.toString() : reaction.emoji.name;
+    if (emojiStr !== cfg.emoji) {
       try {
         await reaction.users.remove(user.id);
       } catch {}
       return;
     }
 
-    // إذا وصل العداد إلى الحد المطلوب
+    // تحقق من العدد
     const count = reaction.count;
-    if (count >= cfg.threshold) {
-      const message = reaction.message;
+    if (count < cfg.threshold) return;
+    if (!cfg.destChannelId) return;
 
-      // تأكد أن الرسالة لم تُنقل مسبقاً
-      const existing = getFeaturedPost(message.id);
-      if (existing && existing.featured) return;
+    const message = reaction.message;
 
-      // تأكد من وجود روم الوجهة
-      if (!cfg.destChannelId) return;
-      const destChannel = await message.guild.channels.fetch(cfg.destChannelId).catch(() => null);
-      if (!destChannel) return;
+    // تأكد أن الرسالة لم تُنقل مسبقاً
+    const existing = getFeaturedPost(message.id);
+    if (existing && existing.featured) return;
 
-      // بناء الإيمبد
-      const content = message.content || '(محتوى غير نصي)';
-      const featuredEmbed = new EmbedBuilder()
-        .setTitle('⭐ منشور مميز')
-        .setColor(0xF1C40F)
-        .setDescription(content)
-        .addFields(
-          { name: '👤 مقدّم الاقتراح', value: `${message.author}`, inline: true },
-          { name: '🔗 الرابط', value: `[انتقل إلى الرسالة الأصلية](${message.url})`, inline: true },
-        )
-        .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
-        .setFooter({ text: `⭐ تم التمييز تلقائياً` })
-        .setTimestamp();
+    // جهز روم الوجهة
+    const destChannel = await message.guild.channels.fetch(cfg.destChannelId).catch(() => null);
+    if (!destChannel) return;
 
-      if (message.attachments.size > 0) {
-        const first = message.attachments.first();
-        if (first.contentType && first.contentType.startsWith('image/')) {
-          featuredEmbed.setImage(first.url);
-        }
+    // بناء الإيمبد (فخم)
+    const content = message.content || '*(محتوى غير نصي)*';
+    const featuredEmbed = new EmbedBuilder()
+      .setTitle('⭐ اقتراح مميز')
+      .setColor(0xF1C40F)
+      .setDescription(content)
+      .addFields(
+        { name: '👤 مقدّم الاقتراح', value: `${message.author}`, inline: true },
+        { name: '🔗 الرابط', value: `[انتقل إلى الرسالة الأصلية](${message.url})`, inline: true },
+      )
+      .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
+      .setFooter({ text: `⭐ تم التمييز تلقائياً` })
+      .setTimestamp();
+
+    if (message.attachments.size > 0) {
+      const first = message.attachments.first();
+      if (first.contentType && first.contentType.startsWith('image/')) {
+        featuredEmbed.setImage(first.url);
       }
-
-      // زر ✅ إعجاب (بدون زر ❌)
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`feat_like_${message.id}`)
-          .setEmoji('✅')
-          .setLabel('إعجاب')
-          .setStyle(ButtonStyle.Success)
-      );
-
-      const sentMsg = await destChannel.send({ embeds: [featuredEmbed], components: [row] });
-
-      // حفظ في قاعدة البيانات
-      markAsFeatured(message.id, message.author.id, content, message.url);
     }
+
+    // زر ✅ إعجاب فقط (بدون ❌)
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`feat_like_${message.id}`)
+        .setEmoji('✅')
+        .setLabel('إعجاب')
+        .setStyle(ButtonStyle.Success)
+    );
+
+    const sentMsg = await destChannel.send({ embeds: [featuredEmbed], components: [row] });
+
+    // حفظ في قاعدة البيانات
+    markAsFeatured(message.id, message.author.id, content, message.url);
   } catch (e) {
-    console.error('❌ featured reaction:', e.message);
+    console.error('❌ handleFeaturedReaction:', e.message);
   }
 }
 
-// ========== معالج زر ✅ الإعجاب ==========
-
+// ---------- معالج زر ✅ الإعجاب ----------
 async function handleFeaturedLike(interaction, messageId) {
   try {
     await interaction.deferUpdate();
@@ -286,7 +292,6 @@ async function handleFeaturedLike(interaction, messageId) {
       return interaction.editReply({ content: '⚠️ هذا المنشور غير مسجل في النظام.', embeds: [], components: [] });
     }
 
-    // حفظ الإعجاب في قاعدة البيانات
     addLike(messageId, interaction.user.id);
 
     // تحديث الإيمبد بعدد الإعجابات
@@ -296,7 +301,7 @@ async function handleFeaturedLike(interaction, messageId) {
 
     await interaction.editReply({ embeds: [embed], components: interaction.message.components });
   } catch (e) {
-    console.error('❌ featured like:', e.message);
+    console.error('❌ handleFeaturedLike:', e.message);
     try { await interaction.editReply({ content: '⚠️ خطأ.', embeds: [], components: [] }); } catch {}
   }
 }
@@ -304,35 +309,48 @@ async function handleFeaturedLike(interaction, messageId) {
 // ========== الموزع الرئيسي ==========
 
 async function handleFeaturedInteraction(interaction) {
-  const id = interaction.customId;
-  const parts = id.split('_');
-  const prefix = parts[0];
+  try {
+    const id = interaction.customId;
+    const parts = id.split('_');
+    const prefix = parts[0];
 
-  if (prefix !== 'feat') return;
+    if (prefix !== 'feat') return;
 
-  if (id === 'feat_source' || id === 'feat_dest' || id === 'feat_emoji' || id === 'feat_threshold' || id === 'feat_refresh') {
-    const action = parts[1];
-    return handleFeaturedButton(interaction, action);
-  }
+    // أزرار الإعدادات
+    if (id === 'feat_source' || id === 'feat_dest' || id === 'feat_emoji' || id === 'feat_thresh' || id === 'feat_refresh') {
+      const action = parts[1];
+      return handleFeaturedButton(interaction, action);
+    }
 
-  if (id.startsWith('feat_ch_source')) {
-    return handleFeaturedChannelSelect(interaction, 'source');
-  }
-  if (id.startsWith('feat_ch_dest')) {
-    return handleFeaturedChannelSelect(interaction, 'dest');
-  }
+    // قوائم اختيار الروم
+    if (id.startsWith('feat_sel_')) {
+      return handleFeaturedSelect(interaction);
+    }
 
-  if (id.startsWith('feat_like_')) {
-    const messageId = id.replace('feat_like_', '');
-    return handleFeaturedLike(interaction, messageId);
+    // زر ✅ الإعجاب
+    if (id.startsWith('feat_like_')) {
+      const messageId = id.replace('feat_like_', '');
+      return handleFeaturedLike(interaction, messageId);
+    }
+
+    // أمر غير معروف
+    console.warn('⚠️ feat unknown id:', id);
+  } catch (e) {
+    console.error('❌ handleFeaturedInteraction:', e.message);
+    try {
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply({ content: '⚠️ خطأ غير متوقع.' });
+      } else {
+        await interaction.reply({ content: '⚠️ خطأ غير متوقع.', ephemeral: true });
+      }
+    } catch {}
   }
 }
 
 module.exports = {
-  handleFeaturedSettings,
+  showFeaturedSettings,
   handleFeaturedInteraction,
   handleFeaturedModal,
   handleFeaturedMessage,
-  handleFeaturedReaction,
-  handleFeaturedLike
+  handleFeaturedReaction
 };

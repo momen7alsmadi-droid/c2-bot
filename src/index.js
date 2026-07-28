@@ -24,7 +24,7 @@ const { handleEmbedsInteraction, handleEmbedsModal, handleEmbedsMain } = require
 const { initEmbedModel } = require('./utils/embedStorage');
 const { handleAutoReplyInteraction, handleAutoReplyModal, handleAutoReplyMain, handleMessage } = require('./handlers/autoReply');
 const { handleReactInteraction, handleReactModal, handleReactMain, handleReactMessage } = require('./handlers/reactReply');
-const { handleFeaturedSettings, handleFeaturedInteraction, handleFeaturedModal, handleFeaturedMessage, handleFeaturedReaction } = require('./handlers/featured');
+const { showFeaturedSettings, handleFeaturedInteraction, handleFeaturedModal, handleFeaturedMessage, handleFeaturedReaction } = require('./handlers/featured');
 const { initFeaturedModels, ensureFeaturedConfigLoaded, loadFeaturedPostsFromMongo } = require('./utils/featuredStorage');
 const { initAutoReplyModel, syncJsonToMongo: syncAr } = require('./utils/autoReplyStorage');
 const { initReactModel, syncJsonToMongo: syncRr } = require('./utils/reactionReplyStorage');
@@ -315,7 +315,7 @@ async function handleSlashCommand(interaction) {
     case 'الألوان_المتوفرة': return handleColorsCommand(interaction);
     case 'ايمبد': return handleEmbedsMain(interaction);
     case 'الردود_التلقائية': return handleAutoReplyMain(interaction);
-    case 'اعدادات_المميزة': return handleFeaturedSettings(interaction);
+    case 'اعدادات_الاقتراحات': return showFeaturedSettings(interaction);
   }
 }
 
