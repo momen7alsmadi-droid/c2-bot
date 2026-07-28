@@ -347,12 +347,21 @@ async function handleFeaturedReaction(reaction, user) {
     const descContent = message.content || '';
     const emoji = cfg.emoji || '⭐';
 
-    // السطر العلوي: "1 ⭐ | #المنشور" → كـ content خارج الإيمبد (مثل Dyno)
-    // نستخدم ID الـ Channel/Thread الذي نُشرت فيه الفكرة (message.channel.id)
-    // في الفورم: هذا هو ID الـ Thread → رابط مباشر للمنشور
-    console.log('🔍 message.channel.id:', message.channel.id, '| isThread?', message.channel.isThread?.());
-    console.log('🔍 message.channel.parentId:', message.channel.parentId);
-    const mentionLink = `<#${message.channel.id}>`;
+    // ===== تشخيص: طباعة الـ IDs جنباً إلى جنب =====
+    console.log('\n========== 🔍 تشخيص ID المنشن ==========');
+    console.log('📌 message.channelId         :', message.channelId);
+    console.log('📌 message.channel?.id        :', message.channel?.id);
+    console.log('📌 message.channel?.parentId  :', message.channel?.parentId);
+    console.log('📌 هل channel.isThread?       :', message.channel?.isThread?.());
+    console.log('📌 هل هذه رسالة بداية؟        :', message.id === message.channel?.id);
+    console.log('==========================================\n');
+
+    // نستخدم message.channelId (خاصية مباشرة من API، لا تعتمد على كاش القنوات)
+    // في الفورم: channelId = ID الـ Thread الخاص بالفكرة (يتغير مع كل فكرة)
+    // parentId = ID روم الفورم الثابت (نفسه لكل الفكر)
+    const threadId = message.channelId || message.channel?.id;
+    console.log('✅ سنستخدم ID:', threadId, 'في المنشن');
+    const mentionLink = `<#${threadId}>`;
     const topLine = `${realUserCount} ${emoji} | ${mentionLink}`;
 
     const featuredEmbed = new EmbedBuilder()
