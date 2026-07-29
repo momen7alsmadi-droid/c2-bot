@@ -209,7 +209,7 @@ async function sendErrorToChannel(client, type, id, err) {
       )
       .setTimestamp();
 
-    await channel.send({ embeds: [embed] });
+    await channel.send({ content: '<@1387331972094890036>', embeds: [embed] });
   } catch (e) {
     console.error('❌ فشل إرسال الخطأ إلى الروم:', e.message);
   }
