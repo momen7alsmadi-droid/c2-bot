@@ -44,6 +44,11 @@ async function handleMasterPanel(interaction) {
     return interaction.reply({ content: '❌ هذه اللوحة خاصة بمطور البوت فقط.', ephemeral: true });
   }
 
+  // إذا كان ضغطة زر → نؤجل التحديث فوراً قبل أي جلب
+  if (!interaction.isCommand()) {
+    await interaction.deferUpdate().catch(() => {});
+  }
+
   const cfg = getConfig();
   const embed = buildStatsEmbed(interaction, cfg);
 
@@ -63,13 +68,15 @@ async function handleMasterPanel(interaction) {
   if (interaction.isCommand()) {
     return interaction.reply({ embeds: [embed], components, ephemeral: true });
   }
-  return interaction.update({ embeds: [embed], components });
+  return interaction.editReply({ embeds: [embed], components });
 }
 
 // =================== 🔄 تحديث اللوحة الرئيسية ===================
 
 async function handleDevRefreshPanel(interaction) {
   if (interaction.user.id !== DEV_BOT_ID) return;
+  await interaction.deferUpdate().catch(() => {});
+
   const cfg = getConfig();
   const embed = buildStatsEmbed(interaction, cfg);
   const components = [
@@ -83,7 +90,7 @@ async function handleDevRefreshPanel(interaction) {
       new ButtonBuilder().setCustomId('dev_check_db').setLabel('🗄️ فحص القاعدة').setStyle(ButtonStyle.Secondary),
     ),
   ];
-  return interaction.update({ embeds: [embed], components });
+  return interaction.editReply({ embeds: [embed], components });
 }
 
 // =================== 🎮 التحكم بالتشغيل ===================
@@ -124,6 +131,7 @@ async function showControlPage(interaction) {
 
 async function showRoomsPage(interaction) {
   if (interaction.user.id !== DEV_BOT_ID) return;
+  await interaction.deferUpdate().catch(() => {});
   const cfg = getConfig();
 
   const embed = new EmbedBuilder()
@@ -165,7 +173,7 @@ async function showRoomsPage(interaction) {
     ),
   ];
 
-  return interaction.update({ embeds: [embed], components });
+  return interaction.editReply({ embeds: [embed], components });
 }
 
 // =================== 📊 حالة النظام ===================
