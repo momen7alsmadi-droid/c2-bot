@@ -18,20 +18,17 @@ const {
 
 // ---------- دالة مساعدة للرد أو التحديث ----------
 async function respondOrUpdate(interaction, payload) {
-  // إذا كان التفاعل مؤجلاً (deferReply / deferUpdate) → editReply
   if (interaction.deferred) {
-    return interaction.editReply(payload).catch(() => {});
+    return interaction.editReply(payload);
   }
-  // أوامر سلاش ومودالات لم يسبق الرد عليها → reply
   if (interaction.isCommand() || interaction.isModalSubmit()) {
     return interaction.reply({ ...payload, ephemeral: true });
   }
-  // أزرار وقوائم منسدلة لم يسبق الرد عليها → update
-  if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
-    return interaction.update(payload);
+  // في حالة الأزرار والقوائم: نؤجل أولاً ثم نحدث
+  if (!interaction.replied && !interaction.deferred) {
+    await interaction.deferUpdate().catch(() => {});
   }
-  // في أي حالة أخرى → editReply أو reply
-  return interaction.editReply(payload).catch(() => interaction.reply({ ...payload, ephemeral: true }).catch(() => {}));
+  return interaction.editReply(payload);
 }
 
 // ---------- اللوحة الرئيسية ----------

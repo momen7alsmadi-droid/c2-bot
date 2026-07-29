@@ -33,10 +33,10 @@ function hexToInt(hex) {
 }
 
 async function respondOrUpdate(interaction, payload) {
-  if (interaction.deferred) return interaction.editReply(payload).catch(() => {});
+  if (interaction.deferred) return interaction.editReply(payload);
   if (interaction.isCommand() || interaction.isModalSubmit()) return interaction.reply({ ...payload, ephemeral: true });
-  if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) return interaction.update(payload);
-  return interaction.editReply(payload).catch(() => interaction.reply({ ...payload, ephemeral: true }).catch(() => {}));
+  if (!interaction.replied && !interaction.deferred) await interaction.deferUpdate().catch(() => {});
+  return interaction.editReply(payload);
 }
 
 // ================== 1. الواجهة الرئيسية ==================

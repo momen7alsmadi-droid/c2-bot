@@ -22,15 +22,15 @@ function hexToInt(hex) {
 // ---------- دالة مساعدة: تحديث أو رد حسب حالة الـ interaction ----------
 async function respondOrUpdate(interaction, payload) {
   if (interaction.deferred) {
-    return interaction.editReply(payload).catch(() => {});
+    return interaction.editReply(payload);
   }
   if (interaction.isCommand() || interaction.isModalSubmit()) {
     return interaction.reply({ ...payload, ephemeral: true });
   }
-  if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
-    return interaction.update(payload);
+  if (!interaction.replied && !interaction.deferred) {
+    await interaction.deferUpdate().catch(() => {});
   }
-  return interaction.editReply(payload).catch(() => interaction.reply({ ...payload, ephemeral: true }).catch(() => {}));
+  return interaction.editReply(payload);
 }
 
 // ---------- عرض لوحة الإعدادات ----------

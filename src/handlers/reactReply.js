@@ -14,15 +14,16 @@ const processedReacts = new Set();
 
 async function respondOrUpdate(interaction, payload) {
   if (interaction.deferred) {
-    return interaction.editReply(payload).catch(() => {});
+    return interaction.editReply(payload);
   }
   if (interaction.isCommand() || interaction.isModalSubmit()) {
     return interaction.reply({ ...payload, ephemeral: true });
   }
-  if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
-    return interaction.update(payload);
+  // في حالة الأزرار والقوائم: نؤجل أولاً ثم نحدث
+  if (!interaction.replied && !interaction.deferred) {
+    await interaction.deferUpdate().catch(() => {});
   }
-  return interaction.editReply(payload).catch(() => interaction.reply({ ...payload, ephemeral: true }).catch(() => {}));
+  return interaction.editReply(payload);
 }
 
 // ================== اللوحة الرئيسية ==================

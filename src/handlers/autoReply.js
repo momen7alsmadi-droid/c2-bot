@@ -88,15 +88,16 @@ const {
 // ---------- دالة مساعدة ----------
 async function respondOrUpdate(interaction, payload) {
   if (interaction.deferred) {
-    return interaction.editReply(payload).catch(() => {});
+    return interaction.editReply(payload);
   }
   if (interaction.isCommand() || interaction.isModalSubmit()) {
     return interaction.reply({ ...payload, ephemeral: true });
   }
-  if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
-    return interaction.update(payload);
+  // في حالة الأزرار والقوائم: نؤجل أولاً ثم نحدث
+  if (!interaction.replied && !interaction.deferred) {
+    await interaction.deferUpdate().catch(() => {});
   }
-  return interaction.editReply(payload).catch(() => interaction.reply({ ...payload, ephemeral: true }).catch(() => {}));
+  return interaction.editReply(payload);
 }
 
 /** Parse time string like "10s", "5m", "2h", "1h 30m" → ms */
@@ -294,22 +295,22 @@ async function showArControlPanel(interaction, replyName) {
     new ButtonBuilder().setCustomId(`ar_roles_blacklist_${replyName}`).setLabel('🚫 الرتب الممنوعة').setStyle(ButtonStyle.Secondary),
   );
 
-  // ---- الصف الخامس ----
+  // ---- الصف الخامس - يندمج معه أزرار الإيمبد إن كانت مفعلة ----
   const row5 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`ar_chans_whitelist_${replyName}`).setLabel('📢 الرومات المسموحة').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`ar_chans_blacklist_${replyName}`).setLabel('⛔ الرومات الممنوعة').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`ar_embed_${replyName}`).setLabel(data.replyAsEmbed ? '🖼️ إيمبد 🟢' : '🖼️ إيمبد 🔴').setStyle(data.replyAsEmbed ? ButtonStyle.Success : ButtonStyle.Danger),
   );
 
-  // ---- الصف السادس (اختياري) - يظهر فقط لو الإيمبد مفعل ----
-  let components = [row1, row2, row3, row4, row5];
+  // إذا كان الإيمبد مفعل، نضيف أزرار الألوان إلى نفس الصف الخامس (حد أقصى 5 أزرار)
   if (data.replyAsEmbed) {
-    const row6 = new ActionRowBuilder().addComponents(
+    row5.addComponents(
       new ButtonBuilder().setCustomId(`ar_randcolor_${replyName}`).setLabel(data.randomColor ? '🎨 لون عشوائي 🟢' : '🎨 لون عشوائي 🔴').setStyle(data.randomColor ? ButtonStyle.Success : ButtonStyle.Danger),
       new ButtonBuilder().setCustomId(`ar_embedcolor_${replyName}`).setLabel('🎨 اختر لون').setStyle(ButtonStyle.Secondary),
     );
-    components.push(row6);
   }
+
+  const components = [row1, row2, row3, row4, row5];
 
   return respondOrUpdate(interaction, { embeds: [infoEmbed], components });
 }
@@ -973,14 +974,6 @@ async function handleAutoReplyInteraction(interaction) {
   const id = interaction.customId;
   const parts = id.split('_');
   const prefix = parts[0];
-
-  // الأزرار اللي تظهر مودال ما نعمل لها defer
-  const isModalAction = id === 'ar_create' ||
-    (prefix === 'ar' && (parts[1] === 'responses' || parts[1] === 'embed' || parts[1] === 'embedcolor'));
-
-  if (!isModalAction) {
-    try { await interaction.deferUpdate(); } catch {}
-  }
 
   // الأزرار الرئيسية
   if (id === 'ar_main') return handleAutoReplyMain(interaction);

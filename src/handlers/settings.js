@@ -13,17 +13,17 @@ const lst = (arr) => Array.isArray(arr) && arr.length ? arr.map(i => `<@&${i}>`)
 // ---------- دالة مساعدة: تحديث أو رد حسب حالة الـ interaction ----------
 async function respondOrUpdate(interaction, payload) {
   if (interaction.deferred) {
-    return interaction.editReply(payload).catch(() => {});
+    return interaction.editReply(payload);
   }
   if (interaction.isCommand() || interaction.isModalSubmit()) {
     // أول مرة من الأمر السلاش أو بعد مودال
     return interaction.reply({ ...payload, ephemeral: true });
   }
-  // من زر أو قائمة منسدلة → نحدّث الرسالة نفسها
-  if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
-    return interaction.update(payload);
+  // من زر أو قائمة منسدلة → نؤجل أولاً ثم نحدث
+  if (!interaction.replied && !interaction.deferred) {
+    await interaction.deferUpdate().catch(() => {});
   }
-  return interaction.editReply(payload).catch(() => interaction.reply({ ...payload, ephemeral: true }).catch(() => {}));
+  return interaction.editReply(payload);
 }
 
 // ---------- معرفة الصفحة من الـ customId ----------
