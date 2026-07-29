@@ -71,12 +71,10 @@ async function handleDevRefreshPanel(interaction) {
   const embed = buildStatsEmbed(interaction, cfg);
   const components = [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('dev_main_refresh').setLabel('🔄 تحديث اللوحة').setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId('dev_main_control').setLabel('🎮 التحكم بالتشغيل').setStyle(ButtonStyle.Primary),
-    ),
-    new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('dev_main_rooms').setLabel('📡 إعدادات الرومات').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('dev_main_status').setLabel('📊 حالة النظام').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('dev_main_refresh').setLabel('🔄 تحديث اللوحة').setStyle(ButtonStyle.Secondary),
     ),
   ];
   return interaction.update({ embeds: [embed], components });
@@ -93,7 +91,7 @@ async function showControlPage(interaction) {
   const embed = new EmbedBuilder()
     .setTitle('🎮 التحكم بالتشغيل')
     .setColor(0xE67E22)
-    .setDescription('تحكم في تشغيل وتعطيل البوت وإدارة الإجازات')
+    .setDescription('تحكم في تشغيل وتعطيل البوت على السيرفرات')
     .addFields(
       { name: '📊 الإحصائيات', value: `إجمالي السيرفرات: ${totalGuilds}\nالسيرفرات المعطلة: ${disabledCount}` },
     )
