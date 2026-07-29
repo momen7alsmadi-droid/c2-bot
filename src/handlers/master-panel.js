@@ -75,6 +75,7 @@ async function handleMasterPanel(interaction) {
   const row4 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('dev_refresh_panel').setLabel('🔄 تحديث اللوحة').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('dev_refresh').setLabel('🔄 تحديث الإجازات').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('dev_check_db').setLabel('🗄️ فحص MongoDB').setStyle(ButtonStyle.Secondary),
   );
   const row5 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('dev_disable').setLabel('🔴 تعطيل سيرفر').setStyle(ButtonStyle.Danger),
@@ -82,11 +83,8 @@ async function handleMasterPanel(interaction) {
     new ButtonBuilder().setCustomId('dev_disable_all').setLabel('🔴🔴 إطفاء الكل').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId('dev_enable_all').setLabel('🟢🟢 تشغيل الكل').setStyle(ButtonStyle.Success),
   );
-  const row6 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('dev_check_db').setLabel('🗄️ فحص MongoDB').setStyle(ButtonStyle.Secondary),
-  );
 
-  return interaction.reply({ embeds: [embed], components: [row1, row2, row3, row4, row5, row6], ephemeral: true });
+  return interaction.reply({ embeds: [embed], components: [row1, row2, row3, row4, row5], ephemeral: true });
 }
 
 // ------------------- التحديث -------------------
@@ -260,6 +258,7 @@ async function handleDevRefreshPanel(interaction) {
   const row4 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('dev_refresh_panel').setLabel('🔄 تحديث اللوحة').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('dev_refresh').setLabel('🔄 تحديث الإجازات').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('dev_check_db').setLabel('🗄️ فحص MongoDB').setStyle(ButtonStyle.Secondary),
   );
   const row5 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('dev_disable').setLabel('🔴 تعطيل سيرفر').setStyle(ButtonStyle.Danger),
@@ -267,11 +266,8 @@ async function handleDevRefreshPanel(interaction) {
     new ButtonBuilder().setCustomId('dev_disable_all').setLabel('🔴🔴 إطفاء الكل').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId('dev_enable_all').setLabel('🟢🟢 تشغيل الكل').setStyle(ButtonStyle.Success),
   );
-  const row6 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('dev_check_db').setLabel('🗄️ فحص MongoDB').setStyle(ButtonStyle.Secondary),
-  );
 
-  return interaction.update({ embeds: [embed], components: [row1, row2, row3, row4, row5, row6] });
+  return interaction.update({ embeds: [embed], components: [row1, row2, row3, row4, row5] });
 }
 
 // ------------------- فحص MongoDB -------------------
