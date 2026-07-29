@@ -15,6 +15,7 @@ const AUTOREPLY_PATH = path.join(DATA_DIR, 'autoreply.json');
 const autoReplySchema = new mongoose.Schema({
   _id: String,
   name: { type: String, required: true },
+  guildId: { type: String, default: '' },
   trigger: { type: String, required: true },
   triggerType: { type: String, default: 'contains' },
   responses: { type: [String], default: [] },
@@ -167,6 +168,7 @@ async function createReply(data) {
   const now = new Date();
   const doc = {
     _id: data.name, name: data.name,
+    guildId: data.guildId || '',
     trigger: data.trigger, triggerType: data.triggerType || 'contains',
     responses: data.responses || [],
     randomReply: data.randomReply || false,
@@ -247,9 +249,10 @@ async function getEnabledReplies() {
   return all.filter(r => r.enabled !== false);
 }
 
-async function getRepliesList() {
+async function getRepliesList(guildId) {
   const all = await getAllReplies();
-  return all.map(r => ({
+  const filtered = guildId ? all.filter(r => !r.guildId || r.guildId === guildId) : all;
+  return filtered.map(r => ({
     name: r.name, trigger: r.trigger, triggerType: r.triggerType,
     responsesCount: (r.responses || []).length,
     sendStyle: r.sendStyle || 'reply_mention',

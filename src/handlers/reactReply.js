@@ -84,6 +84,7 @@ async function handleRrCreateModal(interaction) {
 
     const created = await createReact({
       name, trigger, emojis: [emoji],
+      guildId: interaction.guild?.id?.toString() || '',
       randomReact: false, multipleReact: false,
       roleWhitelist: [], roleBlacklist: [],
       channelWhitelist: [], channelBlacklist: []

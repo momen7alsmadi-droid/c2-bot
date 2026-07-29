@@ -214,6 +214,7 @@ async function handleArCreateModal(interaction) {
 
     const created = await createReply({
       name, trigger,
+      guildId: interaction.guild?.id?.toString() || '',
       responses: [],
       randomReply: false,
       sendStyle: 'reply_mention',
@@ -431,8 +432,10 @@ async function handleArView(interaction, replyName) {
 // ================== 3. تعديل رد (اختيار) ==================
 
 async function handleArEdit(interaction) {
-  const textList = await getRepliesList();
-  const reactList = await getReactsList();
+  await interaction.deferUpdate().catch(() => {});
+  const guildId = interaction.guild?.id?.toString() || '';
+  const textList = await getRepliesList(guildId);
+  const reactList = await getReactsList(guildId);
 
   const options = [];
   textList.forEach(r => {

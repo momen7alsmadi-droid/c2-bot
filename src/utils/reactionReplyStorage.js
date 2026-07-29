@@ -14,6 +14,7 @@ const REACT_PATH = path.join(DATA_DIR, 'reactions.json');
 const reactSchema = new mongoose.Schema({
   _id: String,
   name: { type: String, required: true },
+  guildId: { type: String, default: '' },
   trigger: { type: String, required: true },
   triggerType: { type: String, default: 'contains' },
   emoji: { type: String, default: '' },
@@ -128,6 +129,7 @@ async function createReact(data) {
   const now = new Date();
   const doc = {
     _id: data.name, name: data.name,
+    guildId: data.guildId || '',
     trigger: data.trigger, triggerType: data.triggerType || 'contains',
     emoji: emojis[0] || '', emojis: emojis,
     randomReact: data.randomReact || false, multipleReact: data.multipleReact || false,
@@ -183,9 +185,10 @@ async function getEnabledReacts() {
   return all.filter(r => r.enabled !== false);
 }
 
-async function getReactsList() {
+async function getReactsList(guildId) {
   const all = await getAllReacts();
-  return all.map(r => ({
+  const filtered = guildId ? all.filter(r => !r.guildId || r.guildId === guildId) : all;
+  return filtered.map(r => ({
     name: r.name, trigger: r.trigger, triggerType: r.triggerType,
     emoji: r.emoji || ((r.emojis||[])[0] || ''),
     emojisCount: (r.emojis||[]).length,
