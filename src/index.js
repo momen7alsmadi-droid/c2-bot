@@ -14,7 +14,7 @@ const {
 const { handleDaleelCommand, handleDaleelSettings } = require('./handlers/daleel');
 const { handleReportCommand, handleReportButton, handleReportSettings } = require('./handlers/report');
 const { handleResign, handleResignButton, handleDevSettings } = require('./handlers/resign');
-const { handleMasterPanel, handleDevRefresh, handleDevRefreshPanel, handleDevDisable, handleDevEnable, handleDevToggle, handleDevCheckDb } = require('./handlers/master-panel');
+const { handleMasterPanel, handleDevRefresh, handleDevRefreshPanel, handleDevDisable, handleDevEnable, handleDevToggle, handleDevCheckDb, handleDevChannelSelect } = require('./handlers/master-panel');
 const { handleHelp } = require('./handlers/help');
 const { handleBroadcast } = require('./handlers/broadcast');
 const { handleColorsCommand } = require('./handlers/colors');
@@ -75,6 +75,143 @@ async function sendPingMessage() {
     console.log('✅ تم إرسال رسالة البقاء شغالاً إلى الروم المحدد');
   } catch (err) {
     console.error('❌ فشل إرسال رسالة البقاء شغالاً:', err.message);
+  }
+}
+
+// ========== نظام مراقبة الحالة ==========
+
+/**
+ * إرسال إيمبد حالة البوت إلى الروم المحدد في الإعدادات
+ */
+async function sendBotStatus(client) {
+  const cfg = safeGetConfig();
+  if (!cfg.statusChannelId) return;
+
+  try {
+    const channel = await client.channels.fetch(cfg.statusChannelId).catch(() => null);
+    if (!channel) {
+      console.warn('⚠️ روم حالة البوت غير موجود.');
+      return;
+    }
+
+    const ping = client.ws.ping;
+    const uptimeSeconds = Math.floor(process.uptime());
+    const days = Math.floor(uptimeSeconds / 86400);
+    const hours = Math.floor((uptimeSeconds % 86400) / 3600);
+    const minutes = Math.floor((uptimeSeconds % 3600) / 60);
+    const totalGuilds = client.guilds.cache.size;
+    const totalMembers = client.guilds.cache.reduce((acc, g) => acc + g.memberCount, 0);
+
+    const mongoose = require('mongoose');
+    const dbState = mongoose.connection.readyState === 1 ? '✅ متصلة' : '❌ غير متصلة';
+
+    const embed = new EmbedBuilder()
+      .setTitle('📡 حالة البوت')
+      .setColor(ping < 200 ? 0x2ECC71 : ping < 500 ? 0xF1C40F : 0xE74C3C)
+      .setDescription('تقرير دوري عن حالة البوت وأدائه')
+      .addFields(
+        { name: '🔄 حالة التشغيل', value: '✅ شغال', inline: true },
+        { name: '📶 سرعة الاستجابة (Ping)', value: `${ping}ms`, inline: true },
+        { name: '🖥️ وقت التشغيل', value: `${days}ي ${hours}س ${minutes}د`, inline: true },
+        { name: '🌍 عدد السيرفرات', value: `${totalGuilds}`, inline: true },
+        { name: '👥 إجمالي الأعضاء', value: `${totalMembers}`, inline: true },
+        { name: '🗄️ حالة القاعدة', value: dbState, inline: true },
+      )
+      .setFooter({ text: `آخر تحديث` })
+      .setTimestamp();
+
+    await channel.send({ embeds: [embed] });
+    console.log('✅ تم إرسال تقرير حالة البوت');
+  } catch (err) {
+    console.error('❌ فشل إرسال تقرير حالة البوت:', err.message);
+  }
+}
+
+/**
+ * إرسال إيمبد حالة قاعدة البيانات إلى الروم المحدد
+ */
+async function sendDbStatus(client) {
+  const cfg = safeGetConfig();
+  if (!cfg.dbStatusChannelId) return;
+
+  try {
+    const channel = await client.channels.fetch(cfg.dbStatusChannelId).catch(() => null);
+    if (!channel) {
+      console.warn('⚠️ روم حالة قاعدة البيانات غير موجود.');
+      return;
+    }
+
+    const mongoose = require('mongoose');
+    const os = require('os');
+    const readyState = mongoose.connection.readyState;
+    const stateNames = {
+      0: '❌ غير متصلة (Disconnected)',
+      1: '✅ متصلة (Connected)',
+      2: '⏳ جاري الاتصال (Connecting)',
+      3: '⚠️ يتم قطع الاتصال (Disconnecting)',
+    };
+
+    let details = '';
+    if (readyState === 1) {
+      try {
+        const db = mongoose.connection.db;
+        const admin = db.admin();
+        const info = await admin.serverStatus().catch(() => ({}));
+        const dbList = await admin.listDatabases().catch(() => ({}));
+        const ops = info.opcounters || {};
+        details = [
+          `• **القاعدة:** \`${db.databaseName}\``,
+          `• **المضيف:** \`${mongoose.connection.host}\``,
+          `• **العمليات:** ${(ops.command || 0) + (ops.query || 0) + (ops.insert || 0) + (ops.update || 0) + (ops.delete || 0)}`,
+          `• **عدد قواعد البيانات:** ${(dbList.databases || []).length}`,
+          `• **المضيف المحلي:** \`${os.hostname()}\``,
+        ].join('\n');
+      } catch (e) {
+        details = '⚠️ تعذر جلب التفاصيل الكاملة';
+      }
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle('🗄️ حالة قاعدة البيانات')
+      .setColor(readyState === 1 ? 0x2ECC71 : 0xE74C3C)
+      .setDescription(`**الحالة:** ${stateNames[readyState] || '❓ غير معروف'}\n\n${details}`)
+      .setFooter({ text: `آخر فحص` })
+      .setTimestamp();
+
+    await channel.send({ embeds: [embed] });
+    console.log('✅ تم إرسال تقرير حالة قاعدة البيانات');
+  } catch (err) {
+    console.error('❌ فشل إرسال تقرير حالة القاعدة:', err.message);
+  }
+}
+
+/**
+ * إرسال خطأ إلى روم الأخطاء التلقائي
+ */
+async function sendErrorToChannel(client, type, id, err) {
+  const cfg = safeGetConfig();
+  if (!cfg.errorLogChannelId) return;
+
+  try {
+    const channel = await client.channels.fetch(cfg.errorLogChannelId).catch(() => null);
+    if (!channel) return;
+
+    const errMsg = (err.message || 'خطأ غير معروف').slice(0, 1000);
+    const stackPreview = (err.stack || errMsg).split('\n').slice(0, 5).join('\n').slice(0, 1000);
+
+    const embed = new EmbedBuilder()
+      .setTitle(`🚨 خطأ: ${type}`)
+      .setColor(0xE74C3C)
+      .setDescription(`🆔 **${id || '?'}** | 🕐 <t:${Math.floor(Date.now() / 1000)}:F>`)
+      .addFields(
+        { name: '📝 رسالة الخطأ', value: errMsg, inline: false },
+        { name: '📋 المكدس (Stack)', value: stackPreview, inline: false },
+      )
+      .setTimestamp();
+
+    await channel.send({ embeds: [embed] });
+  } catch (e) {
+    console.error('❌ فشل إرسال الخطأ إلى الروم:', e.message);
   }
 }
 
@@ -183,10 +320,39 @@ ID: ${guild.id}
     // تسجيل الأوامر (تأكيد مع جميع الأوامر)
     deployCommands(client.user.id).then(() => console.log('📋 تمت مزامنة جميع الأوامر مع Discord API'));
     
-    // إرسال أول رسالة فور التشغيل
+    // إرسال أول رسالة بقاء (كل 30 دقيقة)
     setTimeout(() => sendPingMessage(), 5000);
-    // ثم كل 14 دقيقة
     setInterval(sendPingMessage, PING_INTERVAL_MS);
+
+    // ========== نظام مراقبة الحالة ==========
+    const STATUS_INTERVAL_MS = 30 * 60 * 1000;
+
+    // حساب التأخير لأول تشغيلة حسب الوقت الحالي
+    function msUntilNext(minuteOffset) {
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      // الأهداف: 00:offset, 30:offset, 60:offset...
+      const cycleBase = Math.floor(currentMinutes / 30) * 30;
+      let target = cycleBase + minuteOffset;
+      if (target <= currentMinutes) target += 30;
+      const diffSec = (target - currentMinutes) * 60 - now.getSeconds();
+      return Math.max(diffSec * 1000 - now.getMilliseconds(), 1000);
+    }
+
+    // تقرير البوت: بعد 10 ثواني ثم كل 30 دقيقة
+    setTimeout(() => sendBotStatus(client), 10000);
+    setInterval(() => sendBotStatus(client), STATUS_INTERVAL_MS);
+
+    // تقرير قاعدة البيانات: أول مرة عند الدقيقة 15 أو 45 ثم كل 30 دقيقة
+    const dbFirstDelay = msUntilNext(15);
+    setTimeout(() => {
+      sendDbStatus(client);
+      setInterval(() => sendDbStatus(client), STATUS_INTERVAL_MS);
+    }, dbFirstDelay);
+
+    console.log(`⏰ جدولة تقارير الحالة:
+   📡 البوت: فوراً + كل ${STATUS_INTERVAL_MS / 60000} دقيقة
+   🗄️ القاعدة: بعد ${Math.round(dbFirstDelay / 1000)} ثانية + كل ${STATUS_INTERVAL_MS / 60000} دقيقة`);
 
     // فحص الاجازات المنتهية
     checkExpiredLeaves(client);
@@ -218,7 +384,7 @@ ID: ${guild.id}
 
 initialize();
 
-// ========== نظام تسجيل الأخطاء (Error Log) ==========
+// ========== نظام تسجيل الأخطاء (Error Log) مع إرسال لروم الأخطاء ==========
 const ERROR_LOG_PATH = path.join(__dirname, '..', 'data', 'error-log.json');
 const MAX_LOG = 50;
 
@@ -235,8 +401,28 @@ function logError(type, id, err) {
     log.unshift(entry);
     if (log.length > MAX_LOG) log = log.slice(0, MAX_LOG);
     fs.writeFileSync(ERROR_LOG_PATH, JSON.stringify(log, null, 2), 'utf8');
+
+    // إرسال إلى روم الأخطاء إن وجد
+    if (client && client.isReady()) {
+      sendErrorToChannel(client, type, id, err);
+    }
   } catch { /* ignore */ }
 }
+
+// ========== معالج الأخطاء العام (Unhandled Rejections / Exceptions) ==========
+process.on('unhandledRejection', (reason, promise) => {
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  console.error('🚨 Unhandled Rejection:', err.message);
+  console.error(err.stack);
+  logError('UNHANDLED_REJECTION', 'global', err);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('🚨 Uncaught Exception:', err.message);
+  console.error(err.stack);
+  logError('UNCAUGHT_EXCEPTION', 'global', err);
+  // لا ننهي العملية - البوت يكمل عادي
+});
 
 // ------------------- التفاعلات -------------------
 
@@ -252,7 +438,10 @@ function safeGetConfig() {
       daleel: { allowedRoleId: null, channelId: null, logChannelId: null },
       report: { allowedRoleId: null, adminRoleId: null, channelId: null, warning1RoleId: null, warning2RoleId: null, warning3RoleId: null, upperManagementRoleId: null, upperManagementChannelId: null, logChannelId: null, cooldownEnabled: true, cooldownDuration: 60 },
       resign: { allowedRoleId: null, logChannelId: null, rolesToRemove: [], exemptedRoles: [], resignRoleId: null, upperManagementRoleId: null },
-      disabledGuilds: []
+      disabledGuilds: [],
+      statusChannelId: null,
+      dbStatusChannelId: null,
+      errorLogChannelId: null
     };
   }
 }
@@ -292,6 +481,8 @@ client.on('interactionCreate', async (interaction) => {
         await handleAutoReplyInteraction(interaction);
       } else if (interaction.customId.startsWith('sb_')) {
         await handleStarboardInteraction(interaction);
+      } else if (interaction.customId.startsWith('dev_ch_')) {
+        await handleDevChannelSelect(interaction);
       } else {
         await handleSettingsSelect(interaction);
       }

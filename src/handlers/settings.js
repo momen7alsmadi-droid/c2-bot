@@ -86,10 +86,7 @@ async function handleSettings(interaction) {
       new ButtonBuilder().setCustomId('set_report').setLabel('🛡️ بلاغات').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('set_resign').setLabel('📄 استقالة').setStyle(ButtonStyle.Primary),
     );
-    const row2 = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('set_checkdb').setLabel('🗄️ فحص قاعدة البيانات').setStyle(ButtonStyle.Secondary),
-    );
-    return respondOrUpdate(interaction, { embeds: [embed], components: [row, row2] });
+    return respondOrUpdate(interaction, { embeds: [embed], components: [row] });
   } catch (e) {
     console.error('ERR-HOME:', e.message);
     try { await interaction.reply({ content: '⚠️ ERR-HOME', ephemeral: true }); } catch(_) {}

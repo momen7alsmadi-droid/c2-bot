@@ -44,7 +44,10 @@ const DEFAULT_CONFIG = {
     resignRoleId: null,
     upperManagementRoleId: null
   },
-  disabledGuilds: []
+  disabledGuilds: [],
+  statusChannelId: null,
+  dbStatusChannelId: null,
+  errorLogChannelId: null
 };
 
 // ---------- MongoDB Models ----------
@@ -129,7 +132,10 @@ function getConfig() {
     daleel: { ...DEFAULT_CONFIG.daleel, ...(cfg.daleel || {}) },
     report: { ...DEFAULT_CONFIG.report, ...(cfg.report || {}) },
     resign: { ...DEFAULT_CONFIG.resign, ...(cfg.resign || {}) },
-    disabledGuilds: Array.isArray(cfg.disabledGuilds) ? cfg.disabledGuilds : []
+    disabledGuilds: Array.isArray(cfg.disabledGuilds) ? cfg.disabledGuilds : [],
+    statusChannelId: cfg.statusChannelId || null,
+    dbStatusChannelId: cfg.dbStatusChannelId || null,
+    errorLogChannelId: cfg.errorLogChannelId || null
   };
 }
 

@@ -1,5 +1,6 @@
 const {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder,
+  ChannelSelectMenuBuilder, ChannelType
 } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
@@ -39,22 +40,53 @@ async function handleMasterPanel(interaction) {
     .setFooter({ text: `الإصدار: ${version} | @${interaction.user.tag}` })
     .setTimestamp();
 
+  // --- قوائم اختيار الرومات ---
+  const chStatus = cfg.statusChannelId ? `<#${cfg.statusChannelId}>` : '❌ غير محدد';
+  const chDb = cfg.dbStatusChannelId ? `<#${cfg.dbStatusChannelId}>` : '❌ غير محدد';
+  const chError = cfg.errorLogChannelId ? `<#${cfg.errorLogChannelId}>` : '❌ غير محدد';
+
+  embed.addFields(
+    { name: '📡 روم حالة البوت', value: chStatus, inline: false },
+    { name: '🗄️ روم حالة قاعدة البيانات', value: chDb, inline: false },
+    { name: '🚨 روم الأخطاء التلقائي', value: chError, inline: false },
+  );
+
   const row1 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('dev_refresh').setLabel('🔄 تحديث الإجازات').setStyle(ButtonStyle.Primary),
+    new ChannelSelectMenuBuilder()
+      .setCustomId('dev_ch_status')
+      .setPlaceholder('📡 اختر روم حالة البوت')
+      .setChannelTypes(ChannelType.GuildText)
+      .setMaxValues(1),
   );
   const row2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('dev_disable').setLabel('🔴 تعطيل سيرفر').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('dev_enable').setLabel('🟢 تفعيل سيرفر').setStyle(ButtonStyle.Success),
+    new ChannelSelectMenuBuilder()
+      .setCustomId('dev_ch_db')
+      .setPlaceholder('🗄️ اختر روم حالة قاعدة البيانات')
+      .setChannelTypes(ChannelType.GuildText)
+      .setMaxValues(1),
   );
   const row3 = new ActionRowBuilder().addComponents(
+    new ChannelSelectMenuBuilder()
+      .setCustomId('dev_ch_error')
+      .setPlaceholder('🚨 اختر روم الأخطاء التلقائي')
+      .setChannelTypes(ChannelType.GuildText)
+      .setMaxValues(1),
+  );
+  const row4 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('dev_refresh_panel').setLabel('🔄 تحديث اللوحة').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('dev_refresh').setLabel('🔄 تحديث الإجازات').setStyle(ButtonStyle.Primary),
+  );
+  const row5 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('dev_disable').setLabel('🔴 تعطيل سيرفر').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('dev_enable').setLabel('🟢 تفعيل سيرفر').setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId('dev_disable_all').setLabel('🔴🔴 إطفاء الكل').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId('dev_enable_all').setLabel('🟢🟢 تشغيل الكل').setStyle(ButtonStyle.Success),
   );
-  const row4 = new ActionRowBuilder().addComponents(
+  const row6 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('dev_check_db').setLabel('🗄️ فحص MongoDB').setStyle(ButtonStyle.Secondary),
   );
 
-  return interaction.reply({ embeds: [embed], components: [row1, row2, row3, row4], ephemeral: true });
+  return interaction.reply({ embeds: [embed], components: [row1, row2, row3, row4, row5, row6], ephemeral: true });
 }
 
 // ------------------- التحديث -------------------
@@ -194,23 +226,52 @@ async function handleDevRefreshPanel(interaction) {
     .setFooter({ text: `الإصدار: ${version} | @${interaction.user.tag}` })
     .setTimestamp();
 
+  const chStatus = cfg.statusChannelId ? `<#${cfg.statusChannelId}>` : '❌ غير محدد';
+  const chDb = cfg.dbStatusChannelId ? `<#${cfg.dbStatusChannelId}>` : '❌ غير محدد';
+  const chError = cfg.errorLogChannelId ? `<#${cfg.errorLogChannelId}>` : '❌ غير محدد';
+
+  embed.addFields(
+    { name: '📡 روم حالة البوت', value: chStatus, inline: false },
+    { name: '🗄️ روم حالة قاعدة البيانات', value: chDb, inline: false },
+    { name: '🚨 روم الأخطاء التلقائي', value: chError, inline: false },
+  );
+
   const row1 = new ActionRowBuilder().addComponents(
+    new ChannelSelectMenuBuilder()
+      .setCustomId('dev_ch_status')
+      .setPlaceholder('📡 اختر روم حالة البوت')
+      .setChannelTypes(ChannelType.GuildText)
+      .setMaxValues(1),
+  );
+  const row2 = new ActionRowBuilder().addComponents(
+    new ChannelSelectMenuBuilder()
+      .setCustomId('dev_ch_db')
+      .setPlaceholder('🗄️ اختر روم حالة قاعدة البيانات')
+      .setChannelTypes(ChannelType.GuildText)
+      .setMaxValues(1),
+  );
+  const row3 = new ActionRowBuilder().addComponents(
+    new ChannelSelectMenuBuilder()
+      .setCustomId('dev_ch_error')
+      .setPlaceholder('🚨 اختر روم الأخطاء التلقائي')
+      .setChannelTypes(ChannelType.GuildText)
+      .setMaxValues(1),
+  );
+  const row4 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('dev_refresh_panel').setLabel('🔄 تحديث اللوحة').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('dev_refresh').setLabel('🔄 تحديث الإجازات').setStyle(ButtonStyle.Primary),
   );
-  const row2 = new ActionRowBuilder().addComponents(
+  const row5 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('dev_disable').setLabel('🔴 تعطيل سيرفر').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId('dev_enable').setLabel('🟢 تفعيل سيرفر').setStyle(ButtonStyle.Success),
-  );
-  const row3 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('dev_disable_all').setLabel('🔴🔴 إطفاء الكل').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId('dev_enable_all').setLabel('🟢🟢 تشغيل الكل').setStyle(ButtonStyle.Success),
   );
-  const row4 = new ActionRowBuilder().addComponents(
+  const row6 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('dev_check_db').setLabel('🗄️ فحص MongoDB').setStyle(ButtonStyle.Secondary),
   );
 
-  return interaction.update({ embeds: [embed], components: [row1, row2, row3, row4] });
+  return interaction.update({ embeds: [embed], components: [row1, row2, row3, row4, row5, row6] });
 }
 
 // ------------------- فحص MongoDB -------------------
@@ -279,4 +340,43 @@ async function handleDevCheckDb(interaction) {
   return interaction.editReply({ embeds: [embed] });
 }
 
-module.exports = { handleMasterPanel, handleDevRefresh, handleDevRefreshPanel, handleDevDisable, handleDevEnable, handleDevToggle, handleDevCheckDb, DEV_BOT_ID };
+/**
+ * handleDevChannelSelect - حفظ اختيار الروم من قائمة القنوات المنسدلة
+ */
+async function handleDevChannelSelect(interaction) {
+  if (interaction.user.id !== DEV_BOT_ID) {
+    return interaction.reply({ content: '❌ هذه اللوحة خاصة بمطور البوت فقط.', ephemeral: true });
+  }
+
+  const id = interaction.customId;
+  const channelId = interaction.values[0];
+  const cfg = getConfig();
+  let field = '';
+  let label = '';
+
+  if (id === 'dev_ch_status') {
+    field = 'statusChannelId';
+    label = '📡 روم حالة البوت';
+  } else if (id === 'dev_ch_db') {
+    field = 'dbStatusChannelId';
+    label = '🗄️ روم حالة قاعدة البيانات';
+  } else if (id === 'dev_ch_error') {
+    field = 'errorLogChannelId';
+    label = '🚨 روم الأخطاء التلقائي';
+  } else {
+    return interaction.reply({ content: '⚠️ أمر غير معروف.', ephemeral: true });
+  }
+
+  cfg[field] = channelId;
+  saveConfig(cfg);
+
+  await interaction.reply({
+    content: `✅ تم تحديد ${label}: <#${channelId}>`,
+    ephemeral: true
+  });
+
+  // تحديث اللوحة
+  const channel = await interaction.client.channels.fetch(channelId).catch(() => null);
+}
+
+module.exports = { handleMasterPanel, handleDevRefresh, handleDevRefreshPanel, handleDevDisable, handleDevEnable, handleDevToggle, handleDevCheckDb, handleDevChannelSelect, DEV_BOT_ID };
