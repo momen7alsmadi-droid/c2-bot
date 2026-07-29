@@ -47,19 +47,23 @@ async function handleMasterPanel(interaction) {
   const cfg = getConfig();
   const embed = buildStatsEmbed(interaction, cfg);
 
-  // صف واحد فقط يضم 5 أزرار (التحكم، الرومات، الحالة، التحديث، فحص القاعدة)
+  // صف أول: 4 أزرار رئيسية (التحكم، الرومات، الحالة، التحديث) + صف ثاني: زر فحص القاعدة فقط
   const components = [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('dev_main_control').setLabel('🎮 التحكم بالتشغيل').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('dev_main_rooms').setLabel('📡 إعدادات الرومات').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('dev_main_status').setLabel('📊 حالة النظام').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('dev_main_refresh').setLabel('🔄 تحديث اللوحة').setStyle(ButtonStyle.Secondary),
+    ),
+    new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('dev_check_db').setLabel('🗄️ فحص القاعدة').setStyle(ButtonStyle.Secondary),
     ),
   ];
 
-  const payload = { embeds: [embed], components, ephemeral: true };
-  return interaction.isCommand() ? interaction.reply(payload) : interaction.update(payload);
+  if (interaction.isCommand()) {
+    return interaction.reply({ embeds: [embed], components, ephemeral: true });
+  }
+  return interaction.update({ embeds: [embed], components });
 }
 
 // =================== 🔄 تحديث اللوحة الرئيسية ===================
@@ -74,6 +78,8 @@ async function handleDevRefreshPanel(interaction) {
       new ButtonBuilder().setCustomId('dev_main_rooms').setLabel('📡 إعدادات الرومات').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('dev_main_status').setLabel('📊 حالة النظام').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('dev_main_refresh').setLabel('🔄 تحديث اللوحة').setStyle(ButtonStyle.Secondary),
+    ),
+    new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('dev_check_db').setLabel('🗄️ فحص القاعدة').setStyle(ButtonStyle.Secondary),
     ),
   ];
