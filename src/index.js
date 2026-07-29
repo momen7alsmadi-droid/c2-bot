@@ -14,7 +14,7 @@ const {
 const { handleDaleelCommand, handleDaleelSettings } = require('./handlers/daleel');
 const { handleReportCommand, handleReportButton, handleReportSettings } = require('./handlers/report');
 const { handleResign, handleResignButton, handleDevSettings } = require('./handlers/resign');
-const { handleMasterPanel, handleDevRefresh, handleDevRefreshPanel, handleDevDisable, handleDevEnable, handleDevToggle, handleDevCheckDb, handleDevChannelSelect } = require('./handlers/master-panel');
+const { handleMasterPanel, handleDevRefresh, handleDevRefreshPanel, handleDevDisable, handleDevEnable, handleDevToggle, handleDevCheckDb, handleDevChannelSelect, showControlPage, showRoomsPage, showStatusPage } = require('./handlers/master-panel');
 const { handleHelp } = require('./handlers/help');
 const { handleBroadcast } = require('./handlers/broadcast');
 const { handleColorsCommand } = require('./handlers/colors');
@@ -605,8 +605,14 @@ async function handleButton(interaction) {
 
   if (prefix === 'dev') {
     const action = parts[1];
+    // أزرار التنقل
+    if (id === 'dev_main_refresh') return handleDevRefreshPanel(interaction);
+    if (id === 'dev_main_control') return showControlPage(interaction);
+    if (id === 'dev_main_rooms') return showRoomsPage(interaction);
+    if (id === 'dev_main_status') return showStatusPage(interaction);
+    if (id === 'dev_ctrl_back' || id === 'dev_rooms_back' || id === 'dev_status_back') return handleMasterPanel(interaction);
+    // أزرار التحكم
     if (id === 'dev_check_db') return handleDevCheckDb(interaction);
-    if (id === 'dev_refresh_panel') return handleDevRefreshPanel(interaction);
     if (action === 'refresh') return handleDevRefresh(interaction);
     if (action === 'disable' && parts.length === 2) return handleDevDisable(interaction);
     if (action === 'enable' && parts.length === 2) return handleDevEnable(interaction);
