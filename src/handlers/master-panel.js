@@ -10,9 +10,8 @@ const { getLeaves, saveLeaves, getConfig, saveConfig } = require('../utils/stora
 
 const DEV_BOT_ID = '1387331972094890036';
 
-// ========== دوال مساعدة لبناء الإيمبد والمكونات ==========
+// ========== دالة مساعدة لبناء إيمبد الإحصائيات ==========
 
-/** بناء الإيمبد الأساسي للإحصائيات */
 function buildStatsEmbed(interaction, cfg) {
   const totalGuilds = interaction.client.guilds.cache.size;
   const leaves = getLeaves();
@@ -38,7 +37,7 @@ function buildStatsEmbed(interaction, cfg) {
     .setTimestamp();
 }
 
-// =================== الواجهة الرئيسية ===================
+// =================== الواجهة الرئيسية (Page Main) ===================
 
 async function handleMasterPanel(interaction) {
   if (interaction.user.id !== DEV_BOT_ID) {
@@ -48,20 +47,20 @@ async function handleMasterPanel(interaction) {
   const cfg = getConfig();
   const embed = buildStatsEmbed(interaction, cfg);
 
+  // 4 أزرار فقط في صفين (2+2)
   const components = [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('dev_main_refresh').setLabel('🔄 تحديث اللوحة').setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId('dev_main_control').setLabel('🎮 التحكم بالتشغيل').setStyle(ButtonStyle.Primary),
+    ),
+    new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('dev_main_rooms').setLabel('📡 إعدادات الرومات').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('dev_main_status').setLabel('📊 حالة النظام').setStyle(ButtonStyle.Primary),
     ),
   ];
 
   const payload = { embeds: [embed], components, ephemeral: true };
-  if (interaction.isCommand()) {
-    return interaction.reply(payload);
-  }
-  return interaction.update(payload);
+  return interaction.isCommand() ? interaction.reply(payload) : interaction.update(payload);
 }
 
 // =================== 🔄 تحديث اللوحة الرئيسية ===================
@@ -74,6 +73,8 @@ async function handleDevRefreshPanel(interaction) {
     new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('dev_main_refresh').setLabel('🔄 تحديث اللوحة').setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId('dev_main_control').setLabel('🎮 التحكم بالتشغيل').setStyle(ButtonStyle.Primary),
+    ),
+    new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('dev_main_rooms').setLabel('📡 إعدادات الرومات').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('dev_main_status').setLabel('📊 حالة النظام').setStyle(ButtonStyle.Primary),
     ),
@@ -92,7 +93,7 @@ async function showControlPage(interaction) {
   const embed = new EmbedBuilder()
     .setTitle('🎮 التحكم بالتشغيل')
     .setColor(0xE67E22)
-    .setDescription('تحكم في تشغيل وتعطيل البوت على السيرفرات')
+    .setDescription('تحكم في تشغيل وتعطيل البوت وإدارة الإجازات')
     .addFields(
       { name: '📊 الإحصائيات', value: `إجمالي السيرفرات: ${totalGuilds}\nالسيرفرات المعطلة: ${disabledCount}` },
     )
@@ -107,7 +108,8 @@ async function showControlPage(interaction) {
       new ButtonBuilder().setCustomId('dev_disable_all').setLabel('🔴🔴 إطفاء الكل').setStyle(ButtonStyle.Danger),
     ),
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('dev_ctrl_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('dev_refresh').setLabel('🔄 تحديث الإجازات').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('dev_back_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary),
     ),
   ];
 
@@ -155,7 +157,7 @@ async function showRoomsPage(interaction) {
         .setMaxValues(1),
     ),
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('dev_rooms_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('dev_back_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary),
     ),
   ];
 
@@ -167,9 +169,7 @@ async function showRoomsPage(interaction) {
 async function showStatusPage(interaction) {
   if (interaction.user.id !== DEV_BOT_ID) return;
 
-  const mongoose = require('mongoose');
   const os = require('os');
-  const cfg = getConfig();
 
   // --- حالة البوت ---
   const ping = interaction.client.ws.ping;
@@ -183,13 +183,6 @@ async function showStatusPage(interaction) {
   // --- حالة القاعدة ---
   const readyState = mongoose.connection.readyState;
   const stateNames = { 0: '❌ غير متصلة', 1: '✅ متصلة', 2: '⏳ جاري الاتصال', 3: '⚠️ يتم قطع الاتصال' };
-  let dbDetails = '';
-  if (readyState === 1) {
-    try {
-      const db = mongoose.connection.db;
-      dbDetails = `\n• القاعدة: \`${db.databaseName}\`\n• المضيف: \`${mongoose.connection.host}\``;
-    } catch { dbDetails = '\n• (تعذر جلب التفاصيل)'; }
-  }
 
   // --- مدة اتصال القاعدة ---
   let dbUptime = 'غير متصلة';
@@ -208,7 +201,7 @@ async function showStatusPage(interaction) {
     } catch { dbUptime = 'متصلة (مدة غير متوفرة)'; }
   }
 
-  // --- آخر الأخطاء المسجلة ---
+  // --- آخر الأخطاء المسجلة بوقتها ---
   const errorLogPath = path.join(__dirname, '..', '..', 'data', 'error-log.json');
   let recentErrors = 'لا توجد أخطاء مسجلة';
   try {
@@ -228,7 +221,7 @@ async function showStatusPage(interaction) {
     .setColor(0x2ECC71)
     .addFields(
       { name: '🤖 البوت', value: `Ping: **${ping}ms**\nUptime: **${days}ي ${hours}س ${minutes}د**\nسيرفرات: **${totalGuilds}**\nأعضاء: **${totalMembers}**`, inline: true },
-      { name: '🗄️ قاعدة البيانات', value: `الحالة: **${stateNames[readyState] || '❓'}**${dbDetails}\nمدة الاتصال: **${dbUptime}**`, inline: true },
+      { name: '🗄️ قاعدة البيانات', value: `الحالة: **${stateNames[readyState] || '❓'}**\nمدة الاتصال: **${dbUptime}**`, inline: true },
       { name: '🖥️ النظام', value: `المضيف: \`${os.hostname()}\`\nPID: **${process.pid}**\nالإصدار: **${version}**`, inline: false },
       { name: '🚨 آخر الأخطاء', value: recentErrors, inline: false },
     )
@@ -237,16 +230,9 @@ async function showStatusPage(interaction) {
 
   const components = [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('dev_status_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('dev_back_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary),
     ),
   ];
-
-  // زر فحص MongoDB إذا كانت القاعدة متصلة
-  if (readyState === 1) {
-    components[0].addComponents(
-      new ButtonBuilder().setCustomId('dev_check_db').setLabel('🗄️ فحص MongoDB').setStyle(ButtonStyle.Secondary),
-    );
-  }
 
   return interaction.update({ embeds: [embed], components });
 }
@@ -295,9 +281,7 @@ async function checkAllExpiredLeaves(client) {
 async function handleDevDisable(interaction) {
   if (interaction.user.id !== DEV_BOT_ID) return;
   const guilds = interaction.client.guilds.cache;
-  if (guilds.size === 0) {
-    return showControlPage(interaction);
-  }
+  if (guilds.size === 0) return showControlPage(interaction);
 
   const embed = new EmbedBuilder()
     .setTitle('🔴 تعطيل سيرفر')
@@ -305,9 +289,9 @@ async function handleDevDisable(interaction) {
     .setDescription('اختر السيرفر الذي تريد تعطيل البوت فيه:')
     .setTimestamp();
 
-  const rows = [];
   const guildArr = [...guilds.values()];
-  for (let i = 0; i < guildArr.length && i < 25; i += 5) {
+  const rows = [];
+  for (let i = 0; i < guildArr.length && rows.length < 4; i += 5) {
     const chunk = guildArr.slice(i, i + 5);
     rows.push(new ActionRowBuilder().addComponents(
       ...chunk.map(g =>
@@ -318,9 +302,8 @@ async function handleDevDisable(interaction) {
       )
     ));
   }
-  // زر رجوع
   rows.push(new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('dev_ctrl_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('dev_back_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary),
   ));
 
   return interaction.update({ embeds: [embed], components: rows.slice(0, 5) });
@@ -329,9 +312,7 @@ async function handleDevDisable(interaction) {
 async function handleDevEnable(interaction) {
   if (interaction.user.id !== DEV_BOT_ID) return;
   const cfg = getConfig();
-  if (cfg.disabledGuilds.length === 0) {
-    return showControlPage(interaction);
-  }
+  if (cfg.disabledGuilds.length === 0) return showControlPage(interaction);
 
   const guilds = interaction.client.guilds.cache;
   const embed = new EmbedBuilder()
@@ -341,9 +322,8 @@ async function handleDevEnable(interaction) {
     .setTimestamp();
 
   const rows = [];
-  const disabledList = cfg.disabledGuilds;
-  for (let i = 0; i < disabledList.length && i < 25; i += 5) {
-    const chunk = disabledList.slice(i, i + 5);
+  for (let i = 0; i < cfg.disabledGuilds.length && rows.length < 4; i += 5) {
+    const chunk = cfg.disabledGuilds.slice(i, i + 5);
     rows.push(new ActionRowBuilder().addComponents(
       ...chunk.map(id => {
         const g = guilds.get(id);
@@ -355,7 +335,7 @@ async function handleDevEnable(interaction) {
     ));
   }
   rows.push(new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('dev_ctrl_back').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('dev_back_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary),
   ));
 
   return interaction.update({ embeds: [embed], components: rows.slice(0, 5) });
@@ -377,7 +357,6 @@ async function handleDevToggle(interaction) {
       cfg.disabledGuilds = [];
       saveConfig(cfg);
     }
-    // الرجوع إلى صفحة التحكم
     return showControlPage(interaction);
   }
 
@@ -388,7 +367,6 @@ async function handleDevToggle(interaction) {
     cfg.disabledGuilds = cfg.disabledGuilds.filter(id => id !== guildId);
     saveConfig(cfg);
   }
-  // الرجوع إلى صفحة التحكم
   return showControlPage(interaction);
 }
 
@@ -399,7 +377,6 @@ async function handleDevCheckDb(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
   const os = require('os');
-
   const errorLogPath = path.join(__dirname, '..', '..', 'data', 'error-log.json');
   let recentErrors = '';
   try {
@@ -470,7 +447,6 @@ async function handleDevChannelSelect(interaction) {
   else return;
   saveConfig(cfg);
 
-  // العودة إلى صفحة الرومات بعد الحفظ
   return showRoomsPage(interaction);
 }
 

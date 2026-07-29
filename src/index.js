@@ -610,7 +610,7 @@ async function handleButton(interaction) {
     if (id === 'dev_main_control') return showControlPage(interaction);
     if (id === 'dev_main_rooms') return showRoomsPage(interaction);
     if (id === 'dev_main_status') return showStatusPage(interaction);
-    if (id === 'dev_ctrl_back' || id === 'dev_rooms_back' || id === 'dev_status_back') return handleMasterPanel(interaction);
+    if (id === 'dev_back_main') return handleMasterPanel(interaction);
     // أزرار التحكم
     if (id === 'dev_check_db') return handleDevCheckDb(interaction);
     if (action === 'refresh') return handleDevRefresh(interaction);
