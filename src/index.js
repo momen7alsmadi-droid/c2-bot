@@ -328,9 +328,11 @@ ID: ${guild.id}
       return Math.max(diffSec * 1000 - now.getMilliseconds(), 1000);
     }
 
-    // تقرير البوت: بعد 10 ثواني ثم كل 30 دقيقة
-    setTimeout(() => sendBotStatus(client), 10000);
-    setInterval(() => sendBotStatus(client), STATUS_INTERVAL_MS);
+    // تقرير البوت: بعد 10 ثواني ثم كل 30 دقيقة (بعد الإرسال الأول)
+    setTimeout(() => {
+      sendBotStatus(client);
+      setInterval(() => sendBotStatus(client), STATUS_INTERVAL_MS);
+    }, 10000);
 
     // تقرير قاعدة البيانات: أول مرة عند الدقيقة 15 أو 45 ثم كل 30 دقيقة
     const dbFirstDelay = msUntilNext(15);
@@ -340,7 +342,7 @@ ID: ${guild.id}
     }, dbFirstDelay);
 
     console.log(`⏰ جدولة تقارير الحالة:
-   📡 البوت: فوراً + كل ${STATUS_INTERVAL_MS / 60000} دقيقة
+   📡 البوت: بعد 10 ثواني + كل ${STATUS_INTERVAL_MS / 60000} دقيقة
    🗄️ القاعدة: بعد ${Math.round(dbFirstDelay / 1000)} ثانية + كل ${STATUS_INTERVAL_MS / 60000} دقيقة`);
 
     // فحص الاجازات المنتهية
