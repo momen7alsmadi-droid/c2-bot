@@ -166,6 +166,7 @@ async function showRoomsPage(interaction) {
 
 async function showStatusPage(interaction) {
   if (interaction.user.id !== DEV_BOT_ID) return;
+  await interaction.deferUpdate().catch(() => {});
 
   const os = require('os');
 
@@ -232,7 +233,7 @@ async function showStatusPage(interaction) {
     ),
   ];
 
-  return interaction.update({ embeds: [embed], components });
+  return interaction.editReply({ embeds: [embed], components });
 }
 
 // =================== تحديث الإجازات ===================

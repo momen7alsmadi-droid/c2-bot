@@ -189,6 +189,9 @@ async function sendDbStatus(client) {
  * إرسال خطأ إلى روم الأخطاء التلقائي
  */
 async function sendErrorToChannel(client, type, id, err) {
+  // تجاهل خطأ انتهاء وقت التفاعل (DiscordAPIError 10062)
+  if (err && err.code === 10062) return;
+
   const cfg = safeGetConfig();
   if (!cfg.errorLogChannelId) return;
 
