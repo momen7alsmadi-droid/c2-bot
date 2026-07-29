@@ -234,37 +234,42 @@ async function handleDevRefreshPanel(interaction) {
     { name: '🚨 روم الأخطاء التلقائي', value: chError, inline: false },
   );
 
+  // الصف 1: أزرار التحكم الرئيسية (التحديث، التعطيل، التفعيل، الإطفاء، التشغيل)
   const row1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('dev_refresh_panel').setLabel('🔄 تحديث اللوحة').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('dev_disable').setLabel('🔴 تعطيل سيرفر').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('dev_enable').setLabel('🟢 تفعيل سيرفر').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('dev_disable_all').setLabel('🔴🔴 إطفاء الكل').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('dev_enable_all').setLabel('🟢🟢 تشغيل الكل').setStyle(ButtonStyle.Success),
+  );
+  // الصف 2: أزرار ثانوية
+  const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('dev_refresh').setLabel('🔄 تحديث الإجازات').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('dev_check_db').setLabel('🗄️ فحص MongoDB').setStyle(ButtonStyle.Secondary),
+  );
+  // الصف 3: قائمة روم حالة البوت
+  const row3 = new ActionRowBuilder().addComponents(
     new ChannelSelectMenuBuilder()
       .setCustomId('dev_ch_status')
       .setPlaceholder('📡 اختر روم حالة البوت')
       .setChannelTypes(ChannelType.GuildText)
       .setMaxValues(1),
   );
-  const row2 = new ActionRowBuilder().addComponents(
+  // الصف 4: قائمة روم حالة قاعدة البيانات
+  const row4 = new ActionRowBuilder().addComponents(
     new ChannelSelectMenuBuilder()
       .setCustomId('dev_ch_db')
       .setPlaceholder('🗄️ اختر روم حالة قاعدة البيانات')
       .setChannelTypes(ChannelType.GuildText)
       .setMaxValues(1),
   );
-  const row3 = new ActionRowBuilder().addComponents(
+  // الصف 5: قائمة روم الأخطاء التلقائي
+  const row5 = new ActionRowBuilder().addComponents(
     new ChannelSelectMenuBuilder()
       .setCustomId('dev_ch_error')
       .setPlaceholder('🚨 اختر روم الأخطاء التلقائي')
       .setChannelTypes(ChannelType.GuildText)
       .setMaxValues(1),
-  );
-  const row4 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('dev_refresh_panel').setLabel('🔄 تحديث اللوحة').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('dev_refresh').setLabel('🔄 تحديث الإجازات').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('dev_check_db').setLabel('🗄️ فحص MongoDB').setStyle(ButtonStyle.Secondary),
-  );
-  const row5 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('dev_disable').setLabel('🔴 تعطيل سيرفر').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('dev_enable').setLabel('🟢 تفعيل سيرفر').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId('dev_disable_all').setLabel('🔴🔴 إطفاء الكل').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('dev_enable_all').setLabel('🟢🟢 تشغيل الكل').setStyle(ButtonStyle.Success),
   );
 
   return interaction.update({ embeds: [embed], components: [row1, row2, row3, row4, row5] });
