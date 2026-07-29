@@ -157,7 +157,7 @@ async function showSettingsPage(interaction, type, page) {
         components: [
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_leaveRole').setPlaceholder('🎖️ رتبة الإجازة').setMaxValues(1)),
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_rolesToRemove').setPlaceholder('🗑️ اختر أدنى وأعلى رتبة للنطاق').setMinValues(2).setMaxValues(2)),
-          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_exemptedRoles').setPlaceholder('🛡️ رتب مستثناة من السحب').setMinValues(1).setMaxValues(50)),
+          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_exemptedRoles').setPlaceholder('🛡️ رتب مستثناة من السحب').setMinValues(1).setMaxValues(25)),
           new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('set_leave_1').setLabel('◀️ الأساسيات').setStyle(ButtonStyle.Primary), btnBack),
         ]
       });
@@ -281,7 +281,7 @@ async function showSettingsPage(interaction, type, page) {
         embeds: [embed],
         components: [
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_rolesToRemove').setPlaceholder('🗑️ اختر أدنى وأعلى رتبة للنطاق').setMinValues(2).setMaxValues(2)),
-          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_exemptedRoles').setPlaceholder('🛡️ رتب مستثناة من السحب').setMinValues(1).setMaxValues(50)),
+          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_exemptedRoles').setPlaceholder('🛡️ رتب مستثناة من السحب').setMinValues(1).setMaxValues(25)),
           new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('set_resign_1').setLabel('◀️ الأساسيات').setStyle(ButtonStyle.Primary), btnBack),
         ]
       });
@@ -363,10 +363,11 @@ async function handleSettingsSelect(interaction) {
           const rolesInRange = interaction.guild.roles.cache.filter(r => r.position >= minPos && r.position <= maxPos && r.id !== interaction.guild.id);
           cfg[system].rolesToRemove = rolesInRange.map(r => r.id);
         } else {
-          cfg[system].rolesToRemove = values || [];
+          cfg[system][field] = values || [];
         }
       } else {
-        cfg[system].rolesToRemove = values || [];
+        // rolesToRemove (أقل من 2) أو exemptedRoles
+        cfg[system][field] = values || [];
       }
     } else {
       cfg[system][mapKey] = values[0] || null;
