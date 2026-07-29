@@ -40,9 +40,7 @@ function buildStatsEmbed(interaction, cfg) {
 // =================== الواجهة الرئيسية (Page Main) ===================
 
 async function handleMasterPanel(interaction) {
-  if (interaction.user.id !== DEV_BOT_ID) {
-    return interaction.reply({ content: '❌ هذه اللوحة خاصة بمطور البوت فقط.', ephemeral: true });
-  }
+  if (interaction.user.id !== DEV_BOT_ID) return;
 
   // إذا كان ضغطة زر → نؤجل التحديث فوراً قبل أي جلب
   if (!interaction.isCommand()) {
@@ -255,7 +253,7 @@ async function showStatusPage(interaction) {
 
 async function handleDevRefresh(interaction) {
   if (interaction.user.id !== DEV_BOT_ID) return;
-  await interaction.deferReply({ ephemeral: true });
+  // dispatcher بالفعل عمل deferUpdate
   const result = await checkAllExpiredLeaves(interaction.client);
   const embed = new EmbedBuilder()
     .setTitle('🔄 تحديث الإجازات')
@@ -390,7 +388,7 @@ async function handleDevToggle(interaction) {
 
 async function handleDevCheckDb(interaction) {
   if (interaction.user.id !== DEV_BOT_ID) return;
-  await interaction.deferReply({ ephemeral: true });
+  // dispatcher بالفعل عمل deferUpdate
 
   const os = require('os');
   const errorLogPath = path.join(__dirname, '..', '..', 'data', 'error-log.json');
