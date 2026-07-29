@@ -147,10 +147,10 @@ async function deployCommands(clientId) {
   }
 
   try {
-    console.log('⏳ جاري تسجيل الأوامر الجديدة...');
+    console.log(`⏳ جاري تسجيل الأوامر الجديدة... (${commands.length} أمر)`);
     // الخطوة 2: تسجيل الأوامر الجديدة فقط
     await rest.put(Routes.applicationCommands(id), { body: commands });
-    console.log('✅ تم تسجيل الأوامر بنجاح.');
+    console.log(`✅ تم تسجيل ${commands.length} أمر بنجاح.`);
   } catch (err) {
     console.error('❌ فشل تسجيل الأوامر:', err.message);
     if (err.stack) console.error(err.stack);

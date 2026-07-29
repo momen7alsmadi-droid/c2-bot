@@ -2,7 +2,7 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
-const { Client, GatewayIntentBits, Partials, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, EmbedBuilder } = require('discord.js');
 const express = require('express');
 const { connectDatabase } = require('./utils/database');
 const { getConfig, saveConfig, ensureConfigLoaded, ensureReportsLoaded, initModels } = require('./utils/storage');
@@ -299,26 +299,12 @@ ID: ${guild.id}
   });
 
   // بدء إرسال رسالة كل 14 دقيقة بعد ما البوت يشتغل
-  client.once('ready', () => {
+  client.once('ready', async () => {
     console.log(`✅ البوت شغّال باسم ${client.user.tag}`);
-    
-    // ========== Deploy Force: مسح الأوامر القديمة + تسجيل /لوحة_النجوم ==========
-    (async () => {
-      try {
-        const starboardCommand = new SlashCommandBuilder()
-          .setName('لوحة_النجوم')
-          .setDescription('⭐ نظام لوحة النجوم المتعدد - إدارة اللوحات والإعدادات')
-          .setDefaultMemberPermissions(8);
-        console.log('Clearing old commands via client.application.commands.set()...');
-        await client.application.commands.set([starboardCommand.toJSON()]);
-        console.log('✅ Deploy Force: تم استبدال جميع الأوامر بـ /لوحة_النجوم');
-      } catch (error) {
-        console.error('❌ Deploy Force Failed:', error);
-      }
-    })();
 
-    // تسجيل الأوامر (تأكيد مع جميع الأوامر)
-    deployCommands(client.user.id).then(() => console.log('📋 تمت مزامنة جميع الأوامر مع Discord API'));
+    // تسجيل الأوامر (مسح القديم + تسجيل الكل)
+    await deployCommands(client.user.id);
+    console.log('📋 تمت مزامنة جميع الأوامر مع Discord API');
     
     // إرسال أول رسالة بقاء (كل 30 دقيقة)
     setTimeout(() => sendPingMessage(), 5000);
