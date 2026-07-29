@@ -449,7 +449,10 @@ async function handleReactInteraction(interaction) {
   const id = interaction.customId;
 
   // الأزرار اللي تظهر مودال ما نعمل لها defer
-  const isModalAction = id === 'rr_create';
+  const isModalAction = id === 'rr_create' ||
+    id.startsWith('rr_edit_emoji_') ||
+    id.startsWith('rr_edit_trigger_') ||
+    id.startsWith('rr_emojis_add_');
 
   if (!isModalAction) {
     try { await interaction.deferUpdate(); } catch {}
