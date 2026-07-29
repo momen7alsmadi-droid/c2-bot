@@ -189,8 +189,8 @@ async function sendDbStatus(client) {
  * إرسال خطأ إلى روم الأخطاء التلقائي
  */
 async function sendErrorToChannel(client, type, id, err) {
-  // تجاهل خطأ انتهاء وقت التفاعل (DiscordAPIError 10062)
-  if (err && err.code === 10062) return;
+  // تجاهل أخطاء التوقيت العابرة (DiscordAPIError 10062, 40060)
+  if (err && (err.code === 10062 || err.code === 40060)) return;
 
   const cfg = safeGetConfig();
   if (!cfg.errorLogChannelId) return;
@@ -378,6 +378,8 @@ const ERROR_LOG_PATH = path.join(__dirname, '..', 'data', 'error-log.json');
 const MAX_LOG = 50;
 
 function logError(type, id, err) {
+  // تجاهل أخطاء التوقيت العابرة ولا تسجلها إطلاقاً
+  if (err && (err.code === 10062 || err.code === 40060)) return;
   try {
     const entry = { ts: Date.now(), type, id, msg: err.message, stack: (err.stack || '').split('\n').slice(0, 5).join('\n') };
     let log = [];

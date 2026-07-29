@@ -97,6 +97,7 @@ async function handleDevRefreshPanel(interaction) {
 
 async function showControlPage(interaction) {
   if (interaction.user.id !== DEV_BOT_ID) return;
+  if (!interaction.deferred && !interaction.replied) await interaction.deferUpdate().catch(() => {});
   const cfg = getConfig();
   const disabledCount = cfg.disabledGuilds.length;
   const totalGuilds = interaction.client.guilds.cache.size;
@@ -124,7 +125,7 @@ async function showControlPage(interaction) {
     ),
   ];
 
-  return interaction.update({ embeds: [embed], components });
+  return interaction.editReply({ embeds: [embed], components });
 }
 
 // =================== 📡 إعدادات الرومات ===================
@@ -293,6 +294,7 @@ async function checkAllExpiredLeaves(client) {
 
 async function handleDevDisable(interaction) {
   if (interaction.user.id !== DEV_BOT_ID) return;
+  if (!interaction.deferred && !interaction.replied) await interaction.deferUpdate().catch(() => {});
   const guilds = interaction.client.guilds.cache;
   if (guilds.size === 0) return showControlPage(interaction);
 
@@ -319,11 +321,12 @@ async function handleDevDisable(interaction) {
     new ButtonBuilder().setCustomId('dev_back_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary),
   ));
 
-  return interaction.update({ embeds: [embed], components: rows.slice(0, 5) });
+  return interaction.editReply({ embeds: [embed], components: rows.slice(0, 5) });
 }
 
 async function handleDevEnable(interaction) {
   if (interaction.user.id !== DEV_BOT_ID) return;
+  if (!interaction.deferred && !interaction.replied) await interaction.deferUpdate().catch(() => {});
   const cfg = getConfig();
   if (cfg.disabledGuilds.length === 0) return showControlPage(interaction);
 
@@ -351,7 +354,7 @@ async function handleDevEnable(interaction) {
     new ButtonBuilder().setCustomId('dev_back_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary),
   ));
 
-  return interaction.update({ embeds: [embed], components: rows.slice(0, 5) });
+  return interaction.editReply({ embeds: [embed], components: rows.slice(0, 5) });
 }
 
 async function handleDevToggle(interaction) {
@@ -406,12 +409,21 @@ async function handleDevCheckDb(interaction) {
     }
   } catch { /* ignore */ }
 
-  let status = '';
+  let actualConnected = false;
   const readyState = mongoose.connection.readyState;
   const stateNames = { 0: '❌ disconnected', 1: '✅ connected', 2: '⏳ connecting', 3: '⚠️ disconnecting' };
-  status += `**الحالة:** ${stateNames[readyState] || '❓ غير معروف'}\n\n`;
 
+  // فحص الاتصال الفعلي عبر ping قبل الحكم
   if (readyState === 1) {
+    try {
+      await mongoose.connection.db.admin().ping();
+      actualConnected = true;
+    } catch { /* ping fails */ }
+  }
+  const displayState = actualConnected ? 1 : (readyState === 1 ? 0 : readyState);
+  status += `**الحالة:** ${stateNames[displayState] || '❓ غير معروف'}\n\n`;
+
+  if (actualConnected) {
     try {
       const testCollection = mongoose.connection.db.collection('_diag_test');
       const testDoc = { test: true, timestamp: new Date(), host: os.hostname(), pid: process.pid };
@@ -438,7 +450,7 @@ async function handleDevCheckDb(interaction) {
 
   const embed = new EmbedBuilder()
     .setTitle('🗄️ تشخيص قاعدة البيانات')
-    .setColor(readyState === 1 ? 0x2ECC71 : 0xE74C3C)
+    .setColor(displayState === 1 ? 0x2ECC71 : 0xE74C3C)
     .setDescription(status)
     .setTimestamp();
 
