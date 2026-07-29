@@ -253,7 +253,7 @@ async function showStatusPage(interaction) {
 
 async function handleDevRefresh(interaction) {
   if (interaction.user.id !== DEV_BOT_ID) return;
-  // dispatcher بالفعل عمل deferUpdate
+  await interaction.deferUpdate().catch(() => {});
   const result = await checkAllExpiredLeaves(interaction.client);
   const embed = new EmbedBuilder()
     .setTitle('🔄 تحديث الإجازات')
@@ -357,6 +357,7 @@ async function handleDevEnable(interaction) {
 
 async function handleDevToggle(interaction) {
   if (interaction.user.id !== DEV_BOT_ID) return;
+  await interaction.deferUpdate().catch(() => {});
   const [_, action, guildId] = interaction.customId.split('_');
   const cfg = getConfig();
 
@@ -388,7 +389,7 @@ async function handleDevToggle(interaction) {
 
 async function handleDevCheckDb(interaction) {
   if (interaction.user.id !== DEV_BOT_ID) return;
-  // dispatcher بالفعل عمل deferUpdate
+  await interaction.deferUpdate().catch(() => {});
 
   const os = require('os');
   const errorLogPath = path.join(__dirname, '..', '..', 'data', 'error-log.json');
@@ -407,6 +408,7 @@ async function handleDevCheckDb(interaction) {
     }
   } catch { /* ignore */ }
 
+  let status = '';
   let actualConnected = false;
   const readyState = mongoose.connection.readyState;
   const stateNames = { 0: '❌ disconnected', 1: '✅ connected', 2: '⏳ connecting', 3: '⚠️ disconnecting' };
@@ -459,6 +461,7 @@ async function handleDevCheckDb(interaction) {
 
 async function handleDevChannelSelect(interaction) {
   if (interaction.user.id !== DEV_BOT_ID) return;
+  await interaction.deferUpdate().catch(() => {});
 
   const id = interaction.customId;
   const channelId = interaction.values[0];

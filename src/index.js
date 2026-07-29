@@ -609,9 +609,6 @@ async function handleButton(interaction) {
   }
 
   if (prefix === 'dev') {
-    // تأجيل فوري لأي زر في لوحة المطور قبل أي شيء (يمنع 10062/40060)
-    if (!interaction.deferred && !interaction.replied) await interaction.deferUpdate().catch(() => {});
-
     const action = parts[1];
     // أزرار التنقل
     if (id === 'dev_main_refresh') return handleDevRefreshPanel(interaction);
