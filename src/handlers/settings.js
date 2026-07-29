@@ -10,6 +10,19 @@ const rl = (id) => id ? `<@&${id}>` : '❌ غير محدد';
 const ch = (id) => id ? `<#${id}>` : '❌ غير محدد';
 const lst = (arr) => Array.isArray(arr) && arr.length ? arr.map(i => `<@&${i}>`).join(', ') : 'لا يوجد';
 
+/** عرض ملخص نطاق الرتب بدون تجاوز حد 1024 حرف */
+function rangeSummary(arr, guild) {
+  if (!Array.isArray(arr) || arr.length === 0) return '❌ غير محدد';
+  if (arr.length === 1) return rl(arr[0]);
+  // نحدد أدنى وأعلى رتبة حسب position
+  const roles = arr.map(id => guild?.roles?.cache?.get(id)).filter(Boolean);
+  if (roles.length < 2) return rl(arr[0]) + (arr.length > 1 ? ` +${arr.length - 1}` : '');
+  roles.sort((a, b) => a.position - b.position);
+  const first = roles[0];
+  const last = roles[roles.length - 1];
+  return `من ${first} إلى ${last} | الإجمالي: **${arr.length}** رتبة`;
+}
+
 // ---------- دالة مساعدة: تحديث أو رد حسب حالة الـ interaction ----------
 async function respondOrUpdate(interaction, payload) {
   if (interaction.deferred) {
@@ -129,7 +142,7 @@ async function showSettingsPage(interaction, type, page) {
       const l = cfg.leave;
       embed.addFields(
         { name: '🎖️ رتبة الإجازة', value: rl(l.leaveRoleId) },
-        { name: '🗑️ الرتب المُزالة', value: lst(l.rolesToRemove) },
+        { name: '🗑️ الرتب المُزالة', value: rangeSummary(l.rolesToRemove, interaction.guild) },
         { name: '🛡️ الرتب المستثناة (لا تُسحب)', value: lst(l.exemptedRoles) },
       );
       return respondOrUpdate(interaction, {
@@ -254,7 +267,7 @@ async function showSettingsPage(interaction, type, page) {
     if (type === 'resign' && page === 2) {
       const r = cfg.resign;
       embed.addFields(
-        { name: '🗑️ الرتب المُزالة', value: lst(r.rolesToRemove) },
+        { name: '🗑️ الرتب المُزالة', value: rangeSummary(r.rolesToRemove, interaction.guild) },
         { name: '🛡️ الرتب المستثناة (لا تُسحب)', value: lst(r.exemptedRoles) },
       );
       return respondOrUpdate(interaction, {
@@ -276,6 +289,7 @@ async function showSettingsPage(interaction, type, page) {
 
 // اختيار القوائم والأزرار (كولداون)
 async function handleSettingsSelect(interaction) {
+  await interaction.deferUpdate().catch(() => {});
   try {
     const id = interaction.customId;
     const cfg = getConfig();
