@@ -567,19 +567,20 @@ async function handleButton(interaction) {
   }
 
   if (id === 'settings_back') {
+    await interaction.deferUpdate().catch(()=>{});
     return handleSettings(interaction);
   }
-  if (id === 'set_leave') return showSettingsPage(interaction, 'leave', 1);
-  if (id === 'set_leave_1') return showSettingsPage(interaction, 'leave', 1);
-  if (id === 'set_leave_2') return showSettingsPage(interaction, 'leave', 2);
-  if (id === 'set_daleel') return showSettingsPage(interaction, 'daleel', 1);
-  if (id === 'set_report') return showSettingsPage(interaction, 'report', 1);
-  if (id === 'set_report_1') return showSettingsPage(interaction, 'report', 1);
-  if (id === 'set_report_2') return showSettingsPage(interaction, 'report', 2);
-  if (id === 'set_report_3') return showSettingsPage(interaction, 'report', 3);
-  if (id === 'set_resign') return showSettingsPage(interaction, 'resign', 1);
-  if (id === 'set_resign_1') return showSettingsPage(interaction, 'resign', 1);
-  if (id === 'set_resign_2') return showSettingsPage(interaction, 'resign', 2);
+  if (id === 'set_leave') { await interaction.deferUpdate().catch(()=>{}); return showSettingsPage(interaction, 'leave', 1); }
+  if (id === 'set_leave_1') { await interaction.deferUpdate().catch(()=>{}); return showSettingsPage(interaction, 'leave', 1); }
+  if (id === 'set_leave_2') { await interaction.deferUpdate().catch(()=>{}); return showSettingsPage(interaction, 'leave', 2); }
+  if (id === 'set_daleel') { await interaction.deferUpdate().catch(()=>{}); return showSettingsPage(interaction, 'daleel', 1); }
+  if (id === 'set_report') { await interaction.deferUpdate().catch(()=>{}); return showSettingsPage(interaction, 'report', 1); }
+  if (id === 'set_report_1') { await interaction.deferUpdate().catch(()=>{}); return showSettingsPage(interaction, 'report', 1); }
+  if (id === 'set_report_2') { await interaction.deferUpdate().catch(()=>{}); return showSettingsPage(interaction, 'report', 2); }
+  if (id === 'set_report_3') { await interaction.deferUpdate().catch(()=>{}); return showSettingsPage(interaction, 'report', 3); }
+  if (id === 'set_resign') { await interaction.deferUpdate().catch(()=>{}); return showSettingsPage(interaction, 'resign', 1); }
+  if (id === 'set_resign_1') { await interaction.deferUpdate().catch(()=>{}); return showSettingsPage(interaction, 'resign', 1); }
+  if (id === 'set_resign_2') { await interaction.deferUpdate().catch(()=>{}); return showSettingsPage(interaction, 'resign', 2); }
   if (id === 'set_checkdb') return handleDbCheck(interaction);
   if (id.startsWith('sl_report_cd_')) {
     return handleSettingsSelect(interaction);

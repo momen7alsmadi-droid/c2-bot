@@ -58,6 +58,7 @@ function getPageFromCustomId(id) {
     'leave_logChannel':      { type: 'leave', page: 1 },
     'leave_leaveRole':       { type: 'leave', page: 2 },
     'leave_rolesToRemove':   { type: 'leave', page: 2 },
+    'leave_exemptedRoles':  { type: 'leave', page: 2 },
     // دليل
     'daleel_allowedRole':    { type: 'daleel', page: 1 },
     'daleel_channel':        { type: 'daleel', page: 1 },
@@ -79,6 +80,7 @@ function getPageFromCustomId(id) {
     'resign_upperMgmt':      { type: 'resign', page: 1 },
     'resign_logChannel':     { type: 'resign', page: 1 },
     'resign_rolesToRemove':  { type: 'resign', page: 2 },
+    'resign_exemptedRoles': { type: 'resign', page: 2 },
   };
 
   return pageMap[`${system}_${field}`] || { type: system, page: 1 };
@@ -157,7 +159,7 @@ async function showSettingsPage(interaction, type, page) {
         components: [
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_leaveRole').setPlaceholder('🎖️ رتبة الإجازة').setMaxValues(1)),
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_rolesToRemove').setPlaceholder('🗑️ اختر أدنى وأعلى رتبة للنطاق').setMinValues(2).setMaxValues(2)),
-          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_exemptedRoles').setPlaceholder('🛡️ رتب مستثناة من السحب').setMinValues(1).setMaxValues(25)),
+          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_leave_exemptedRoles').setPlaceholder('🛡️ رتب مستثناة من السحب').setMinValues(0).setMaxValues(25)),
           new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('set_leave_1').setLabel('◀️ الأساسيات').setStyle(ButtonStyle.Primary), btnBack),
         ]
       });
@@ -281,7 +283,7 @@ async function showSettingsPage(interaction, type, page) {
         embeds: [embed],
         components: [
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_rolesToRemove').setPlaceholder('🗑️ اختر أدنى وأعلى رتبة للنطاق').setMinValues(2).setMaxValues(2)),
-          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_exemptedRoles').setPlaceholder('🛡️ رتب مستثناة من السحب').setMinValues(1).setMaxValues(25)),
+          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_exemptedRoles').setPlaceholder('🛡️ رتب مستثناة من السحب').setMinValues(0).setMaxValues(25)),
           new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('set_resign_1').setLabel('◀️ الأساسيات').setStyle(ButtonStyle.Primary), btnBack),
         ]
       });
@@ -367,7 +369,8 @@ async function handleSettingsSelect(interaction) {
         }
       } else {
         // rolesToRemove (أقل من 2) أو exemptedRoles
-        cfg[system][field] = values || [];
+        // استبدال كامل للمصفوفة (حتى لو فارغة [] إذا ألغى المستخدم التحديد)
+        cfg[system][field] = [...(values || [])];
       }
     } else {
       cfg[system][mapKey] = values[0] || null;
