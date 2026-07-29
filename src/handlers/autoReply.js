@@ -90,14 +90,24 @@ async function respondOrUpdate(interaction, payload) {
   if (interaction.deferred) {
     return interaction.editReply(payload);
   }
+  if (interaction.replied) {
+    return interaction.followUp(payload);
+  }
   if (interaction.isCommand() || interaction.isModalSubmit()) {
     return interaction.reply({ ...payload, ephemeral: true });
   }
-  // في حالة الأزرار والقوائم: نؤجل أولاً ثم نحدث
-  if (!interaction.replied && !interaction.deferred) {
+  // أزرار/قوائم منسدلة لم يتم تأجيلها مسبقاً → استخدم update() الذي يعترف ويحدث مباشرة
+  try {
+    return await interaction.update(payload);
+  } catch (e) {
+    // إذا فشل update (مثلاً التفاعل سبق تأجيله)، نستخدم editReply
+    if (interaction.deferred) {
+      return interaction.editReply(payload);
+    }
+    // كملاذ أخير: نؤجل ثم نحدث
     await interaction.deferUpdate().catch(() => {});
+    return interaction.editReply(payload);
   }
-  return interaction.editReply(payload);
 }
 
 /** Parse time string like "10s", "5m", "2h", "1h 30m" → ms */
