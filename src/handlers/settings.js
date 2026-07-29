@@ -102,7 +102,14 @@ async function handleSettings(interaction) {
     return respondOrUpdate(interaction, { embeds: [embed], components: [row] });
   } catch (e) {
     console.error('ERR-HOME:', e.message);
-    try { await interaction.reply({ content: '⚠️ ERR-HOME', ephemeral: true }); } catch(_) {}
+    const errMsg = `⚠️ **خطأ:** \`${e.message.slice(0, 500)}\``;
+    if (interaction.deferred) {
+      await interaction.editReply({ content: errMsg, components: [] }).catch(() => {});
+    } else if (interaction.replied) {
+      await interaction.followUp({ content: errMsg, ephemeral: true }).catch(() => {});
+    } else {
+      await interaction.reply({ content: errMsg, ephemeral: true }).catch(() => {});
+    }
   }
 }
 
@@ -283,7 +290,15 @@ async function showSettingsPage(interaction, type, page) {
     return respondOrUpdate(interaction, { content: '⚠️ ERR-UNK' });
   } catch (e) {
     console.error('ERR-GLOBAL:', e.message);
-    try { await interaction.reply({ content: '⚠️ ERR-GLOBAL', ephemeral: true }); } catch(_) {}
+    if (e.stack) console.error(e.stack.split('\n').slice(0, 5).join('\n'));
+    const errMsg = `⚠️ **خطأ:** \`${e.message.slice(0, 500)}\``;
+    if (interaction.deferred) {
+      await interaction.editReply({ content: errMsg, components: [] }).catch(() => {});
+    } else if (interaction.replied) {
+      await interaction.followUp({ content: errMsg, ephemeral: true }).catch(() => {});
+    } else {
+      await interaction.reply({ content: errMsg, ephemeral: true }).catch(() => {});
+    }
   }
 }
 
@@ -364,7 +379,14 @@ async function handleSettingsSelect(interaction) {
     return showSettingsPage(interaction, pageInfo.type, pageInfo.page);
   } catch (e) {
     console.error('ERR-SEL:', e.message, e.stack);
-    try { await interaction.reply({ content: '⚠️ ERR-SEL', ephemeral: true }); } catch(_) {}
+    const errMsg = `⚠️ **خطأ:** \`${e.message.slice(0, 500)}\``;
+    if (interaction.deferred) {
+      await interaction.editReply({ content: errMsg, components: [] }).catch(() => {});
+    } else if (interaction.replied) {
+      await interaction.followUp({ content: errMsg, ephemeral: true }).catch(() => {});
+    } else {
+      await interaction.reply({ content: errMsg, ephemeral: true }).catch(() => {});
+    }
   }
 }
 
@@ -407,10 +429,11 @@ async function handleDbCheck(interaction) {
     return respondOrUpdate(interaction, { embeds: [embed], components: [row] });
   } catch (e) {
     console.error('ERR-DB:', e.message);
+    const errMsg = `⚠️ **خطأ:** \`${e.message.slice(0, 500)}\``;
     try {
       if (interaction.isRepliable()) {
-        if (interaction.deferred) await interaction.editReply({ content: '⚠️ ERR-DB', ephemeral: true }).catch(() => {});
-        else if (!interaction.replied) await interaction.reply({ content: '⚠️ ERR-DB', ephemeral: true }).catch(() => {});
+        if (interaction.deferred) await interaction.editReply({ content: errMsg, components: [] }).catch(() => {});
+        else if (!interaction.replied) await interaction.reply({ content: errMsg, ephemeral: true }).catch(() => {});
       }
     } catch(_) {}
   }
