@@ -47,15 +47,14 @@ async function handleMasterPanel(interaction) {
   const cfg = getConfig();
   const embed = buildStatsEmbed(interaction, cfg);
 
-  // 4 أزرار فقط في صفين (2+2)
+  // صف واحد فقط يضم 5 أزرار (التحكم، الرومات، الحالة، التحديث، فحص القاعدة)
   const components = [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('dev_main_refresh').setLabel('🔄 تحديث اللوحة').setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId('dev_main_control').setLabel('🎮 التحكم بالتشغيل').setStyle(ButtonStyle.Primary),
-    ),
-    new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('dev_main_rooms').setLabel('📡 إعدادات الرومات').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('dev_main_status').setLabel('📊 حالة النظام').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('dev_main_refresh').setLabel('🔄 تحديث اللوحة').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('dev_check_db').setLabel('🗄️ فحص القاعدة').setStyle(ButtonStyle.Secondary),
     ),
   ];
 
@@ -75,6 +74,7 @@ async function handleDevRefreshPanel(interaction) {
       new ButtonBuilder().setCustomId('dev_main_rooms').setLabel('📡 إعدادات الرومات').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('dev_main_status').setLabel('📊 حالة النظام').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('dev_main_refresh').setLabel('🔄 تحديث اللوحة').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('dev_check_db').setLabel('🗄️ فحص القاعدة').setStyle(ButtonStyle.Secondary),
     ),
   ];
   return interaction.update({ embeds: [embed], components });
