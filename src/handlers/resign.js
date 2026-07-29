@@ -48,7 +48,18 @@ async function handleResign(interaction) {
 
 // ------------------- أزرار القبول/الرفض -------------------
 
+/** عرض ملخص الرتب بدون تجاوز حد 1024 حرف */
+function roleSummary(arr, guild) {
+  if (!Array.isArray(arr) || arr.length === 0) return 'لا يوجد';
+  if (arr.length <= 2) return arr.map(id => `<@&${id}>`).join(', ');
+  const roles = arr.map(id => guild?.roles?.cache?.get(id)).filter(Boolean);
+  if (roles.length < 2) return arr.slice(0, 2).map(id => `<@&${id}>`).join(', ') + ` +${arr.length - 2}`;
+  roles.sort((a, b) => a.position - b.position);
+  return `من ${roles[0]} إلى ${roles[roles.length - 1]} | الإجمالي: **${arr.length}** رتبة`;
+}
+
 async function handleResignButton(interaction, action, userId) {
+  await interaction.deferUpdate().catch(() => {});
   const guild = interaction.guild;
   const cfg = getConfig();
 
@@ -57,7 +68,7 @@ async function handleResignButton(interaction, action, userId) {
   const hasAdmin = memberClicker.permissions.has('Administrator');
   const hasUpperRole = cfg.resign.upperManagementRoleId && memberClicker.roles.cache.has(cfg.resign.upperManagementRoleId);
   if (!hasAdmin && !hasUpperRole) {
-    return interaction.reply({ content: '❌ ليس لديك صلاحية لقبول أو رفض الاستقالات. يحتاج إلى رتبة الإدارة العليا أو صلاحية Administrator.', ephemeral: true });
+    return interaction.editReply({ content: '❌ ليس لديك صلاحية لقبول أو رفض الاستقالات. يحتاج إلى رتبة الإدارة العليا أو صلاحية Administrator.', components: [] });
   }
 
   const member = await guild.members.fetch(userId).catch(() => null);
@@ -70,14 +81,14 @@ async function handleResignButton(interaction, action, userId) {
   if (action === 'reject') {
     const { setFieldValue } = require('../utils/helpers');
     setFieldValue(newEmbed, '— الحالة', `❌ مرفوضة بواسطة ${interaction.user.tag}`);
-    await interaction.update({ embeds: [newEmbed], components: [disabledRow] });
+    await interaction.editReply({ embeds: [newEmbed], components: [disabledRow] });
     if (member) member.send('❌ تم رفض طلب استقالتك.').catch(() => {});
     return;
   }
 
   // قبول الاستقالة
   if (!member) {
-    return interaction.reply({ content: '⚠️ العضو غير موجود في السيرفر.', ephemeral: true });
+    return interaction.editReply({ content: '⚠️ العضو غير موجود في السيرفر.', components: [] });
   }
 
   // إزالة الرتب المحددة
@@ -97,7 +108,7 @@ async function handleResignButton(interaction, action, userId) {
 
   const { setFieldValue } = require('../utils/helpers');
   setFieldValue(newEmbed, '— الحالة', `✅ مقبولة بواسطة ${interaction.user.tag}`);
-  await interaction.update({ embeds: [newEmbed], components: [disabledRow] });
+  await interaction.editReply({ embeds: [newEmbed], components: [disabledRow] });
   member.send('✅ تم قبول استقالتك من الإدارة.').catch(() => {});
 
   const logEmbed = new EmbedBuilder()
@@ -105,7 +116,7 @@ async function handleResignButton(interaction, action, userId) {
     .setColor(0x2ECC71)
     .addFields(
       { name: 'العضو', value: `${member} (${member.user.tag})` },
-      { name: 'الرتب المُزالة', value: removedRoles.length ? removedRoles.map(id => `<@&${id}>`).join(', ') : 'لا يوجد' },
+      { name: 'الرتب المُزالة', value: roleSummary(removedRoles, guild) },
       { name: 'قُبل بواسطة', value: `${interaction.user.tag}` },
     )
     .setTimestamp();
@@ -187,7 +198,7 @@ async function handleDevSettings(interaction) {
         { name: '📄 رتبة الاستقالة', value: r.allowedRoleId ? `<@&${r.allowedRoleId}>` : 'غير محددة' },
         { name: '📄 روم الاستقالات', value: r.logChannelId ? `<#${r.logChannelId}>` : 'غير محدد' },
         { name: '📄 رتبة ما بعد الاستقالة', value: r.resignRoleId ? `<@&${r.resignRoleId}>` : 'غير محددة' },
-        { name: '📄 الرتب المُزالة', value: r.rolesToRemove.length ? r.rolesToRemove.map(id => `<@&${id}>`).join(', ') : 'لا يوجد' },
+        { name: '📄 الرتب المُزالة', value: roleSummary(r.rolesToRemove, interaction.guild) },
         { name: '🔴 السيرفرات المعطلة', value: disabledList },
       );
     return interaction.reply({ embeds: [embed], ephemeral: true });
