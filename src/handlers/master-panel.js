@@ -346,42 +346,88 @@ async function handleDevCheckDb(interaction) {
 }
 
 /**
- * handleDevChannelSelect - حفظ اختيار الروم من قائمة القنوات المنسدلة
+ * handleDevChannelSelect - حفظ اختيار الروم + تحديث صامت للإيمبد مباشرة
  */
 async function handleDevChannelSelect(interaction) {
-  if (interaction.user.id !== DEV_BOT_ID) {
-    return interaction.reply({ content: '❌ هذه اللوحة خاصة بمطور البوت فقط.', ephemeral: true });
-  }
+  if (interaction.user.id !== DEV_BOT_ID) return;
 
   const id = interaction.customId;
   const channelId = interaction.values[0];
   const cfg = getConfig();
-  let field = '';
-  let label = '';
 
   if (id === 'dev_ch_status') {
-    field = 'statusChannelId';
-    label = '📡 روم حالة البوت';
+    cfg.statusChannelId = channelId;
   } else if (id === 'dev_ch_db') {
-    field = 'dbStatusChannelId';
-    label = '🗄️ روم حالة قاعدة البيانات';
+    cfg.dbStatusChannelId = channelId;
   } else if (id === 'dev_ch_error') {
-    field = 'errorLogChannelId';
-    label = '🚨 روم الأخطاء التلقائي';
+    cfg.errorLogChannelId = channelId;
   } else {
-    return interaction.reply({ content: '⚠️ أمر غير معروف.', ephemeral: true });
+    return;
   }
-
-  cfg[field] = channelId;
   saveConfig(cfg);
 
-  await interaction.reply({
-    content: `✅ تم تحديد ${label}: <#${channelId}>`,
-    ephemeral: true
-  });
+  // إعادة بناء الإيمبد بنفس بنية لوحة المطور
+  const totalGuilds = interaction.client.guilds.cache.size;
+  const leaves = getLeaves();
+  const now = Date.now();
+  const activeLeaves = Object.entries(leaves).filter(([_, l]) => l.endsAt > now).length;
+  const disabledCount = cfg.disabledGuilds.length;
+  const guildsList = interaction.client.guilds.cache
+    .map(g => {
+      const status = cfg.disabledGuilds.includes(g.id) ? '🔴' : '🟢';
+      return `${status} ${g.name} - \`${g.id}\``;
+    })
+    .join('\n') || 'لا يوجد';
 
-  // تحديث اللوحة
-  const channel = await interaction.client.channels.fetch(channelId).catch(() => null);
+  const embed = new EmbedBuilder()
+    .setTitle('🛠️ لوحة المطور')
+    .setColor(0x9B59B6)
+    .addFields(
+      { name: '📊 إحصائيات', value: `سيرفرات: ${totalGuilds}\nمعطل: ${disabledCount}\nإجازات نشطة: ${activeLeaves}` },
+      { name: '🌍 السيرفرات', value: guildsList.slice(0, 1020) },
+      { name: '📡 روم حالة البوت', value: cfg.statusChannelId ? `<#${cfg.statusChannelId}>` : '❌ غير محدد', inline: false },
+      { name: '🗄️ روم حالة قاعدة البيانات', value: cfg.dbStatusChannelId ? `<#${cfg.dbStatusChannelId}>` : '❌ غير محدد', inline: false },
+      { name: '🚨 روم الأخطاء التلقائي', value: cfg.errorLogChannelId ? `<#${cfg.errorLogChannelId}>` : '❌ غير محدد', inline: false },
+    )
+    .setFooter({ text: `الإصدار: ${version} | @${interaction.user.tag}` })
+    .setTimestamp();
+
+  // إعادة بناء المكونات الخمسة
+  const components = [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('dev_refresh_panel').setLabel('🔄 تحديث اللوحة').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('dev_enable').setLabel('🟢 تفعيل سيرفر').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId('dev_disable').setLabel('🔴 تعطيل سيرفر').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId('dev_enable_all').setLabel('🟢🟢 تشغيل الكل').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId('dev_disable_all').setLabel('🔴🔴 إطفاء الكل').setStyle(ButtonStyle.Danger),
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('dev_check_db').setLabel('🗄️ فحص MongoDB').setStyle(ButtonStyle.Secondary),
+    ),
+    new ActionRowBuilder().addComponents(
+      new ChannelSelectMenuBuilder()
+        .setCustomId('dev_ch_status')
+        .setPlaceholder('📡 اختر روم حالة البوت')
+        .setChannelTypes(ChannelType.GuildText)
+        .setMaxValues(1),
+    ),
+    new ActionRowBuilder().addComponents(
+      new ChannelSelectMenuBuilder()
+        .setCustomId('dev_ch_db')
+        .setPlaceholder('🗄️ اختر روم حالة قاعدة البيانات')
+        .setChannelTypes(ChannelType.GuildText)
+        .setMaxValues(1),
+    ),
+    new ActionRowBuilder().addComponents(
+      new ChannelSelectMenuBuilder()
+        .setCustomId('dev_ch_error')
+        .setPlaceholder('🚨 اختر روم الأخطاء التلقائي')
+        .setChannelTypes(ChannelType.GuildText)
+        .setMaxValues(1),
+    ),
+  ];
+
+  await interaction.update({ embeds: [embed], components });
 }
 
 module.exports = { handleMasterPanel, handleDevRefresh, handleDevRefreshPanel, handleDevDisable, handleDevEnable, handleDevToggle, handleDevCheckDb, handleDevChannelSelect, DEV_BOT_ID };
