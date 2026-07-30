@@ -8,7 +8,7 @@ const {
 } = require('discord.js');
 const { version } = require('../../package.json');
 const { getAdminConfig, saveAdminConfig } = require('../utils/adminStorage');
-const { sendBoardPanelToChannel, isHighAdmin, getHighestAdminRole, getHierarchyRolesInRange } = require('./admin-board');
+const { sendBoardPanelToChannel, isHighAdmin, getHighestAdminRole, getHierarchyRolesInRange, getAdminMembers } = require('./admin-board');
 
 // ---------- دالة مساعدة ----------
 async function respondOrUpdate(interaction, payload) {
@@ -415,7 +415,29 @@ async function handleAdminSelect(interaction) {
   }
 }
 
-// ================== منح الرتب الأدنى ==================
+// ================== منح الرتب الأدنى لكل الإدارة ==================
+
+/**
+ * تحضير قائمة { member, rolesToAdd[] } لكل أعضاء الإدارة
+ */
+async function prepareGrantList(guild, cfg) {
+  const hierarchyRoles = getHierarchyRolesInRange(guild, cfg);
+  if (hierarchyRoles.length === 0) return [];
+  const adminMembers = await getAdminMembers(guild, cfg);
+  const results = [];
+
+  for (const m of adminMembers) {
+    const memObj = m; // GuildMember
+    const highest = getHighestAdminRole(memObj, cfg, guild);
+    if (!highest) continue;
+    const lower = hierarchyRoles.filter(r => r.position < highest.position);
+    const missing = lower.filter(r => !memObj.roles.cache.has(r.id));
+    if (missing.length === 0) continue;
+    results.push({ member: memObj, highest, rolesToAdd: missing });
+  }
+
+  return results.sort((a, b) => b.highest.position - a.highest.position);
+}
 
 async function handleGrantConfirm(interaction) {
   try {
@@ -429,42 +451,39 @@ async function handleGrantConfirm(interaction) {
       return interaction.editReply({ content: '❌ هذه الخاصية متاحة فقط للإدارة العليا.', components: [] });
     }
 
-    const hierarchyRoles = getHierarchyRolesInRange(guild, cfg);
-    if (hierarchyRoles.length === 0) {
+    if (!cfg.sharedAdminRoleId) {
       await interaction.deferUpdate().catch(() => {});
-      return interaction.editReply({ content: '⚠️ لم يتم إعداد التسلسل الهرمي بعد.', components: [] });
+      return interaction.editReply({ content: '⚠️ لم يتم تعيين رتبة الإدارة المشتركة بعد.', components: [] });
     }
 
-    // أعلى رتبة للعضو
-    const memberHighestRole = getHighestAdminRole(member, cfg, guild);
-    if (!memberHighestRole) {
+    const list = await prepareGrantList(guild, cfg);
+
+    if (list.length === 0) {
       await interaction.deferUpdate().catch(() => {});
-      return interaction.editReply({ content: '⚠️ أنت لا تملك أي رتبة إدارية.', components: [] });
+      return interaction.editReply({ content: '✅ جميع أعضاء الإدارة يملكون كل الرتب المناسبة لهم.', components: [] });
     }
 
-    // الرتب الأقل من رتبة العضو (ضمن النطاق الهرمي)
-    const lowerRoles = hierarchyRoles.filter(r => r.position < memberHighestRole.position);
-    if (lowerRoles.length === 0) {
-      await interaction.deferUpdate().catch(() => {});
-      return interaction.editReply({ content: '⚠️ لا توجد رتب أدنى من رتبتك.', components: [] });
-    }
+    const totalRoles = list.reduce((acc, item) => acc + item.rolesToAdd.length, 0);
+    const totalAdmins = list.length;
 
-    // الرتب التي لا يملكها العضو أصلاً
-    const rolesToAdd = lowerRoles.filter(r => !member.roles.cache.has(r.id));
+    // بناء شرح مختصر
+    const summary = list.slice(0, 8).map(item =>
+      `• <@${item.member.id}> ← ${item.rolesToAdd.length} رتبة`
+    ).join('\n');
+    const extra = list.length > 8 ? `\n...و ${list.length - 8} آخرين` : '';
 
-    if (rolesToAdd.length === 0) {
-      await interaction.deferUpdate().catch(() => {});
-      return interaction.editReply({ content: '✅ أنت بالفعل تملك جميع الرتب الأدنى من رتبتك.', components: [] });
-    }
-
-    // شرح + تأكيد
     const embed = new EmbedBuilder()
-      .setTitle('🎖️ منح الرتب الأدنى')
+      .setTitle('🎖️ منح الرتب الأدنى لجميع الإدارة')
       .setColor(0x2ECC71)
-      .setDescription(`سيتم إضافة **${rolesToAdd.length}** رتبة إلى حسابك:\n\n${rolesToAdd.map(r => `${r}`).join('\n')}`)
-      .addFields(
-        { name: '⚠️ تنبيه', value: 'سيتم إضافة الرتب واحدة تلو الأخرى لتجنب مشاكل السرعة (Rate Limit). قد يستغرق هذا بضع ثوانٍ.', inline: false },
-      )
+      .setDescription([
+        `عدد الإدارة المستهدفة: **${totalAdmins}**`,
+        `إجمالي الرتب المراد إضافتها: **${totalRoles}**`,
+        '',
+        '**الملخص:**',
+        summary + extra,
+        '',
+        '⚠️ سيتم إضافة الرتب تدريجياً (رتبة كل 500ms) لتجنب Rate Limit.'
+      ].join('\n'))
       .setFooter({ text: `${member.user.tag} | ${version}` })
       .setTimestamp();
 
@@ -495,53 +514,53 @@ async function handleGrantExecute(interaction) {
       return interaction.editReply({ content: '❌ غير مصرح.', components: [] });
     }
 
-    const hierarchyRoles = getHierarchyRolesInRange(guild, cfg);
-    const memberHighestRole = getHighestAdminRole(member, cfg, guild);
-    if (!memberHighestRole) {
+    const list = await prepareGrantList(guild, cfg);
+    if (list.length === 0) {
       await interaction.deferUpdate().catch(() => {});
-      return interaction.editReply({ content: '⚠️ لا توجد رتبة.', components: [] });
+      return interaction.editReply({ content: '✅ جميع أعضاء الإدارة يملكون كل الرتب.', components: [] });
     }
 
-    const lowerRoles = hierarchyRoles.filter(r => r.position < memberHighestRole.position);
-    const rolesToAdd = lowerRoles.filter(r => !member.roles.cache.has(r.id));
-
-    if (rolesToAdd.length === 0) {
-      await interaction.deferUpdate().catch(() => {});
-      return interaction.editReply({ content: '✅ كل الرتب ممنوحة بالفعل.', components: [] });
-    }
-
-    // بدء المنح التدريجي
-    let added = 0;
-    let failed = 0;
+    const totalRoles = list.reduce((acc, item) => acc + item.rolesToAdd.length, 0);
+    let processed = 0;
+    let totalAdded = 0;
+    let totalFailed = 0;
 
     await interaction.deferUpdate().catch(() => {});
     await interaction.editReply({
-      content: `⏳ جارٍ منح الرتب... 0 / ${rolesToAdd.length}`,
+      content: `⏳ جارٍ منح الرتب... 0 / ${totalRoles}`,
       embeds: [],
       components: []
     });
 
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-    for (const role of rolesToAdd) {
-      try {
-        await member.roles.add(role.id);
-        added++;
-      } catch (e) {
-        failed++;
-        console.error(`❌ فشل إضافة ${role.name}:`, e.message);
+    for (const item of list) {
+      for (const role of item.rolesToAdd) {
+        try {
+          await item.member.roles.add(role.id);
+          totalAdded++;
+        } catch (e) {
+          totalFailed++;
+          console.error(`❌ فشل إضافة ${role.name} لـ ${item.member.user.tag}:`, e.message);
+        }
+        processed++;
+        // تحديث التقدم كل 5 إضافات
+        if (processed % 5 === 0 || processed === totalRoles) {
+          try {
+            await interaction.editReply({ content: `⏳ جارٍ منح الرتب... ${processed} / ${totalRoles}` });
+          } catch {}
+        }
+        await delay(500);
       }
-      // تأخير 800ms بين كل رتبة لتجنب Rate Limit
-      await delay(800);
     }
 
     const embed = new EmbedBuilder()
       .setTitle('🎖️ تم منح الرتب')
-      .setColor(added > 0 ? 0x2ECC71 : 0xE74C3C)
+      .setColor(totalAdded > 0 ? 0x2ECC71 : 0xE74C3C)
       .setDescription([
-        `✅ تمت إضافة **${added}** رتبة بنجاح.`,
-        failed > 0 ? `⚠️ فشل إضافة **${failed}** رتبة (قد تكون ممنوحة مسبقاً أو خطأ في الصلاحيات).` : '',
-        `📊 الإجمالي: ${rolesToAdd.length} رتبة`
+        `✅ تمت إضافة **${totalAdded}** رتبة بنجاح.`,
+        totalFailed > 0 ? `⚠️ فشل إضافة **${totalFailed}** رتبة.` : '',
+        `📊 الإجمالي: ${totalRoles} رتبة لـ ${list.length} عضو إدارة.`
       ].filter(Boolean).join('\n'))
       .setFooter({ text: `${member.user.tag} | ${version}` })
       .setTimestamp();
