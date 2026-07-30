@@ -47,7 +47,6 @@ async function getAdminMembers(guild, cfg) {
   if (!guild) return [];
   // نجلب كل الأعضاء أولاً لحل مشكلة الكاش الناقص
   try { await guild.members.fetch(); } catch {}
-  const excludedRoles = cfg.excludedRoles || [];
   const hierarchyRoles = getHierarchyRolesInRange(guild, cfg);
   const hierarchyRoleIds = hierarchyRoles.map(r => r.id);
 
@@ -56,29 +55,23 @@ async function getAdminMembers(guild, cfg) {
   return guild.members.cache.filter(m => {
     if (m.user.bot) return false;
 
-    // هل عنده رتبة من الإدارة العليا؟ (تظهر في التصنيف ولكنها محمية من الترقية/التنزيل)
+    // هل عنده رتبة من الإدارة العليا؟
     if (highRoles.some(roleId => m.roles.cache.has(roleId))) return true;
 
-    // هل عنده رتبة الإدارة المشتركة؟
+    // هل عنده رتبة الإدارة المشتركة + رتبة ضمن النطاق الهرمي؟
     if (cfg.sharedAdminRoleId && m.roles.cache.has(cfg.sharedAdminRoleId)) {
-      // تأكد أن له على الأقل رتبة واحدة ضمن النطاق غير مستثناة
-      const hasNonExcluded = m.roles.cache.some(rId => hierarchyRoleIds.includes(rId) && !excludedRoles.includes(rId));
-      if (hasNonExcluded) return true;
-      // إذا ما عنده رتبة بالنطاق أصلاً، اعتبره إدارة (فقط الرتبة المشتركة)
+      const hasHierarchy = m.roles.cache.some(rId => hierarchyRoleIds.includes(rId));
+      if (hasHierarchy) return true;
       return true;
     }
 
     // هل عنده رتب ضمن النطاق الهرمي؟
     const memberHierarchyRoles = m.roles.cache.filter(rId => hierarchyRoleIds.includes(rId));
-    if (memberHierarchyRoles.size === 0) return false;
-
-    // تجاهل إذا كل رتبه ضمن النطاق هي رتب مستثناة
-    const nonExcluded = memberHierarchyRoles.filter(rId => !excludedRoles.includes(rId));
-    return nonExcluded.size > 0;
+    return memberHierarchyRoles.size > 0;
   }).sort((a, b) => b.roles.highest.position - a.roles.highest.position).map(m => m);
 }
 
-/** جلب كل الرتب ضمن التسلسل الهرمي */
+/** جلب كل الرتب ضمن التسلسل الهرمي (بدون الرتب المستثناة — كأنها غير موجودة) */
 function getHierarchyRolesInRange(guild, cfg) {
   if (!cfg.hierarchyRangeStartId || !cfg.hierarchyRangeEndId || !guild) return [];
   const roleA = guild.roles.cache.get(cfg.hierarchyRangeStartId);
@@ -86,7 +79,8 @@ function getHierarchyRolesInRange(guild, cfg) {
   if (!roleA || !roleB) return [];
   const minPos = Math.min(roleA.position, roleB.position);
   const maxPos = Math.max(roleA.position, roleB.position);
-  return guild.roles.cache.filter(r => r.position >= minPos && r.position <= maxPos && r.id !== guild.id)
+  const excluded = cfg.excludedRoles || [];
+  return guild.roles.cache.filter(r => r.position >= minPos && r.position <= maxPos && r.id !== guild.id && !excluded.includes(r.id))
     .sort((a, b) => a.position - b.position).map(r => r);
 }
 
