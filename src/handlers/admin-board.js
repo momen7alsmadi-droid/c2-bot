@@ -232,8 +232,12 @@ async function showMyProfile(interaction) {
 
   const memberAdminRole = getHighestAdminRole(member, cfg, guild);
   const rank = await getAdminRank(member, cfg, guild);
-  const rolesAbove = getRolesAbove(member, guild, cfg);
-  const rolesBelow = getRolesBelow(member, guild, cfg);
+  const allAbove = getRolesAbove(member, guild, cfg); // descending (أبعد أولاً)
+  const allBelow = getRolesBelow(member, guild, cfg); // descending (أقرب أولاً)
+  // أقرب رتبتين أعلى من العضو
+  const rolesAbove = allAbove.slice(-2).reverse();
+  // أقرب رتبتين أدنى من العضو
+  const rolesBelow = allBelow.slice(0, 2);
 
   const embed = new EmbedBuilder()
     .setTitle(`👤 الملف الشخصي — ${member.user.tag}`)
@@ -243,16 +247,103 @@ async function showMyProfile(interaction) {
       { name: '🎖️ رتبتك الإدارية', value: memberAdminRole ? `${memberAdminRole}` : '❌ لست ضمن الإدارة', inline: false },
       { name: '📊 ترتيبك', value: rank ? `${rank.rank} من ${rank.total}` : '—', inline: true },
       { name: '📈 الإجمالي', value: rank ? `${rank.total}` : '—', inline: true },
-      { name: '📤 الرتب الأعلى منك', value: rolesAbove.length > 0 ? rolesAbove.map(r => `${r}`).join('\n') : 'لا يوجد', inline: false },
-      { name: '📥 الرتب الأدنى منك', value: rolesBelow.length > 0 ? rolesBelow.map(r => `${r}`).join('\n') : 'لا يوجد', inline: false },
+      { name: '⬆️ الرتبتين الأعلى (الأقرب)', value: rolesAbove.length > 0 ? rolesAbove.map(r => `${r}`).join('\n') : '—', inline: false },
+      { name: '⬇️ الرتبتين الأدنى (الأقرب)', value: rolesBelow.length > 0 ? rolesBelow.map(r => `${r}`).join('\n') : '—', inline: false },
     )
     .setFooter({ text: `الإصدار: ${version}` })
     .setTimestamp();
 
-  return interaction.reply({ embeds: [embed], ephemeral: true });
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('adm_board_ladder').setLabel('🪜 سلم الرتب').setStyle(ButtonStyle.Secondary),
+  );
+
+  return respondOrUpdate(interaction, { embeds: [embed], components: [row] });
 }
 
-// ================== اللوحة الرئيسية (للأمر) ==================
+// ================== سلم الرتب (عرض كل الرتب مع موقع العضو) ==================
+
+async function showRoleLadder(interaction) {
+  const cfg = getAdminConfig();
+  const guild = interaction.guild;
+  const member = interaction.member;
+
+  // جميع رتب الإدارة العليا (مرتبة تنازلياً)
+  const highRoleIds = cfg.highAdminRoles || [];
+  let highRoles = highRoleIds
+    .map(id => guild.roles.cache.get(id))
+    .filter(r => r)
+    .sort((a, b) => b.position - a.position);
+
+  // جميع رتب التسلسل الهرمي (مرتبة تنازلياً)
+  let hierarchyRoles = getHierarchyRolesInRange(guild, cfg).reverse();
+  const excluded = cfg.excludedRoles || [];
+
+  // الرتبة المشتركة (إن وجدت)
+  const sharedRole = cfg.sharedAdminRoleId ? guild.roles.cache.get(cfg.sharedAdminRoleId) : null;
+
+  // دالة: هل العضو يملك الرتبة؟
+  const hasRole = (roleId) => member.roles.cache.has(roleId);
+
+  const lines = [];
+
+  // الإدارة العليا
+  if (highRoles.length > 0) {
+    lines.push('**👑 الإدارة العليا**');
+    for (const role of highRoles) {
+      const indicator = hasRole(role.id) ? '🟢' : '⚪';
+      lines.push(`${indicator} ${role}`);
+    }
+    lines.push('');
+  }
+
+  // فاصل
+  lines.push('━━━━━━━━━━━━━━━━━━');
+
+  // التسلسل الهرمي
+  lines.push('**📊 التسلسل الهرمي**');
+  const memberAdminRole = getHighestAdminRole(member, cfg, guild);
+  for (const role of hierarchyRoles) {
+    if (excluded.includes(role.id)) {
+      lines.push(`🚫 ~~${role}~~ *(مستثناة)*`);
+      continue;
+    }
+    let indicator;
+    if (memberAdminRole && role.id === memberAdminRole.id) {
+      indicator = '🔵'; // رتبة العضو الحالية
+    } else if (hasRole(role.id)) {
+      indicator = '🟢'; // العضو يملكها
+    } else {
+      indicator = '⚪'; // لا يملكها
+    }
+    lines.push(`${indicator} ${role}`);
+  }
+
+  // الرتبة المشتركة
+  if (sharedRole && !lines.some(l => l.includes(sharedRole.id))) {
+    const indicator = hasRole(sharedRole.id) ? '🟢' : '⚪';
+    lines.push(`🔄 ${indicator} ${sharedRole} *(مشتركة)*`);
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle(`🪜 سلم الرتب — ${member.user.tag}`)
+    .setColor(0x9B59B6)
+    .setDescription(lines.join('\n'))
+    .addFields(
+      { name: '🔵', value: 'رتبتك الحالية', inline: true },
+      { name: '🟢', value: 'رتب تمتلكها', inline: true },
+      { name: '⚪', value: 'رتب لا تمتلكها', inline: true },
+    )
+    .setFooter({ text: `الإصدار: ${version}` })
+    .setTimestamp();
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('adm_board_myprofile').setLabel('🔙 رجوع للملف').setStyle(ButtonStyle.Secondary),
+  );
+
+  return respondOrUpdate(interaction, { embeds: [embed], components: [row] });
+}
+
+// ================== اللوحة الرئيسية (للأمر) ==================",
 
 async function handleBoardMain(interaction) {
   const cfg = getAdminConfig();
@@ -537,6 +628,7 @@ async function handleBoardInteraction(interaction) {
   if (id === 'adm_board_main') return handleBoardMain(interaction);
   if (id === 'adm_board_refresh') return handleBoardMain(interaction);
   if (id === 'adm_board_myprofile') return showMyProfile(interaction);
+  if (id === 'adm_board_ladder') return showRoleLadder(interaction);
 
   if (id === 'adm_board_promote') return showMemberSelector(interaction, 'promote');
   if (id === 'adm_board_demote') return showMemberSelector(interaction, 'demote');
