@@ -524,27 +524,33 @@ async function handleBoardInteraction(interaction) {
   if (id === 'adm_board_remove') return showMemberSelector(interaction, 'remove');
   if (id === 'adm_board_top') return showTopAdmins(interaction);
 
-  // Pagination للأعضاء
+  // Pagination - نمرر getState بعد الأزرار الرئيسية عشان نضمن state محدث
   const state = getState(interaction.user.id);
-  if (id === 'adm_board_prev' && state && state.type === 'member_select') {
-    state.page = Math.max(0, state.page - 1);
-    setState(interaction.user.id, state);
-    return renderMemberPage(interaction, state);
-  }
-  if (id === 'adm_board_next' && state && state.type === 'member_select') {
-    state.page = Math.min(state.totalPages - 1, state.page + 1);
+
+  if (id === 'adm_board_prev' || id === 'adm_board_next') {
+    if (!state || state.type !== 'member_select') {
+      try { await interaction.deferUpdate().catch(() => {}); } catch {}
+      return handleBoardMain(interaction);
+    }
+    if (id === 'adm_board_prev') {
+      state.page = Math.max(0, state.page - 1);
+    } else {
+      state.page = Math.min(state.totalPages - 1, state.page + 1);
+    }
     setState(interaction.user.id, state);
     return renderMemberPage(interaction, state);
   }
 
-  // Pagination للتوب
-  if (id === 'adm_top_prev' && state && state.type === 'top') {
-    state.page = Math.max(0, state.page - 1);
-    setState(interaction.user.id, state);
-    return renderTopPage(interaction, state);
-  }
-  if (id === 'adm_top_next' && state && state.type === 'top') {
-    state.page = Math.min(state.totalPages - 1, state.page + 1);
+  if (id === 'adm_top_prev' || id === 'adm_top_next') {
+    if (!state || state.type !== 'top') {
+      try { await interaction.deferUpdate().catch(() => {}); } catch {}
+      return handleBoardMain(interaction);
+    }
+    if (id === 'adm_top_prev') {
+      state.page = Math.max(0, state.page - 1);
+    } else {
+      state.page = Math.min(state.totalPages - 1, state.page + 1);
+    }
     setState(interaction.user.id, state);
     return renderTopPage(interaction, state);
   }
@@ -559,7 +565,9 @@ async function handleBoardInteraction(interaction) {
     return executeAction(interaction, act, targetId);
   }
 
-  return respondOrUpdate(interaction, { content: `⚠️ أمر غير معروف: ${id}` });
+  // إذا وصلنا هنا، الأمر غير معروف
+  try { await interaction.deferUpdate().catch(() => {}); } catch {}
+  return handleBoardMain(interaction);
 }
 
 module.exports = {
