@@ -179,14 +179,14 @@ async function showHighAdminPage(interaction) {
     const selectRow = new ActionRowBuilder().addComponents(
       new RoleSelectMenuBuilder()
         .setCustomId('adm_sel_highAdminRoles')
-        .setPlaceholder('👑 اختر رتب الإدارة العليا (يدوي)')
-        .setMinValues(0)
-        .setMaxValues(25)
+        .setPlaceholder('👑 اختر رتب الإدارة العليا')
+        .setMinValues(1)
+        .setMaxValues(10)
     );
 
     const btnRow = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('adm_high_auto').setLabel('🔄 تعيين رتب الأدمن تلقائياً').setStyle(ButtonStyle.Success).setDisabled(allRoles.size === 0),
-      new ButtonBuilder().setCustomId('adm_high_clear').setLabel('🗑️ مسح الكل').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId('adm_high_auto').setLabel('🔄 تعيين تلقائي').setStyle(ButtonStyle.Success).setDisabled(allRoles.size === 0),
+      new ButtonBuilder().setCustomId('adm_high_clear').setLabel('🗑️ مسح').setStyle(ButtonStyle.Danger),
     );
 
     const navRow = new ActionRowBuilder().addComponents(

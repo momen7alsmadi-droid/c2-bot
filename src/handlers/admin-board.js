@@ -620,10 +620,14 @@ async function showTopAdmins(interaction) {
     userId: member.id
   };
   setState(interaction.user.id, state);
-  return renderTopPage(interaction, state);
+
+  // إرسال التوب بشكل مخفي (خاص) لكل مستخدم
+  const embed = buildTopEmbed(state);
+  const navRow = buildTopNavRow(state);
+  return interaction.reply({ embeds: [embed], components: [navRow], ephemeral: true });
 }
 
-async function renderTopPage(interaction, state) {
+function buildTopEmbed(state) {
   const { page, totalPages, admins, userId } = state;
   const start = page * 10;
   const end = Math.min(start + 10, admins.length);
@@ -637,22 +641,25 @@ async function renderTopPage(interaction, state) {
     const rank = start + i + 1;
     const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}.`;
     const roleName = a.highestRole ? `${a.highestRole}` : '';
-    return `${medal} **${a.displayName}** — ${roleName}\n└ ${a.tag}`;
+    return `${medal} <@${a.id}> — ${roleName}`;
   });
 
   let description = lines.join('\n\n');
 
   if (!userOnPage && userInList) {
-    description += `\n\n━━━━━━━━━━━━━━━━━━\n📌 **ترتيبك:** #${userRank} من ${admins.length}\n👤 ${userInList.displayName} — ${userInList.highestRole || ''}`;
+    description += `\n\n━━━━━━━━━━━━━━━━━━\n📌 **ترتيبك:** #${userRank} من ${admins.length}\n👤 <@${userInList.id}> — ${userInList.highestRole || ''}`;
   }
 
-  const embed = new EmbedBuilder()
+  return new EmbedBuilder()
     .setTitle('🏆 توب الإدارة')
     .setColor(0xF1C40F)
     .setDescription(description)
     .setFooter({ text: `الصفحة ${page + 1} من ${totalPages} | الإصدار: ${version}` })
     .setTimestamp();
+}
 
+function buildTopNavRow(state) {
+  const { page, totalPages } = state;
   const navRow = new ActionRowBuilder();
   if (page > 0) {
     navRow.addComponents(new ButtonBuilder().setCustomId('adm_top_prev').setLabel('◀️ السابق').setStyle(ButtonStyle.Primary));
@@ -661,7 +668,12 @@ async function renderTopPage(interaction, state) {
     navRow.addComponents(new ButtonBuilder().setCustomId('adm_top_next').setLabel('التالي ▶️').setStyle(ButtonStyle.Primary));
   }
   navRow.addComponents(new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Danger));
+  return navRow;
+}
 
+async function renderTopPage(interaction, state) {
+  const embed = buildTopEmbed(state);
+  const navRow = buildTopNavRow(state);
   return respondOrUpdate(interaction, { embeds: [embed], components: [navRow] });
 }
 
