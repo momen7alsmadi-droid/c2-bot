@@ -147,32 +147,45 @@ async function showRolesPage(interaction) {
 async function showHighAdminPage(interaction) {
   try {
     const cfg = getAdminConfig();
+    const guild = interaction.guild;
+
+    // كشف تلقائي لكل الرتب التي لديها Administrator
+    const allRoles = guild.roles.cache
+      .filter(r => r.permissions.has('Administrator'))
+      .sort((a, b) => b.position - a.position);
+
+    const adminRolesList = allRoles.map(r => `${r} — \`${r.id}\``).join('\n') || 'لا يوجد';
 
     const embed = new EmbedBuilder()
       .setTitle('👑 رتب الإدارة العليا')
       .setColor(0x9B59B6)
       .setDescription('اختر الرتب التي تمتلك صلاحية الإدارة العليا (تستطيع ترقية وتنزيل الأعضاء):')
       .addFields(
-        { name: '👑 الرتب الحالية', value: cfg.highAdminRoles.length > 0
-          ? cfg.highAdminRoles.map(id => rl(id)).join(', ') : '❌ غير محددة', inline: false },
+        { name: '👑 الرتب الحالية (مخزنة)', value: cfg.highAdminRoles.length > 0
+          ? cfg.highAdminRoles.map(id => `<@&${id}>`).join(', ') : '❌ غير محددة', inline: false },
+        { name: '🤖 الرتب التي تملك Administrator', value: adminRolesList || 'لا يوجد', inline: false },
       )
       .setFooter({ text: `الإصدار: ${version}` })
       .setTimestamp();
 
-    const components = [
-      new ActionRowBuilder().addComponents(
-        new RoleSelectMenuBuilder()
-          .setCustomId('adm_sel_highAdminRoles')
-          .setPlaceholder('👑 اختر رتب الإدارة العليا')
-          .setMinValues(0)
-          .setMaxValues(25)
-      ),
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('adm_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
-      ),
-    ];
+    const selectRow = new ActionRowBuilder().addComponents(
+      new RoleSelectMenuBuilder()
+        .setCustomId('adm_sel_highAdminRoles')
+        .setPlaceholder('👑 اختر رتب الإدارة العليا (يدوي)')
+        .setMinValues(0)
+        .setMaxValues(25)
+    );
 
-    return respondOrUpdate(interaction, { embeds: [embed], components });
+    const btnRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('adm_high_auto').setLabel('🔄 تعيين رتب الأدمن تلقائياً').setStyle(ButtonStyle.Success).setDisabled(allRoles.size === 0),
+      new ButtonBuilder().setCustomId('adm_high_clear').setLabel('🗑️ مسح الكل').setStyle(ButtonStyle.Danger),
+    );
+
+    const navRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('adm_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
+    );
+
+    return respondOrUpdate(interaction, { embeds: [embed], components: [selectRow, btnRow, navRow] });
   } catch (e) {
     console.error('❌ showHighAdminPage:', e.message);
     return respondOrUpdate(interaction, { content: '⚠️ خطأ.' });
@@ -257,6 +270,60 @@ async function handleSendPanel(interaction) {
   }
 }
 
+// ================== تعيين رتب الأدمن تلقائياً ==================
+
+async function handleHighAdminAuto(interaction) {
+  try {
+    await interaction.deferUpdate().catch(() => {});
+    const cfg = getAdminConfig();
+    const guild = interaction.guild;
+
+    // كشف كل الرتب اللي عندها Administrator وترتيبها تنازلياً
+    const adminRoles = guild.roles.cache
+      .filter(r => r.permissions.has('Administrator'))
+      .sort((a, b) => b.position - a.position)
+      .map(r => r.id);
+
+    if (adminRoles.length === 0) {
+      return interaction.editReply({ content: '⚠️ لا توجد رتب تملك صلاحية Administrator في السيرفر.' });
+    }
+
+    cfg.highAdminRoles = adminRoles;
+    saveAdminConfig(cfg);
+
+    await interaction.editReply({
+      content: `✅ تم تعيين ${adminRoles.length} رتبة كإدارة عليا تلقائياً:\n${adminRoles.map(id => `<@&${id}>`).join(', ')}`,
+      components: [new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('adm_high').setLabel('👑 العودة للإدارة العليا').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('adm_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
+      )]
+    });
+  } catch (e) {
+    console.error('❌ handleHighAdminAuto:', e.message);
+    try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch {}
+  }
+}
+
+async function handleHighAdminClear(interaction) {
+  try {
+    await interaction.deferUpdate().catch(() => {});
+    const cfg = getAdminConfig();
+    cfg.highAdminRoles = [];
+    saveAdminConfig(cfg);
+
+    await interaction.editReply({
+      content: '🗑️ تم مسح جميع رتب الإدارة العليا.',
+      components: [new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('adm_high').setLabel('👑 العودة للإدارة العليا').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('adm_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
+      )]
+    });
+  } catch (e) {
+    console.error('❌ handleHighAdminClear:', e.message);
+    try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch {}
+  }
+}
+
 // ================== معالج القوائم المنسدلة ==================
 
 async function handleAdminSelect(interaction) {
@@ -323,6 +390,10 @@ async function handleAdminInteraction(interaction) {
   if (id === 'adm_roles') return showRolesPage(interaction);
   if (id === 'adm_high') return showHighAdminPage(interaction);
   if (id === 'adm_rooms') return showRoomsPage(interaction);
+
+  // أزرار الإدارة العليا
+  if (id === 'adm_high_auto') return handleHighAdminAuto(interaction);
+  if (id === 'adm_high_clear') return handleHighAdminClear(interaction);
 
   // القوائم المنسدلة (adm_sel_xxx)
   if (id.startsWith('adm_sel_')) {
