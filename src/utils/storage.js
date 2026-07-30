@@ -39,6 +39,7 @@ const DEFAULT_CONFIG = {
   resign: {
     allowedRoleId: null,
     logChannelId: null,
+    auditLogChannelId: null,
     rolesToRemove: [],
     exemptedRoles: [],
     resignRoleId: null,

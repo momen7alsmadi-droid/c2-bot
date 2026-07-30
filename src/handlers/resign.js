@@ -78,6 +78,23 @@ async function handleResign(interaction) {
 
   await channel.send({ content, embeds: [embed], components: [row] });
   await interaction.reply({ content: '✅ تم إرسال طلب الاستقالة، بانتظار الموافقة.', ephemeral: true });
+
+  // سجل التدقيق
+  const auditChannel = cfg.resign.auditLogChannelId ? await interaction.guild.channels.fetch(cfg.resign.auditLogChannelId).catch(() => null) : null;
+  if (auditChannel) {
+    const auditEmbed = new EmbedBuilder()
+      .setTitle('📋 سجل استقالة — طلب جديد')
+      .setColor(0xE67E22)
+      .addFields(
+        { name: 'العضو', value: `${interaction.user} (${interaction.user.tag})`, inline: true },
+        { name: 'المسؤول', value: `${manager}`, inline: true },
+        { name: 'السبب', value: reason },
+        { name: 'الحالة', value: '⏳ بانتظار القبول' },
+        { name: 'وقت التقديم', value: `<t:${Math.floor(Date.now() / 1000)}:F>` },
+      )
+      .setTimestamp();
+    await auditChannel.send({ embeds: [auditEmbed] }).catch(() => {});
+  }
 }
 
 // ------------------- أزرار القبول/الرفض -------------------
@@ -118,6 +135,23 @@ async function handleResignButton(interaction, action, userId) {
     setFieldValue(newEmbed, '— الحالة', `❌ مرفوضة بواسطة ${interaction.user.tag}`);
     await interaction.editReply({ embeds: [newEmbed], components: [disabledRow] });
     if (member) member.send('❌ تم رفض طلب استقالتك.').catch(() => {});
+
+    // سجل التدقيق
+    const auditChannel = cfg.resign.auditLogChannelId ? await guild.channels.fetch(cfg.resign.auditLogChannelId).catch(() => null) : null;
+    if (auditChannel) {
+      const auditEmbed = new EmbedBuilder()
+        .setTitle('📋 سجل استقالة — مرفوضة')
+        .setColor(0xE74C3C)
+        .addFields(
+          { name: 'العضو', value: `${userId} (<@${userId}>)`, inline: true },
+          { name: 'مقدم الطلب', value: interaction.message.embeds[0]?.fields?.[0]?.value || 'غير معروف', inline: true },
+          { name: 'السبب', value: interaction.message.embeds[0]?.fields?.[2]?.value || 'غير معروف' },
+          { name: 'رفض بواسطة', value: `${interaction.user.tag}`, inline: true },
+          { name: 'وقت الرفض', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
+        )
+        .setTimestamp();
+      await auditChannel.send({ embeds: [auditEmbed] }).catch(() => {});
+    }
     return;
   }
 
@@ -156,6 +190,23 @@ async function handleResignButton(interaction, action, userId) {
     )
     .setTimestamp();
   await sendLog(guild, cfg.resign.logChannelId, { embeds: [logEmbed] });
+
+  // سجل التدقيق
+  const auditChannel = cfg.resign.auditLogChannelId ? await guild.channels.fetch(cfg.resign.auditLogChannelId).catch(() => null) : null;
+  if (auditChannel) {
+    const auditEmbed = new EmbedBuilder()
+      .setTitle('📋 سجل استقالة — مقبولة')
+      .setColor(0x2ECC71)
+      .addFields(
+        { name: 'العضو', value: `${member} (${member.user.tag})`, inline: true },
+        { name: 'الرتب المُزالة', value: roleSummary(removedRoles, guild), inline: true },
+        { name: 'السبب', value: interaction.message.embeds[0]?.fields?.[2]?.value || 'غير معروف' },
+        { name: 'قبل بواسطة', value: `${interaction.user.tag}`, inline: true },
+        { name: 'وقت القبول', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
+      )
+      .setTimestamp();
+    await auditChannel.send({ embeds: [auditEmbed] }).catch(() => {});
+  }
 }
 
 // ------------------- /اعدادات_المطور -------------------

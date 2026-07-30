@@ -262,6 +262,7 @@ async function showSettingsPage(interaction, type, page) {
         { name: '🎖️ رتبة ما بعد الاستقالة', value: rl(r.resignRoleId) },
         { name: '👑 رتبة الإدارة العليا', value: rl(r.upperManagementRoleId) },
         { name: '📨 روم الاستقبال', value: ch(r.logChannelId) },
+        { name: '📋 روم السجل', value: ch(r.auditLogChannelId) },
       );
       return respondOrUpdate(interaction, {
         embeds: [embed],
@@ -270,6 +271,7 @@ async function showSettingsPage(interaction, type, page) {
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_resignRole').setPlaceholder('🎖️ رتبة ما بعد الاستقالة').setMaxValues(1)),
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_upperMgmt').setPlaceholder('👑 رتبة الإدارة العليا').setMaxValues(1)),
           new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_resign_logChannel').setPlaceholder('📨 روم الاستقبال').setMaxValues(1)),
+          new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_resign_auditLogChannel').setPlaceholder('📋 روم السجل').setMaxValues(1)),
           new ActionRowBuilder().addComponents(btnBack, new ButtonBuilder().setCustomId('set_resign_2').setLabel('▶️ الرتب المُزالة').setStyle(ButtonStyle.Primary)),
         ]
       });
@@ -345,6 +347,7 @@ async function handleSettingsSelect(interaction) {
       'channel': 'channelId',
       'requestChannel': 'requestChannelId',
       'logChannel': 'logChannelId',
+      'auditLogChannel': 'auditLogChannelId',
       'upperMgmtChannel': 'upperManagementChannelId',
       'warning1': 'warning1RoleId',
       'warning2': 'warning2RoleId',
