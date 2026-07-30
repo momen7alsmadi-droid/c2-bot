@@ -691,6 +691,13 @@ async function showTopAdmins(interaction) {
     return interaction.followUp({ content: '⚠️ لا يوجد أعضاء إدارة.', ephemeral: true }).catch(() => {});
   }
 
+  // صاحب السيرفر دائماً الأول مهما كانت رتبته
+  admins.sort((a, b) => {
+    if (a.id === guild.ownerId) return -1;
+    if (b.id === guild.ownerId) return 1;
+    return b.roles.highest.position - a.roles.highest.position;
+  });
+
   const totalPages = Math.ceil(admins.length / 10);
   const state = {
     type: 'top', page: 0, totalPages,
