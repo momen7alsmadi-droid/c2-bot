@@ -223,6 +223,40 @@ async function showRoomsPage(interaction) {
   }
 }
 
+// ================== إرسال اللوحة إلى قناة ==================
+
+async function handleSendPanel(interaction) {
+  try {
+    await interaction.deferUpdate().catch(() => {});
+    const cfg = getAdminConfig();
+    const guild = interaction.guild;
+
+    if (!cfg.promotionChannelId) {
+      return interaction.editReply({
+        content: '⚠️ لم يتم تحديد روم الترقية بعد. اذهب إلى [📡 الرومات] واختر روم الترقية أولاً.',
+        components: [new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('adm_rooms').setLabel('📡 الرومات').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('adm_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
+        )]
+      });
+    }
+
+    const result = await sendBoardPanelToChannel(guild, cfg.promotionChannelId);
+    if (result.success) {
+      return interaction.editReply({
+        content: `✅ تم إرسال لوحة الإدارة إلى <#${cfg.promotionChannelId}> بنجاح.`,
+        components: [new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('adm_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
+        )]
+      });
+    }
+    return interaction.editReply({ content: `❌ فشل الإرسال: ${result.error}` });
+  } catch (e) {
+    console.error('❌ handleSendPanel:', e.message);
+    try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch {}
+  }
+}
+
 // ================== معالج القوائم المنسدلة ==================
 
 async function handleAdminSelect(interaction) {
