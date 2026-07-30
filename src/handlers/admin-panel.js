@@ -598,9 +598,6 @@ async function handleAdminInteraction(interaction) {
   if (id === 'adm_grant_confirm') return handleGrantConfirm(interaction);
   if (id === 'adm_grant_execute') return handleGrantExecute(interaction);
 
-  // زر إرسال اللوحة
-  if (id === 'adm_send_panel') return handleSendPanel(interaction);
-
   // القوائم المنسدلة (adm_sel_xxx)
   if (id.startsWith('adm_sel_')) {
     return handleAdminSelect(interaction);
