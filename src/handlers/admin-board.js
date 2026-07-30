@@ -90,30 +90,34 @@ function getHierarchyRolesInRange(guild, cfg) {
     .sort((a, b) => a.position - b.position).map(r => r);
 }
 
-/** الحصول على أعلى رتبة للعضو ضمن التسلسل الهرمي (غير مستثناة) */
+/** الحصول على أعلى رتبة للعضو (الإدارة العليا لها الأولوية) */
 function getHighestAdminRole(member, cfg, guild) {
-  const rolesInRange = getHierarchyRolesInRange(guild, cfg);
-  const excluded = cfg.excludedRoles || [];
   const memberRoles = member.roles.cache;
-  // ابحث عن أعلى رتبة يملكها العضو ضمن النطاق وغير مستثناة
-  const validRoles = rolesInRange.filter(r => memberRoles.has(r.id) && !excluded.includes(r.id));
-  if (validRoles.length === 0) {
-    // إذا ما لقي، ابحث عن أعلى رتبة من الإدارة العليا
-    if (cfg.highAdminRoles && cfg.highAdminRoles.length > 0) {
-      const highRoleObjs = cfg.highAdminRoles
-        .map(id => guild.roles.cache.get(id))
-        .filter(r => r && memberRoles.has(r.id));
-      if (highRoleObjs.length > 0) {
-        return highRoleObjs.sort((a, b) => b.position - a.position)[0];
-      }
+  const excluded = cfg.excludedRoles || [];
+
+  // 1. الإدارة العليا لها أولوية قصوى
+  if (cfg.highAdminRoles && cfg.highAdminRoles.length > 0) {
+    const highRoleObjs = cfg.highAdminRoles
+      .map(id => guild.roles.cache.get(id))
+      .filter(r => r && memberRoles.has(r.id));
+    if (highRoleObjs.length > 0) {
+      return highRoleObjs.sort((a, b) => b.position - a.position)[0];
     }
-    // استخدم الرتبة المشتركة كبديل
-    if (cfg.sharedAdminRoleId && memberRoles.has(cfg.sharedAdminRoleId)) {
-      return guild.roles.cache.get(cfg.sharedAdminRoleId) || null;
-    }
-    return null;
   }
-  return validRoles[validRoles.length - 1]; // آخر رتبة = أعلى position
+
+  // 2. ابحث عن أعلى رتبة ضمن النطاق الهرمي (غير مستثناة)
+  const rolesInRange = getHierarchyRolesInRange(guild, cfg);
+  const validRoles = rolesInRange.filter(r => memberRoles.has(r.id) && !excluded.includes(r.id));
+  if (validRoles.length > 0) {
+    return validRoles[validRoles.length - 1];
+  }
+
+  // 3. الرتبة المشتركة كبديل
+  if (cfg.sharedAdminRoleId && memberRoles.has(cfg.sharedAdminRoleId)) {
+    return guild.roles.cache.get(cfg.sharedAdminRoleId) || null;
+  }
+
+  return null;
 }
 
 /** ترتيب العضو بين الإدارة */
@@ -515,10 +519,7 @@ async function executeAction(interaction, action, targetId) {
       if (!nextRole) {
         return respondOrUpdate(interaction, { content: `⚠️ العضو في أعلى رتبة بالفعل (${targetRole}).`, components: [] });
       }
-      const sharedRoleId = cfg.sharedAdminRoleId;
-      if (sharedRoleId && targetRole.id !== sharedRoleId) {
-        await targetMember.roles.remove(targetRole.id).catch(() => {});
-      }
+      // نضيف الرتبة الجديدة فقط بدون حذف القديمة
       await targetMember.roles.add(nextRole.id);
       resultMsg = `✅ تمت ترقية ${targetMember} من ${targetRole} إلى ${nextRole}`;
       logEntries.push(
