@@ -639,7 +639,10 @@ async function executeAction(interaction, action, targetId) {
             { name: '🕐 الوقت', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
           )
           .setTimestamp();
-        await channel.send({ content: `${targetMember}`, embeds: [channelEmbed] }).catch(() => {});
+        // بناء منشن: العضو + رتبة الإدارة المشتركة (إن وجدت)
+        const mentionParts = [`${targetMember}`];
+        if (cfg.sharedAdminRoleId) mentionParts.push(`<@&${cfg.sharedAdminRoleId}>`);
+        await channel.send({ content: mentionParts.join(' '), embeds: [channelEmbed] }).catch(() => {});
       }
     }
 
