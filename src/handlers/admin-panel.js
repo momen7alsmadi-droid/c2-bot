@@ -8,6 +8,7 @@ const {
 } = require('discord.js');
 const { version } = require('../../package.json');
 const { getAdminConfig, saveAdminConfig } = require('../utils/adminStorage');
+const { sendBoardPanelToChannel, isHighAdmin, getHighestAdminRole, getHierarchyRolesInRange } = require('./admin-board');
 
 // ---------- دالة مساعدة ----------
 async function respondOrUpdate(interaction, payload) {
@@ -81,7 +82,12 @@ async function handleAdminPanelMain(interaction) {
       new ButtonBuilder().setCustomId('adm_rooms').setLabel('📡 الرومات').setStyle(ButtonStyle.Primary),
     );
 
-    return respondOrUpdate(interaction, { embeds: [embed], components: [row] });
+    const row2 = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('adm_send_panel').setLabel('📤 إرسال اللوحة').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('adm_grant_confirm').setLabel('🎖️ منح الرتب الأدنى').setStyle(ButtonStyle.Success),
+    );
+
+    return respondOrUpdate(interaction, { embeds: [embed], components: [row, row2] });
   } catch (e) {
     console.error('❌ handleAdminPanelMain:', e.message);
     return respondOrUpdate(interaction, { content: '⚠️ خطأ في عرض اللوحة.' });
@@ -409,6 +415,152 @@ async function handleAdminSelect(interaction) {
   }
 }
 
+// ================== منح الرتب الأدنى ==================
+
+async function handleGrantConfirm(interaction) {
+  try {
+    const cfg = getAdminConfig();
+    const guild = interaction.guild;
+    const member = interaction.member;
+
+    // التحقق من صلاحية الإدارة العليا
+    if (!member.permissions.has('Administrator') && !isHighAdmin(member, cfg)) {
+      await interaction.deferUpdate().catch(() => {});
+      return interaction.editReply({ content: '❌ هذه الخاصية متاحة فقط للإدارة العليا.', components: [] });
+    }
+
+    const hierarchyRoles = getHierarchyRolesInRange(guild, cfg);
+    if (hierarchyRoles.length === 0) {
+      await interaction.deferUpdate().catch(() => {});
+      return interaction.editReply({ content: '⚠️ لم يتم إعداد التسلسل الهرمي بعد.', components: [] });
+    }
+
+    // أعلى رتبة للعضو
+    const memberHighestRole = getHighestAdminRole(member, cfg, guild);
+    if (!memberHighestRole) {
+      await interaction.deferUpdate().catch(() => {});
+      return interaction.editReply({ content: '⚠️ أنت لا تملك أي رتبة إدارية.', components: [] });
+    }
+
+    // الرتب الأقل من رتبة العضو (ضمن النطاق الهرمي)
+    const lowerRoles = hierarchyRoles.filter(r => r.position < memberHighestRole.position);
+    if (lowerRoles.length === 0) {
+      await interaction.deferUpdate().catch(() => {});
+      return interaction.editReply({ content: '⚠️ لا توجد رتب أدنى من رتبتك.', components: [] });
+    }
+
+    // الرتب التي لا يملكها العضو أصلاً
+    const rolesToAdd = lowerRoles.filter(r => !member.roles.cache.has(r.id));
+
+    if (rolesToAdd.length === 0) {
+      await interaction.deferUpdate().catch(() => {});
+      return interaction.editReply({ content: '✅ أنت بالفعل تملك جميع الرتب الأدنى من رتبتك.', components: [] });
+    }
+
+    // شرح + تأكيد
+    const embed = new EmbedBuilder()
+      .setTitle('🎖️ منح الرتب الأدنى')
+      .setColor(0x2ECC71)
+      .setDescription(`سيتم إضافة **${rolesToAdd.length}** رتبة إلى حسابك:\n\n${rolesToAdd.map(r => `${r}`).join('\n')}`)
+      .addFields(
+        { name: '⚠️ تنبيه', value: 'سيتم إضافة الرتب واحدة تلو الأخرى لتجنب مشاكل السرعة (Rate Limit). قد يستغرق هذا بضع ثوانٍ.', inline: false },
+      )
+      .setFooter({ text: `${member.user.tag} | ${version}` })
+      .setTimestamp();
+
+    await interaction.deferUpdate().catch(() => {});
+    await interaction.editReply({
+      embeds: [embed],
+      components: [
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('adm_grant_execute').setLabel('✅ تأكيد وبدء المنح').setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId('adm_main').setLabel('🔙 إلغاء').setStyle(ButtonStyle.Danger),
+        )
+      ]
+    });
+  } catch (e) {
+    console.error('❌ handleGrantConfirm:', e.message);
+    try { await interaction.editReply({ content: `⚠️ خطأ: ${e.message}` }); } catch { try { await interaction.followUp({ content: `⚠️ خطأ: ${e.message}`, ephemeral: true }); } catch {} }
+  }
+}
+
+async function handleGrantExecute(interaction) {
+  try {
+    const cfg = getAdminConfig();
+    const guild = interaction.guild;
+    const member = interaction.member;
+
+    if (!member.permissions.has('Administrator') && !isHighAdmin(member, cfg)) {
+      await interaction.deferUpdate().catch(() => {});
+      return interaction.editReply({ content: '❌ غير مصرح.', components: [] });
+    }
+
+    const hierarchyRoles = getHierarchyRolesInRange(guild, cfg);
+    const memberHighestRole = getHighestAdminRole(member, cfg, guild);
+    if (!memberHighestRole) {
+      await interaction.deferUpdate().catch(() => {});
+      return interaction.editReply({ content: '⚠️ لا توجد رتبة.', components: [] });
+    }
+
+    const lowerRoles = hierarchyRoles.filter(r => r.position < memberHighestRole.position);
+    const rolesToAdd = lowerRoles.filter(r => !member.roles.cache.has(r.id));
+
+    if (rolesToAdd.length === 0) {
+      await interaction.deferUpdate().catch(() => {});
+      return interaction.editReply({ content: '✅ كل الرتب ممنوحة بالفعل.', components: [] });
+    }
+
+    // بدء المنح التدريجي
+    let added = 0;
+    let failed = 0;
+
+    await interaction.deferUpdate().catch(() => {});
+    await interaction.editReply({
+      content: `⏳ جارٍ منح الرتب... 0 / ${rolesToAdd.length}`,
+      embeds: [],
+      components: []
+    });
+
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    for (const role of rolesToAdd) {
+      try {
+        await member.roles.add(role.id);
+        added++;
+      } catch (e) {
+        failed++;
+        console.error(`❌ فشل إضافة ${role.name}:`, e.message);
+      }
+      // تأخير 800ms بين كل رتبة لتجنب Rate Limit
+      await delay(800);
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle('🎖️ تم منح الرتب')
+      .setColor(added > 0 ? 0x2ECC71 : 0xE74C3C)
+      .setDescription([
+        `✅ تمت إضافة **${added}** رتبة بنجاح.`,
+        failed > 0 ? `⚠️ فشل إضافة **${failed}** رتبة (قد تكون ممنوحة مسبقاً أو خطأ في الصلاحيات).` : '',
+        `📊 الإجمالي: ${rolesToAdd.length} رتبة`
+      ].filter(Boolean).join('\n'))
+      .setFooter({ text: `${member.user.tag} | ${version}` })
+      .setTimestamp();
+
+    await interaction.editReply({
+      content: null,
+      embeds: [embed],
+      components: [
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('adm_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Secondary)
+        )
+      ]
+    });
+  } catch (e) {
+    console.error('❌ handleGrantExecute:', e.message);
+    try { await interaction.editReply({ content: `⚠️ خطأ: ${e.message}` }); } catch { try { await interaction.followUp({ content: `⚠️ خطأ: ${e.message}`, ephemeral: true }); } catch {} }
+  }
+}
+
 // ================== الموزع الرئيسي ==================
 
 async function handleAdminInteraction(interaction) {
@@ -427,6 +579,10 @@ async function handleAdminInteraction(interaction) {
   // أزرار الإدارة العليا
   if (id === 'adm_high_auto') return handleHighAdminAuto(interaction);
   if (id === 'adm_high_clear') return handleHighAdminClear(interaction);
+
+  // زر منح الرتب الأدنى
+  if (id === 'adm_grant_confirm') return handleGrantConfirm(interaction);
+  if (id === 'adm_grant_execute') return handleGrantExecute(interaction);
 
   // القوائم المنسدلة (adm_sel_xxx)
   if (id.startsWith('adm_sel_')) {

@@ -765,5 +765,7 @@ module.exports = {
   buildMainPanelEmbed,
   buildMainPanelComponents,
   isHighAdmin,
-  getAdminMembers
+  getAdminMembers,
+  getHighestAdminRole,
+  getHierarchyRolesInRange
 };
