@@ -16,6 +16,8 @@ const DEFAULT_CONFIG = {
   hierarchyRangeEndId: null,
   excludedRoles: [],
   highAdminRoles: [],
+  highAdminRangeStartId: null,
+  highAdminRangeEndId: null,
   promotionChannelId: null,
   demotionChannelId: null
 };
@@ -73,6 +75,8 @@ function applyDefaults(cfg) {
     hierarchyRangeEndId: cfg.hierarchyRangeEndId || null,
     excludedRoles: Array.isArray(cfg.excludedRoles) ? cfg.excludedRoles : [],
     highAdminRoles: Array.isArray(cfg.highAdminRoles) ? cfg.highAdminRoles : [],
+    highAdminRangeStartId: cfg.highAdminRangeStartId || null,
+    highAdminRangeEndId: cfg.highAdminRangeEndId || null,
     promotionChannelId: cfg.promotionChannelId || null,
     demotionChannelId: cfg.demotionChannelId || null
   };

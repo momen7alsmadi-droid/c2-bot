@@ -159,18 +159,28 @@ async function showHighAdminPage(interaction) {
       .sort((a, b) => b.position - a.position);
 
     let adminRolesList = allRoles.map(r => `${r} — \`${r.id}\``).join('\n') || 'لا يوجد';
-    // تقطيع القائمة إذا كانت طويلة (حد 900 حرف)
     if (adminRolesList.length > 900) {
       adminRolesList = adminRolesList.slice(0, 900) + `\n… والباقي ${allRoles.size} رتبة`;
+    }
+
+    // وصف النطاق الحالي للإدارة العليا
+    let rangeDesc = '❌ غير محدد';
+    if (cfg.highAdminRangeStartId && cfg.highAdminRangeEndId) {
+      const roleA = guild.roles.cache.get(cfg.highAdminRangeStartId);
+      const roleB = guild.roles.cache.get(cfg.highAdminRangeEndId);
+      if (roleA && roleB) {
+        rangeDesc = `${roleA} ← ${roleB}`;
+      }
     }
 
     const embed = new EmbedBuilder()
       .setTitle('👑 رتب الإدارة العليا')
       .setColor(0x9B59B6)
-      .setDescription('اختر الرتب التي تمتلك صلاحية الإدارة العليا (تستطيع ترقية وتنزيل الأعضاء):')
+      .setDescription('اختر رتب الإدارة العليا يدوياً، أو حدد نطاقاً (رتبتين) لتضمين كل الرتب بينهما:')
       .addFields(
-        { name: '👑 الرتب الحالية (مخزنة)', value: cfg.highAdminRoles.length > 0
+        { name: '👑 الرتب المحددة يدوياً', value: cfg.highAdminRoles.length > 0
           ? cfg.highAdminRoles.map(id => `<@&${id}>`).join(', ').slice(0, 1000) || '❌ غير محددة' : '❌ غير محددة', inline: false },
+        { name: '📊 نطاق الإدارة العليا', value: rangeDesc, inline: false },
         { name: '🤖 الرتب التي تملك Administrator', value: adminRolesList || 'لا يوجد', inline: false },
       )
       .setFooter({ text: `الإصدار: ${version}` })
@@ -179,23 +189,30 @@ async function showHighAdminPage(interaction) {
     const selectRow = new ActionRowBuilder().addComponents(
       new RoleSelectMenuBuilder()
         .setCustomId('adm_sel_highAdminRoles')
-        .setPlaceholder('👑 اختر رتب الإدارة العليا')
+        .setPlaceholder('👑 اختر رتب الإدارة العليا يدوياً')
         .setMinValues(1)
         .setMaxValues(10)
     );
 
+    const rangeRow = new ActionRowBuilder().addComponents(
+      new RoleSelectMenuBuilder()
+        .setCustomId('adm_sel_highAdminRange')
+        .setPlaceholder('📊 اختر رتبتين للبداية والنهاية')
+        .setMinValues(2)
+        .setMaxValues(2)
+    );
+
     const btnRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('adm_high_auto').setLabel('🔄 تعيين تلقائي').setStyle(ButtonStyle.Success).setDisabled(allRoles.size === 0),
-      new ButtonBuilder().setCustomId('adm_high_clear').setLabel('🗑️ مسح').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId('adm_high_clear').setLabel('🗑️ مسح الكل').setStyle(ButtonStyle.Danger),
     );
 
     const navRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('adm_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
     );
 
-    // استخدام deferUpdate + editReply مباشرة لتجنب مشاكل respondOrUpdate
     await interaction.deferUpdate().catch(() => {});
-    return interaction.editReply({ embeds: [embed], components: [selectRow, btnRow, navRow] });
+    return interaction.editReply({ embeds: [embed], components: [selectRow, rangeRow, btnRow, navRow] });
   } catch (e) {
     console.error('❌ showHighAdminPage:', e.message, e.stack?.split('\n')[1]);
     try {
@@ -356,6 +373,7 @@ async function handleAdminSelect(interaction) {
       'hierarchyRange': null, // special handling
       'excludedRoles': 'excludedRoles',
       'highAdminRoles': 'highAdminRoles',
+      'highAdminRange': null, // special handling
       'promotionChannel': 'promotionChannelId',
       'demotionChannel': 'demotionChannelId'
     };
@@ -367,6 +385,9 @@ async function handleAdminSelect(interaction) {
     if (fieldKey === 'hierarchyRange' && values.length === 2) {
       cfg.hierarchyRangeStartId = values[0];
       cfg.hierarchyRangeEndId = values[1];
+    } else if (fieldKey === 'highAdminRange' && values.length === 2) {
+      cfg.highAdminRangeStartId = values[0];
+      cfg.highAdminRangeEndId = values[1];
     } else if (fieldKey === 'excludedRoles' || fieldKey === 'highAdminRoles') {
       cfg[fieldMap[fieldKey]] = [...values];
     } else if (fieldKey === 'sharedAdminRole' || fieldKey === 'promotionChannel' || fieldKey === 'demotionChannel') {
@@ -378,7 +399,7 @@ async function handleAdminSelect(interaction) {
     // إعادة عرض الصفحة المناسبة
     if (fieldKey === 'sharedAdminRole' || fieldKey === 'hierarchyRange' || fieldKey === 'excludedRoles') {
       return showRolesPage(interaction);
-    } else if (fieldKey === 'highAdminRoles') {
+    } else if (fieldKey === 'highAdminRoles' || fieldKey === 'highAdminRange') {
       return showHighAdminPage(interaction);
     } else if (fieldKey === 'promotionChannel' || fieldKey === 'demotionChannel') {
       return showRoomsPage(interaction);

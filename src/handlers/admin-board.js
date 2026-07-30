@@ -51,7 +51,7 @@ async function getAdminMembers(guild, cfg) {
   const hierarchyRoles = getHierarchyRolesInRange(guild, cfg);
   const hierarchyRoleIds = hierarchyRoles.map(r => r.id);
 
-  const highRoles = cfg.highAdminRoles || [];
+  const highRoles = getHighAdminRoleIds(cfg, guild);
 
   return guild.members.cache.filter(m => {
     if (m.user.bot) return false;
@@ -90,14 +90,31 @@ function getHierarchyRolesInRange(guild, cfg) {
     .sort((a, b) => a.position - b.position).map(r => r);
 }
 
+/** جلب جميع رتب الإدارة العليا (من القائمة المحددة + النطاق) */
+function getHighAdminRoleIds(cfg, guild) {
+  const ids = new Set(cfg.highAdminRoles || []);
+  if (cfg.highAdminRangeStartId && cfg.highAdminRangeEndId && guild) {
+    const roleA = guild.roles.cache.get(cfg.highAdminRangeStartId);
+    const roleB = guild.roles.cache.get(cfg.highAdminRangeEndId);
+    if (roleA && roleB) {
+      const minPos = Math.min(roleA.position, roleB.position);
+      const maxPos = Math.max(roleA.position, roleB.position);
+      guild.roles.cache.filter(r => r.position >= minPos && r.position <= maxPos && r.id !== guild.id)
+        .forEach(r => ids.add(r.id));
+    }
+  }
+  return [...ids];
+}
+
 /** الحصول على أعلى رتبة للعضو (الإدارة العليا لها الأولوية) */
 function getHighestAdminRole(member, cfg, guild) {
   const memberRoles = member.roles.cache;
   const excluded = cfg.excludedRoles || [];
 
-  // 1. الإدارة العليا لها أولوية قصوى
-  if (cfg.highAdminRoles && cfg.highAdminRoles.length > 0) {
-    const highRoleObjs = cfg.highAdminRoles
+  // 1. الإدارة العليا لها أولوية قصوى (من القائمة + النطاق)
+  const allHighIds = getHighAdminRoleIds(cfg, guild);
+  if (allHighIds.length > 0) {
+    const highRoleObjs = allHighIds
       .map(id => guild.roles.cache.get(id))
       .filter(r => r && memberRoles.has(r.id));
     if (highRoleObjs.length > 0) {
@@ -308,9 +325,9 @@ async function showRoleLadder(interaction) {
   const guild = interaction.guild;
   const member = interaction.member;
 
-  // جميع رتب الإدارة العليا (مرتبة تنازلياً)
-  const highRoleIds = cfg.highAdminRoles || [];
-  let highRoles = highRoleIds
+  // جميع رتب الإدارة العليا (من القائمة + النطاق، مرتبة تنازلياً)
+  const allHighIds = getHighAdminRoleIds(cfg, guild);
+  let highRoles = allHighIds
     .map(id => guild.roles.cache.get(id))
     .filter(r => r)
     .sort((a, b) => b.position - a.position);
