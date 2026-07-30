@@ -187,8 +187,8 @@ async function showHighAdminPage(interaction) {
 
     return respondOrUpdate(interaction, { embeds: [embed], components: [selectRow, btnRow, navRow] });
   } catch (e) {
-    console.error('❌ showHighAdminPage:', e.message);
-    return respondOrUpdate(interaction, { content: '⚠️ خطأ.' });
+    console.error('❌ showHighAdminPage:', e.message, e.stack?.split('\n')[1]);
+    return respondOrUpdate(interaction, { content: `⚠️ خطأ: ${e.message}` });
   }
 }
 

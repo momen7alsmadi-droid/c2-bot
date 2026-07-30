@@ -190,6 +190,7 @@ function buildMainPanelEmbed(guild, cfg, stats) {
 function buildMainPanelComponents(isHigh) {
   const row1 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('adm_board_myprofile').setLabel('👤 عرض ملفي').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('adm_board_ladder').setLabel('🪜 سلم الرتب').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('adm_board_top').setLabel('🏆 توب الإدارة').setStyle(ButtonStyle.Success),
   );
   const row2 = new ActionRowBuilder().addComponents(
@@ -254,7 +255,6 @@ async function showMyProfile(interaction) {
     .setTimestamp();
 
   const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('adm_board_ladder').setLabel('🪜 سلم الرتب').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Danger),
   );
 
@@ -291,7 +291,6 @@ async function showMyProfileUpdate(interaction) {
     .setTimestamp();
 
   const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('adm_board_ladder').setLabel('🪜 سلم الرتب').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Danger),
   );
 
@@ -375,11 +374,11 @@ async function showRoleLadder(interaction) {
     .setTimestamp();
 
   const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('adm_board_back_profile').setLabel('🔙 رجوع للملف').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Danger),
   );
 
-  return respondOrUpdate(interaction, { embeds: [embed], components: [row] });
+  // سلم الرتب يظهر بشكل خاص لكل مستخدم
+  return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
 }
 
 // ================== اللوحة الرئيسية (للأمر) ==================
