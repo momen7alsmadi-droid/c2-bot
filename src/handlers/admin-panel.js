@@ -94,6 +94,11 @@ async function showRolesPage(interaction) {
   try {
     const cfg = getAdminConfig();
 
+    // تقطيع القوائم الطويلة
+    const excludedVal = cfg.excludedRoles.length > 0
+      ? cfg.excludedRoles.map(id => rl(id)).join(', ').slice(0, 1000) || 'لا يوجد'
+      : 'لا يوجد';
+
     const embed = new EmbedBuilder()
       .setTitle('🎖️ إعدادات الرتب')
       .setColor(0x3498DB)
@@ -103,8 +108,7 @@ async function showRolesPage(interaction) {
         { name: '📊 نطاق التسلسل الهرمي', value: cfg.hierarchyRangeStartId && cfg.hierarchyRangeEndId
           ? `${rl(cfg.hierarchyRangeStartId)} ← ${rl(cfg.hierarchyRangeEndId)}`
           : '❌ غير محدد (اختر رتبتين: البداية والنهاية)', inline: false },
-        { name: '🛡️ الرتب المستثناة من السحب', value: cfg.excludedRoles.length > 0
-          ? cfg.excludedRoles.map(id => rl(id)).join(', ') : 'لا يوجد', inline: false },
+        { name: '🛡️ الرتب المستثناة', value: excludedVal, inline: false },
       )
       .setFooter({ text: `الإصدار: ${version}` })
       .setTimestamp();
@@ -139,10 +143,7 @@ async function showRolesPage(interaction) {
     return interaction.editReply({ embeds: [embed], components });
   } catch (e) {
     console.error('❌ showRolesPage:', e.message);
-    try {
-      await interaction.deferUpdate().catch(() => {});
-      return interaction.editReply({ content: `⚠️ خطأ: ${e.message}` });
-    } catch {}
+    try { await interaction.editReply({ content: `⚠️ خطأ: ${e.message}` }); } catch { try { await interaction.followUp({ content: `⚠️ خطأ: ${e.message}`, ephemeral: true }); } catch {} }
   }
 }
 
@@ -215,10 +216,7 @@ async function showHighAdminPage(interaction) {
     return interaction.editReply({ embeds: [embed], components: [selectRow, rangeRow, btnRow, navRow] });
   } catch (e) {
     console.error('❌ showHighAdminPage:', e.message, e.stack?.split('\n')[1]);
-    try {
-      await interaction.deferUpdate().catch(() => {});
-      return interaction.editReply({ content: `⚠️ خطأ: ${e.message}`, components: [] });
-    } catch {}
+    try { await interaction.editReply({ content: `⚠️ خطأ: ${e.message}` }); } catch { try { await interaction.followUp({ content: `⚠️ خطأ: ${e.message}`, ephemeral: true }); } catch {} }
   }
 }
 
@@ -263,10 +261,7 @@ async function showRoomsPage(interaction) {
     return interaction.editReply({ embeds: [embed], components });
   } catch (e) {
     console.error('❌ showRoomsPage:', e.message);
-    try {
-      await interaction.deferUpdate().catch(() => {});
-      return interaction.editReply({ content: `⚠️ خطأ: ${e.message}` });
-    } catch {}
+    try { await interaction.editReply({ content: `⚠️ خطأ: ${e.message}` }); } catch { try { await interaction.followUp({ content: `⚠️ خطأ: ${e.message}`, ephemeral: true }); } catch {} }
   }
 }
 
