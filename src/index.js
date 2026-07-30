@@ -27,6 +27,7 @@ const { handleReactInteraction, handleReactModal, handleReactMain, handleReactMe
 const { handleStarboardMain, handleStarboardInteraction, handleStarboardModal, handleStarboardMessage, handleStarboardReaction } = require('./handlers/starboard');
 const { deployCommands } = require('./deploy-commands');
 const { handleAdminPanelMain, handleAdminInteraction } = require('./handlers/admin-panel');
+const { handleBoardMain, handleBoardInteraction } = require('./handlers/admin-board');
 const { initAdminModel, syncAdminConfigFromMongo } = require('./utils/adminStorage');
 const { initStarboardModels, ensureStarboardLoaded } = require('./utils/starboardStorage');
 const { initAutoReplyModel, syncJsonToMongo: syncAr } = require('./utils/autoReplyStorage');
@@ -479,6 +480,8 @@ client.on('interactionCreate', async (interaction) => {
         await handleAutoReplyInteraction(interaction);
       } else if (interaction.customId.startsWith('sb_')) {
         await handleStarboardInteraction(interaction);
+      } else if (interaction.customId.startsWith('adm_board_')) {
+        await handleBoardInteraction(interaction);
       } else if (interaction.customId.startsWith('adm_')) {
         await handleAdminInteraction(interaction);
       } else if (interaction.customId.startsWith('dev_ch_')) {
@@ -535,6 +538,7 @@ async function handleSlashCommand(interaction) {
     case 'الردود_التلقائية': return handleAutoReplyMain(interaction);
     case 'لوحة_النجوم': return handleStarboardMain(interaction);
     case 'اعدادات_لوحة_الإدارة': return handleAdminPanelMain(interaction);
+    case 'لوحة_الإدارة': return handleBoardMain(interaction);
   }
 }
 
@@ -619,9 +623,14 @@ async function handleButton(interaction) {
     return handleStarboardInteraction(interaction);
   }
 
-  // أزرار نظام الإدارة
-  if (prefix === 'adm') {
+  // أزرار نظام الإدارة (الإعدادات)
+  if (prefix === 'adm' && parts[1] !== 'board') {
     return handleAdminInteraction(interaction);
+  }
+
+  // أزرار لوحة الإدارة (الترقية/التنزيل/التوب)
+  if (prefix === 'adm' && parts[1] === 'board') {
+    return handleBoardInteraction(interaction);
   }
 
   if (prefix === 'dev') {

@@ -134,6 +134,12 @@ const commands = [
     .setDescription('🛡️ لوحة إعدادات نظام الإدارة - الرتب والترقيات والتنزيلات')
     .setDefaultMemberPermissions(8) // Administrator
     .toJSON(),
+
+  // ------------------- /لوحة_الإدارة -------------------
+  new SlashCommandBuilder()
+    .setName('لوحة_الإدارة')
+    .setDescription('🛡️ لوحة الإدارة - الترقية والتنزيل وتوب الإدارة')
+    .toJSON(),
 ];
 
 const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);
