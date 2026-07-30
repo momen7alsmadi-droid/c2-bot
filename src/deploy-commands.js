@@ -127,6 +127,13 @@ const commands = [
     .setDescription('⭐ نظام لوحة النجوم المتعدد - إدارة اللوحات والإعدادات')
     .setDefaultMemberPermissions(8) // Administrator
     .toJSON(),
+
+  // ------------------- /تذاكر -------------------
+  new SlashCommandBuilder()
+    .setName('تذاكر')
+    .setDescription('🎫 نظام التذاكر المطور - إدارة قوالب التذاكر')
+    .setDefaultMemberPermissions(8) // Administrator
+    .toJSON(),
 ];
 
 const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);
