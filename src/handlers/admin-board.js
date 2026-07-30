@@ -345,7 +345,14 @@ async function showRoleLadder(interaction) {
   if (highRoles.length > 0) {
     lines.push('**👑 الإدارة العليا**');
     for (const role of highRoles) {
-      const indicator = hasRole(role.id) ? '🟢' : '⚪';
+      let indicator;
+      if (memberAdminRole && role.id === memberAdminRole.id) {
+        indicator = '🔵'; // رتبة العضو الحالية
+      } else if (hasRole(role.id)) {
+        indicator = '🟢';
+      } else {
+        indicator = '⚪';
+      }
       lines.push(`${indicator} ${role}`);
     }
     lines.push('');

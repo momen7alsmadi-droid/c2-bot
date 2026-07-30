@@ -451,11 +451,6 @@ async function handleGrantConfirm(interaction) {
       return interaction.editReply({ content: '❌ هذه الخاصية متاحة فقط للإدارة العليا.', components: [] });
     }
 
-    if (!cfg.sharedAdminRoleId) {
-      await interaction.deferUpdate().catch(() => {});
-      return interaction.editReply({ content: '⚠️ لم يتم تعيين رتبة الإدارة المشتركة بعد.', components: [] });
-    }
-
     const list = await prepareGrantList(guild, cfg);
 
     if (list.length === 0) {
