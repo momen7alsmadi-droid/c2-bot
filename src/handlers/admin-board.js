@@ -543,6 +543,9 @@ async function executeAction(interaction, action, targetId) {
   const excludedRoles = cfg.excludedRoles || [];
   let resultMsg = '';
   const logEntries = [];
+  let oldRoleName = '';
+  let newRoleName = '';
+  let channelId = '';
 
   try {
     if (action === 'promote') {
@@ -550,13 +553,15 @@ async function executeAction(interaction, action, targetId) {
       if (!nextRole) {
         return respondOrUpdate(interaction, { content: `⚠️ العضو في أعلى رتبة بالفعل (${targetRole}).`, components: [] });
       }
-      // نضيف الرتبة الجديدة فقط بدون حذف القديمة
       await targetMember.roles.add(nextRole.id);
-      resultMsg = `✅ تمت ترقية ${targetMember} من ${targetRole} إلى ${nextRole}`;
+      oldRoleName = `${targetRole}`;
+      newRoleName = `${nextRole}`;
+      resultMsg = `✅ تمت ترقية ${targetMember} من ${oldRoleName} إلى ${newRoleName}`;
+      channelId = cfg.promotionChannelId || '';
       logEntries.push(
         { name: 'الإجراء', value: '📈 ترقية', inline: true },
-        { name: 'من', value: `${targetRole}`, inline: true },
-        { name: 'إلى', value: `${nextRole}`, inline: true },
+        { name: 'من', value: oldRoleName, inline: true },
+        { name: 'إلى', value: newRoleName, inline: true },
       );
     } else if (action === 'demote') {
       const prevRole = getNextLowerRole(targetRole, guild, cfg);
@@ -568,11 +573,14 @@ async function executeAction(interaction, action, targetId) {
         await targetMember.roles.remove(targetRole.id).catch(() => {});
       }
       await targetMember.roles.add(prevRole.id);
-      resultMsg = `✅ تم تنزيل ${targetMember} من ${targetRole} إلى ${prevRole}`;
+      oldRoleName = `${targetRole}`;
+      newRoleName = `${prevRole}`;
+      resultMsg = `✅ تم تنزيل ${targetMember} من ${oldRoleName} إلى ${newRoleName}`;
+      channelId = cfg.demotionChannelId || '';
       logEntries.push(
         { name: 'الإجراء', value: '📉 تنزيل', inline: true },
-        { name: 'من', value: `${targetRole}`, inline: true },
-        { name: 'إلى', value: `${prevRole}`, inline: true },
+        { name: 'من', value: oldRoleName, inline: true },
+        { name: 'إلى', value: newRoleName, inline: true },
       );
     } else if (action === 'remove') {
       const rolesToRemove = [];
@@ -592,6 +600,7 @@ async function executeAction(interaction, action, targetId) {
         await targetMember.roles.remove(roleId).catch(() => {});
       }
       resultMsg = `✅ تم سحب ${rolesToRemove.length} رتبة إدارية من ${targetMember}`;
+      channelId = cfg.demotionChannelId || '';
       logEntries.push(
         { name: 'الإجراء', value: '🗑️ سحب', inline: true },
         { name: 'الرتب المُزالة', value: `${rolesToRemove.length} رتبة`, inline: true },
@@ -599,6 +608,29 @@ async function executeAction(interaction, action, targetId) {
     }
 
     clearState(interaction.user.id);
+
+    // إرسال إشعار إلى روم الترقية/التنزيل
+    if (channelId) {
+      const channel = await guild.channels.fetch(channelId).catch(() => null);
+      if (channel) {
+        const actionLabels = {
+          promote: { title: '📈 ترقية', color: 0x2ECC71, desc: `نبارك للإداري ${targetMember} على ترقيته من **${oldRoleName}** إلى **${newRoleName}**\nنتمنى أن يكون عند حسن الظن دائمًا.` },
+          demote: { title: '📉 تنزيل', color: 0xF1C40F, desc: `تم تنزيل الإداري ${targetMember} من **${oldRoleName}** إلى **${newRoleName}**` },
+          remove: { title: '🗑️ سحب رتب', color: 0xE74C3C, desc: `تم سحب الرتب الإدارية من ${targetMember} بنجاح.` },
+        };
+        const al = actionLabels[action];
+        const channelEmbed = new EmbedBuilder()
+          .setTitle(al.title)
+          .setColor(al.color)
+          .setDescription(al.desc)
+          .addFields(
+            { name: 'نفذ بواسطة', value: `${member}`, inline: true },
+            { name: '🕐 الوقت', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
+          )
+          .setTimestamp();
+        await channel.send({ content: `${targetMember}`, embeds: [channelEmbed] }).catch(() => {});
+      }
+    }
 
     const resultEmbed = new EmbedBuilder()
       .setTitle(resultMsg)
