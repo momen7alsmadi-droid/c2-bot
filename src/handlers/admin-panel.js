@@ -13,13 +13,13 @@ const { getAdminConfig, saveAdminConfig } = require('../utils/adminStorage');
 async function respondOrUpdate(interaction, payload) {
   if (interaction.deferred) return interaction.editReply(payload);
   if (interaction.isCommand()) return interaction.reply({ ...payload, ephemeral: true });
-  if (!interaction.replied && !interaction.deferred) {
-    try { return await interaction.update(payload); } catch {
-      await interaction.deferUpdate().catch(() => {});
-      return interaction.editReply(payload);
-    }
+  // للأزرار والقوائم: defer أولاً لتجنب مشكلة InteractionNotReplied
+  try {
+    await interaction.deferUpdate();
+    return interaction.editReply(payload);
+  } catch {
+    return interaction.editReply(payload).catch(() => {});
   }
-  return interaction.editReply(payload);
 }
 
 /** عرض ملخص نطاق الرتب */

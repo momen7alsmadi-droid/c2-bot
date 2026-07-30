@@ -26,13 +26,13 @@ function clearState(userId) { paginationState.delete(userId); }
 async function respondOrUpdate(interaction, payload) {
   if (interaction.deferred) return interaction.editReply(payload);
   if (interaction.isCommand()) return interaction.reply({ ...payload, ephemeral: true });
-  if (!interaction.replied && !interaction.deferred) {
-    try { return await interaction.update(payload); } catch {
-      await interaction.deferUpdate().catch(() => {});
-      return interaction.editReply(payload);
-    }
+  // للأزرار والقوائم: defer أولاً لتجنب مشكلة InteractionNotReplied
+  try {
+    await interaction.deferUpdate();
+    return interaction.editReply(payload);
+  } catch {
+    return interaction.editReply(payload).catch(() => {});
   }
-  return interaction.editReply(payload);
 }
 
 /** هل المستخدم من الإدارة العليا؟ */
@@ -258,6 +258,43 @@ async function showMyProfile(interaction) {
     new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Danger),
   );
 
+  // الملف الشخصي يظهر بشكل خاص لكل مستخدم
+  return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+}
+
+// ================== العودة للملف من السلم (تحديث نفس الرسالة المخفية) ==================
+
+async function showMyProfileUpdate(interaction) {
+  const cfg = getAdminConfig();
+  const guild = interaction.guild;
+  const member = interaction.member;
+
+  const memberAdminRole = getHighestAdminRole(member, cfg, guild);
+  const rank = await getAdminRank(member, cfg, guild);
+  const allAbove = getRolesAbove(member, guild, cfg);
+  const allBelow = getRolesBelow(member, guild, cfg);
+  const rolesAbove = allAbove.slice(-2).reverse();
+  const rolesBelow = allBelow.slice(0, 2);
+
+  const embed = new EmbedBuilder()
+    .setTitle(`👤 الملف الشخصي — ${member.user.tag}`)
+    .setColor(memberAdminRole?.color || 0x3498DB)
+    .setThumbnail(member.user.displayAvatarURL())
+    .addFields(
+      { name: '🎖️ رتبتك الإدارية', value: memberAdminRole ? `${memberAdminRole}` : '❌ لست ضمن الإدارة', inline: false },
+      { name: '📊 ترتيبك', value: rank ? `${rank.rank} من ${rank.total}` : '—', inline: true },
+      { name: '📈 الإجمالي', value: rank ? `${rank.total}` : '—', inline: true },
+      { name: '⬆️ الرتبتين الأعلى (الأقرب)', value: rolesAbove.length > 0 ? rolesAbove.map(r => `${r}`).join('\n') : '—', inline: false },
+      { name: '⬇️ الرتبتين الأدنى (الأقرب)', value: rolesBelow.length > 0 ? rolesBelow.map(r => `${r}`).join('\n') : '—', inline: false },
+    )
+    .setFooter({ text: `الإصدار: ${version}` })
+    .setTimestamp();
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('adm_board_ladder').setLabel('🪜 سلم الرتب').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Danger),
+  );
+
   return respondOrUpdate(interaction, { embeds: [embed], components: [row] });
 }
 
@@ -338,14 +375,14 @@ async function showRoleLadder(interaction) {
     .setTimestamp();
 
   const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('adm_board_myprofile').setLabel('🔙 رجوع للملف').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('adm_board_back_profile').setLabel('🔙 رجوع للملف').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Danger),
   );
 
   return respondOrUpdate(interaction, { embeds: [embed], components: [row] });
 }
 
-// ================== اللوحة الرئيسية (للأمر) ==================",
+// ================== اللوحة الرئيسية (للأمر) ==================
 
 async function handleBoardMain(interaction) {
   const cfg = getAdminConfig();
@@ -364,7 +401,11 @@ async function handleBoardMain(interaction) {
   const embed = buildMainPanelEmbed(guild, cfg, stats);
   const components = buildMainPanelComponents(isHigh);
 
-  return interaction.reply({ embeds: [embed], components, ephemeral: true });
+  // الأمر: لوحة عامة / الزر: تحديث نفس الرسالة
+  if (interaction.isCommand()) {
+    return interaction.reply({ embeds: [embed], components, ephemeral: false });
+  }
+  return respondOrUpdate(interaction, { embeds: [embed], components });
 }
 
 // ================== ترقية / تنزيل / سحب — قائمة منسدلة مع pagination ==================
@@ -630,6 +671,7 @@ async function handleBoardInteraction(interaction) {
   if (id === 'adm_board_main') return handleBoardMain(interaction);
   if (id === 'adm_board_refresh') return handleBoardMain(interaction);
   if (id === 'adm_board_myprofile') return showMyProfile(interaction);
+  if (id === 'adm_board_back_profile') return showMyProfileUpdate(interaction);
   if (id === 'adm_board_ladder') return showRoleLadder(interaction);
 
   if (id === 'adm_board_promote') return showMemberSelector(interaction, 'promote');
