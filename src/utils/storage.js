@@ -40,6 +40,7 @@ const DEFAULT_CONFIG = {
     allowedRoleId: null,
     logChannelId: null,
     auditLogChannelId: null,
+    pingRoleId: null,
     rolesToRemove: [],
     exemptedRoles: [],
     resignRoleId: null,

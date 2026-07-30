@@ -22,8 +22,9 @@ async function handleResign(interaction) {
   const reason = interaction.options.getString('السبب');
   const pingHighAdmin = interaction.options.getBoolean('منشن_الإدارة_العليا') || false;
 
-  // بناء منشن الإدارة العليا إذا طلب
-  let highAdminMention = '';
+  // بناء منشن الإدارة العليا إذا طلب (من الأمر)
+  // ومنشن رتبة التنبيه إذا كانت محددة في الإعدادات
+  const mentionParts = [];
   if (pingHighAdmin) {
     const adminCfg = getAdminConfig();
     const guild = interaction.guild;
@@ -46,9 +47,14 @@ async function handleResign(interaction) {
       }
     }
     if (highRoleIds.length > 0) {
-      highAdminMention = highRoleIds.map(id => `<@&${id}>`).join(' ');
+      mentionParts.push(highRoleIds.map(id => `<@&${id}>`).join(' '));
     }
   }
+  // رتبة التنبيه من الإعدادات (تُمنشن دائماً إذا موجودة)
+  if (cfg.resign.pingRoleId) {
+    mentionParts.push(`<@&${cfg.resign.pingRoleId}>`);
+  }
+  const highAdminMention = mentionParts.length > 0 ? mentionParts.join(' ') : '';
 
   const embed = new EmbedBuilder()
     .setTitle('⎭ طـلـب اسـتـقـالـة ⎧')

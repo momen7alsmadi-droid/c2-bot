@@ -253,7 +253,7 @@ async function showSettingsPage(interaction, type, page) {
       });
     }
 
-    // الاستقالة - صفحة 1
+    // الاستقالة - صفحة 1 (الأساسيات)
     if (type === 'resign' && page === 1) {
       const r = cfg.resign;
       embed.setDescription('👑 أي شخص عنده صلاحية Administrator يعتبر من الإدارة العليا تلقائياً');
@@ -262,7 +262,6 @@ async function showSettingsPage(interaction, type, page) {
         { name: '🎖️ رتبة ما بعد الاستقالة', value: rl(r.resignRoleId) },
         { name: '👑 رتبة الإدارة العليا', value: rl(r.upperManagementRoleId) },
         { name: '📨 روم الاستقبال', value: ch(r.logChannelId) },
-        { name: '📋 روم السجل', value: ch(r.auditLogChannelId) },
       );
       return respondOrUpdate(interaction, {
         embeds: [embed],
@@ -271,13 +270,12 @@ async function showSettingsPage(interaction, type, page) {
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_resignRole').setPlaceholder('🎖️ رتبة ما بعد الاستقالة').setMaxValues(1)),
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_upperMgmt').setPlaceholder('👑 رتبة الإدارة العليا').setMaxValues(1)),
           new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_resign_logChannel').setPlaceholder('📨 روم الاستقبال').setMaxValues(1)),
-          new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_resign_auditLogChannel').setPlaceholder('📋 روم السجل').setMaxValues(1)),
           new ActionRowBuilder().addComponents(btnBack, new ButtonBuilder().setCustomId('set_resign_2').setLabel('▶️ الرتب المُزالة').setStyle(ButtonStyle.Primary)),
         ]
       });
     }
 
-    // الاستقالة - صفحة 2
+    // الاستقالة - صفحة 2 (الرتب المُزالة)
     if (type === 'resign' && page === 2) {
       const r = cfg.resign;
       embed.addFields(
@@ -289,7 +287,24 @@ async function showSettingsPage(interaction, type, page) {
         components: [
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_rolesToRemove').setPlaceholder('🗑️ اختر أدنى وأعلى رتبة للنطاق').setMinValues(2).setMaxValues(2)),
           new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_exemptedRoles').setPlaceholder('🛡️ رتب مستثناة من السحب').setMinValues(0).setMaxValues(25)),
-          new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('set_resign_1').setLabel('◀️ الأساسيات').setStyle(ButtonStyle.Primary), btnBack),
+          new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('set_resign_1').setLabel('◀️ الأساسيات').setStyle(ButtonStyle.Primary), new ButtonBuilder().setCustomId('set_resign_3').setLabel('▶️ السجل والإشعارات').setStyle(ButtonStyle.Primary)),
+        ]
+      });
+    }
+
+    // الاستقالة - صفحة 3 (السجل والإشعارات)
+    if (type === 'resign' && page === 3) {
+      const r = cfg.resign;
+      embed.addFields(
+        { name: '📋 روم السجل', value: ch(r.auditLogChannelId) },
+        { name: '📢 رتبة التنبيه', value: rl(r.pingRoleId) },
+      );
+      return respondOrUpdate(interaction, {
+        embeds: [embed],
+        components: [
+          new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('sl_resign_auditLogChannel').setPlaceholder('📋 روم السجل').setMaxValues(1)),
+          new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId('sl_resign_pingRole').setPlaceholder('📢 رتبة التنبيه عند التقديم').setMaxValues(1)),
+          new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('set_resign_2').setLabel('◀️ الرتب المُزالة').setStyle(ButtonStyle.Primary), btnBack),
         ]
       });
     }
@@ -348,6 +363,7 @@ async function handleSettingsSelect(interaction) {
       'requestChannel': 'requestChannelId',
       'logChannel': 'logChannelId',
       'auditLogChannel': 'auditLogChannelId',
+      'pingRole': 'pingRoleId',
       'upperMgmtChannel': 'upperManagementChannelId',
       'warning1': 'warning1RoleId',
       'warning2': 'warning2RoleId',

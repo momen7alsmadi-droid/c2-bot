@@ -593,6 +593,7 @@ async function handleButton(interaction) {
   if (id === 'set_resign') { await interaction.deferUpdate().catch(()=>{}); return showSettingsPage(interaction, 'resign', 1); }
   if (id === 'set_resign_1') { await interaction.deferUpdate().catch(()=>{}); return showSettingsPage(interaction, 'resign', 1); }
   if (id === 'set_resign_2') { await interaction.deferUpdate().catch(()=>{}); return showSettingsPage(interaction, 'resign', 2); }
+  if (id === 'set_resign_3') { await interaction.deferUpdate().catch(()=>{}); return showSettingsPage(interaction, 'resign', 3); }
   if (id === 'set_checkdb') return handleDbCheck(interaction);
   if (id.startsWith('sl_report_cd_')) {
     return handleSettingsSelect(interaction);
