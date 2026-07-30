@@ -445,15 +445,12 @@ async function handleBoardMain(interaction) {
 // ================== ترقية / تنزيل / سحب — قائمة منسدلة مع pagination ==================
 
 async function showMemberSelector(interaction, action) {
-  // تأجيل فوري مع رسالة مخفية قبل أي عملية طويلة (لعدم تجاوز timeout 3 ثواني)
-  await interaction.deferReply({ ephemeral: true }).catch(() => {});
-
   const cfg = getAdminConfig();
   const guild = interaction.guild;
   const member = interaction.member;
 
   if (!isHighAdmin(member, cfg)) {
-    return interaction.editReply({ content: '❌ ليس لديك صلاحية الإدارة العليا لاستخدام هذا الزر.' });
+    return interaction.reply({ content: '❌ ليس لديك صلاحية الإدارة العليا لاستخدام هذا الزر.', ephemeral: true });
   }
 
   // استبعد الإدارة العليا من نظام الترقية/التنزيل/السحب
@@ -463,7 +460,7 @@ async function showMemberSelector(interaction, action) {
     admins = admins.filter(m => !highRoles.some(roleId => m.roles.cache.has(roleId)));
   }
   if (admins.length === 0) {
-    return interaction.editReply({ content: '⚠️ لا يوجد أعضاء إدارة للاختيار منهم.' });
+    return interaction.reply({ content: '⚠️ لا يوجد أعضاء إدارة للاختيار منهم.', ephemeral: true });
   }
 
   const totalPages = Math.ceil(admins.length / 25);
@@ -474,9 +471,9 @@ async function showMemberSelector(interaction, action) {
   };
   setState(interaction.user.id, state);
 
-  // نرسل المحتوى عبر editReply لأننا استخدمنا deferReply
+  // نرسل رسالة جديدة مخفية ولا نمسح اللوحة الرئيسية
   const firstPage = renderMemberPageContent(state);
-  return interaction.editReply({ embeds: [firstPage.embed], components: firstPage.components });
+  return interaction.reply({ embeds: [firstPage.embed], components: firstPage.components, ephemeral: true });
 }
 
 function renderMemberPageContent(state) {
