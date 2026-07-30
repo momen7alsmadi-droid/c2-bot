@@ -58,6 +58,7 @@ const commands = [
     .setDescription('تقديم استقالة من الإدارة')
     .addUserOption(o => o.setName('المسؤول').setDescription('المسؤول عنك').setRequired(true))
     .addStringOption(o => o.setName('السبب').setDescription('سبب الاستقالة').setRequired(true))
+    .addBooleanOption(o => o.setName('منشن_الإدارة_العليا').setDescription('منشن الإدارة العليا للتنبيه (اختياري)').setRequired(false))
     .toJSON(),
 
   // ------------------- /مساعدة -------------------

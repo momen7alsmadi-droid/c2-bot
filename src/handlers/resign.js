@@ -3,6 +3,7 @@ const {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder
 } = require('discord.js');
 const { getConfig, saveConfig } = require('../utils/storage');
+const { getAdminConfig } = require('../utils/adminStorage');
 const { hasRole, sendLog } = require('../utils/helpers');
 
 // ------------------- /استقالة -------------------
@@ -19,6 +20,35 @@ async function handleResign(interaction) {
 
   const manager = interaction.options.getUser('المسؤول');
   const reason = interaction.options.getString('السبب');
+  const pingHighAdmin = interaction.options.getBoolean('منشن_الإدارة_العليا') || false;
+
+  // بناء منشن الإدارة العليا إذا طلب
+  let highAdminMention = '';
+  if (pingHighAdmin) {
+    const adminCfg = getAdminConfig();
+    const guild = interaction.guild;
+    const highRoleIds = [];
+    if (adminCfg.highAdminRoles && Array.isArray(adminCfg.highAdminRoles)) {
+      highRoleIds.push(...adminCfg.highAdminRoles);
+    }
+    if (adminCfg.highAdminRangeStartId && adminCfg.highAdminRangeEndId) {
+      const roleA = guild.roles.cache.get(adminCfg.highAdminRangeStartId);
+      const roleB = guild.roles.cache.get(adminCfg.highAdminRangeEndId);
+      if (roleA && roleB) {
+        const minPos = Math.min(roleA.position, roleB.position);
+        const maxPos = Math.max(roleA.position, roleB.position);
+        const rolesInRange = guild.roles.cache.filter(
+          r => r.position >= minPos && r.position <= maxPos && r.id !== guild.id
+        );
+        for (const r of rolesInRange.values()) {
+          if (!highRoleIds.includes(r.id)) highRoleIds.push(r.id);
+        }
+      }
+    }
+    if (highRoleIds.length > 0) {
+      highAdminMention = highRoleIds.map(id => `<@&${id}>`).join(' ');
+    }
+  }
 
   const embed = new EmbedBuilder()
     .setTitle('⎭ طـلـب اسـتـقـالـة ⎧')
@@ -42,7 +72,11 @@ async function handleResign(interaction) {
     return interaction.reply({ content: '⚠️ لم أستطع الوصول إلى روم الاستقبال.', ephemeral: true });
   }
 
-  await channel.send({ content: `${interaction.user}`, embeds: [embed], components: [row] });
+  const contentParts = [interaction.user.toString()];
+  if (highAdminMention) contentParts.push(highAdminMention);
+  const content = contentParts.join('\n');
+
+  await channel.send({ content, embeds: [embed], components: [row] });
   await interaction.reply({ content: '✅ تم إرسال طلب الاستقالة، بانتظار الموافقة.', ephemeral: true });
 }
 
@@ -68,7 +102,8 @@ async function handleResignButton(interaction, action, userId) {
   const hasAdmin = memberClicker.permissions.has('Administrator');
   const hasUpperRole = cfg.resign.upperManagementRoleId && memberClicker.roles.cache.has(cfg.resign.upperManagementRoleId);
   if (!hasAdmin && !hasUpperRole) {
-    return interaction.editReply({ content: '❌ ليس لديك صلاحية لقبول أو رفض الاستقالات. يحتاج إلى رتبة الإدارة العليا أو صلاحية Administrator.', components: [] });
+    await interaction.followUp({ content: '❌ ليس لديك صلاحية لقبول أو رفض الاستقالات. يحتاج إلى رتبة الإدارة العليا أو صلاحية Administrator.', ephemeral: true });
+    return;
   }
 
   const member = await guild.members.fetch(userId).catch(() => null);
