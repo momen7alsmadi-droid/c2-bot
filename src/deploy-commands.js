@@ -127,6 +127,13 @@ const commands = [
     .setDescription('⭐ نظام لوحة النجوم المتعدد - إدارة اللوحات والإعدادات')
     .setDefaultMemberPermissions(8) // Administrator
     .toJSON(),
+
+  // ------------------- /اعدادات_لوحة_الإدارة -------------------
+  new SlashCommandBuilder()
+    .setName('اعدادات_لوحة_الإدارة')
+    .setDescription('🛡️ لوحة إعدادات نظام الإدارة - الرتب والترقيات والتنزيلات')
+    .setDefaultMemberPermissions(8) // Administrator
+    .toJSON(),
 ];
 
 const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);

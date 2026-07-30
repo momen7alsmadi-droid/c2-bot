@@ -26,6 +26,8 @@ const { handleAutoReplyInteraction, handleAutoReplyModal, handleAutoReplyMain, h
 const { handleReactInteraction, handleReactModal, handleReactMain, handleReactMessage } = require('./handlers/reactReply');
 const { handleStarboardMain, handleStarboardInteraction, handleStarboardModal, handleStarboardMessage, handleStarboardReaction } = require('./handlers/starboard');
 const { deployCommands } = require('./deploy-commands');
+const { handleAdminPanelMain, handleAdminInteraction } = require('./handlers/admin-panel');
+const { initAdminModel, syncAdminConfigFromMongo } = require('./utils/adminStorage');
 const { initStarboardModels, ensureStarboardLoaded } = require('./utils/starboardStorage');
 const { initAutoReplyModel, syncJsonToMongo: syncAr } = require('./utils/autoReplyStorage');
 const { initReactModel, syncJsonToMongo: syncRr } = require('./utils/reactionReplyStorage');
@@ -226,6 +228,7 @@ async function initialize() {
   const arReady = initAutoReplyModel();
   const rrReady = initReactModel();
   const sbReady = initStarboardModels();
+  const admReady = initAdminModel();
 
   // تأكيد حالة التخزين
   console.log('\n═══════════════════════════════════════');
@@ -235,6 +238,7 @@ async function initialize() {
   console.log(`   ${arReady ? '✅' : '⚠️'} AutoReply Storage`);
   console.log(`   ${rrReady ? '✅' : '⚠️'} Reaction Storage`);
   console.log(`   ${sbReady ? '✅' : '⚠️'} Starboard Storage`);
+  console.log(`   ${admReady ? '✅' : '⚠️'} Admin Storage`);
   console.log('═══════════════════════════════════════\n');
 
   if (dbConnected) {
@@ -248,6 +252,7 @@ async function initialize() {
     }
     if (arReady) { await syncAr(); }
     if (rrReady) { await syncRr(); }
+    if (admReady) { await syncAdminConfigFromMongo(); }
     await ensureStarboardLoaded();
   } else {
     console.log('⚠️ MongoDB غير متصل. التخزين عبر JSON فقط.');
@@ -474,6 +479,8 @@ client.on('interactionCreate', async (interaction) => {
         await handleAutoReplyInteraction(interaction);
       } else if (interaction.customId.startsWith('sb_')) {
         await handleStarboardInteraction(interaction);
+      } else if (interaction.customId.startsWith('adm_')) {
+        await handleAdminInteraction(interaction);
       } else if (interaction.customId.startsWith('dev_ch_')) {
         await handleDevChannelSelect(interaction);
       } else {
@@ -527,6 +534,7 @@ async function handleSlashCommand(interaction) {
     case 'ايمبد': return handleEmbedsMain(interaction);
     case 'الردود_التلقائية': return handleAutoReplyMain(interaction);
     case 'لوحة_النجوم': return handleStarboardMain(interaction);
+    case 'اعدادات_لوحة_الإدارة': return handleAdminPanelMain(interaction);
   }
 }
 
@@ -609,6 +617,11 @@ async function handleButton(interaction) {
   // أزرار نظام لوحة النجوم
   if (prefix === 'sb') {
     return handleStarboardInteraction(interaction);
+  }
+
+  // أزرار نظام الإدارة
+  if (prefix === 'adm') {
+    return handleAdminInteraction(interaction);
   }
 
   if (prefix === 'dev') {
