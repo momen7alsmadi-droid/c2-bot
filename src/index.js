@@ -474,8 +474,6 @@ client.on('interactionCreate', async (interaction) => {
         await handleAutoReplyInteraction(interaction);
       } else if (interaction.customId.startsWith('sb_')) {
         await handleStarboardInteraction(interaction);
-      } else if (interaction.customId.startsWith('tkt_')) {
-        await handleTicketsInteraction(interaction);
       } else if (interaction.customId.startsWith('dev_ch_')) {
         await handleDevChannelSelect(interaction);
       } else {
@@ -529,7 +527,6 @@ async function handleSlashCommand(interaction) {
     case 'ايمبد': return handleEmbedsMain(interaction);
     case 'الردود_التلقائية': return handleAutoReplyMain(interaction);
     case 'لوحة_النجوم': return handleStarboardMain(interaction);
-    case 'تذاكر': return handleTicketsMain(interaction);
   }
 }
 
