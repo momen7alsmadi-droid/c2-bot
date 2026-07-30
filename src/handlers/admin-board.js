@@ -361,10 +361,7 @@ async function showRoleLadder(interaction) {
   lines.push('**📊 التسلسل الهرمي**');
   const memberAdminRole = getHighestAdminRole(member, cfg, guild);
   for (const role of hierarchyRoles) {
-    if (excluded.includes(role.id)) {
-      lines.push(`🚫 ~~${role}~~ *(مستثناة)*`);
-      continue;
-    }
+    if (excluded.includes(role.id)) continue;
     let indicator;
     if (memberAdminRole && role.id === memberAdminRole.id) {
       indicator = '🔵'; // رتبة العضو الحالية
