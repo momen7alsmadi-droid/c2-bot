@@ -29,6 +29,20 @@ const { deployCommands } = require('./deploy-commands');
 const { handleAdminPanelMain, handleAdminInteraction } = require('./handlers/admin-panel');
 const { handleBoardMain, handleBoardInteraction } = require('./handlers/admin-board');
 const { initAdminModel, syncAdminConfigFromMongo } = require('./utils/adminStorage');
+
+// ====== نظام التذاكر ======
+const ticketSetupCmd = require('../ticket-system/commands/ticket-setup');
+const { handleTicketButton } = require('../ticket-system/handlers/buttonHandler');
+const { handleTicketSelectMenu } = require('../ticket-system/handlers/selectMenuHandler');
+const { handleTicketCreate } = require('../ticket-system/handlers/ticketCreateHandler');
+const { handleTicketControlButton } = require('../ticket-system/handlers/ticketControlHandler');
+const { handleTicketStaffMenu } = require('../ticket-system/handlers/ticketStaffMenuHandler');
+const { handleUserSelectMenu } = require('../ticket-system/handlers/userSelectHandler');
+const { handleTicketCloseButton } = require('../ticket-system/handlers/ticketCloseHandler');
+const { handleRoleSelectMenu } = require('../ticket-system/handlers/roleSelectHandler');
+const { handleChannelSelectMenu } = require('../ticket-system/handlers/channelSelectHandler');
+const { handleTicketModal } = require('../ticket-system/handlers/modalHandler');
+
 const { initStarboardModels, ensureStarboardLoaded } = require('./utils/starboardStorage');
 const { initAutoReplyModel, syncJsonToMongo: syncAr } = require('./utils/autoReplyStorage');
 const { initReactModel, syncJsonToMongo: syncRr } = require('./utils/reactionReplyStorage');
@@ -486,6 +500,20 @@ client.on('interactionCreate', async (interaction) => {
         await handleAdminInteraction(interaction);
       } else if (interaction.customId.startsWith('dev_ch_')) {
         await handleDevChannelSelect(interaction);
+      } else if (interaction.customId.startsWith('ticket_open_select:')) {
+        await handleTicketCreate(interaction);
+      } else if (interaction.customId === 'ticket_staff_menu') {
+        await handleTicketStaffMenu(interaction);
+      } else if (interaction.customId.startsWith('ticket_select_') || 
+                 interaction.customId === 'settings_select_ticket_system' ||
+                 interaction.customId === 'settings_select_linked_panel') {
+        await handleTicketSelectMenu(interaction);
+      } else if (interaction.isRoleSelectMenu()) {
+        await handleRoleSelectMenu(interaction);
+      } else if (interaction.isChannelSelectMenu()) {
+        await handleChannelSelectMenu(interaction);
+      } else if (interaction.isUserSelectMenu()) {
+        await handleUserSelectMenu(interaction);
       } else {
         await handleSettingsSelect(interaction);
       }
@@ -539,6 +567,7 @@ async function handleSlashCommand(interaction) {
     case 'لوحة_النجوم': return handleStarboardMain(interaction);
     case 'اعدادات_لوحة_الإدارة': return handleAdminPanelMain(interaction);
     case 'لوحة_الإدارة': return handleBoardMain(interaction);
+    case 'ticket-setup': return ticketSetupCmd.execute(interaction);
   }
 }
 
@@ -552,6 +581,8 @@ async function handleModalSubmit(interaction) {
     const { handleBlaghModal } = require('./handlers/report');
     return handleBlaghModal(interaction);
   }
+  // نظام التذاكر
+  return handleTicketModal(interaction);
 }
 
 async function handleButton(interaction) {
@@ -649,6 +680,13 @@ async function handleButton(interaction) {
     if (action === 'enable' && parts.length === 2) return handleDevEnable(interaction);
     if (action === 'disable' || action === 'enable') return handleDevToggle(interaction);
   }
+
+  // ====== أزرار نظام التذاكر ======
+  if (id.startsWith('ticket_open:')) return handleTicketCreate(interaction);
+  if (['ticket_claim', 'ticket_lock'].includes(id)) return handleTicketControlButton(interaction);
+  if (['ticket_reopen', 'ticket_delete_confirm', 'ticket_delete_cancel'].includes(id)) return handleTicketCloseButton(interaction);
+  // أزرار لوحة الإدارة + التحكم داخل التذكرة (تسلك بسلاسة)
+  if (id.startsWith('ticket_') || id.startsWith('settings_')) return handleTicketButton(interaction);
 
   // إذا ما تعرفنا على الزر → رد بخطأ واضح
   if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {

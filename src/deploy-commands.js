@@ -141,6 +141,13 @@ const commands = [
     .setName('لوحة_الإدارة')
     .setDescription('🛡️ لوحة الإدارة - الترقية والتنزيل وتوب الإدارة')
     .toJSON(),
+
+  // ------------------- /ticket-setup -------------------
+  new SlashCommandBuilder()
+    .setName('ticket-setup')
+    .setDescription('🎫 فتح لوحة تحكم نظام التذاكر')
+    .setDefaultMemberPermissions(8)
+    .toJSON(),
 ];
 
 const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);
