@@ -637,8 +637,8 @@ async function executeAction(interaction, action, targetId) {
       const channel = await guild.channels.fetch(channelId).catch(() => null);
       if (channel) {
         const actionLabels = {
-          promote: { title: '📈 ترقية', color: 0x2ECC71, desc: `نبارك للإداري ${targetMember} على ترقيته من **${oldRoleName}** إلى **${newRoleName}**\nنتمنى أن يكون عند حسن الظن دائمًا.` },
-          demote: { title: '📉 تنزيل', color: 0xF1C40F, desc: `تم تنزيل الإداري ${targetMember} من **${oldRoleName}** إلى **${newRoleName}**` },
+          promote: { title: '📈 ترقية', color: 0x2ECC71, desc: `نبارك للإداري ${targetMember} على ترقيته\nمن **${oldRoleName}**\nإلى **${newRoleName}**\nنتمنى أن يكون عند حسن الظن دائمًا.` },
+          demote: { title: '📉 تنزيل', color: 0xF1C40F, desc: `تم تنزيل الإداري ${targetMember}\nمن **${oldRoleName}**\nإلى **${newRoleName}**` },
           remove: { title: '🗑️ سحب رتب', color: 0xE74C3C, desc: `تم سحب الرتب الإدارية من ${targetMember} بنجاح.` },
         };
         const al = actionLabels[action];
@@ -651,7 +651,10 @@ async function executeAction(interaction, action, targetId) {
             { name: '🕐 الوقت', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
           )
           .setTimestamp();
-        await channel.send({ content: `${targetMember}`, embeds: [channelEmbed] }).catch(() => {});
+        // منشن العضو + رتبة الإدارة المشتركة خارج الإيمبد
+        const mentionParts = [`${targetMember}`];
+        if (cfg.sharedAdminRoleId) mentionParts.push(`<@&${cfg.sharedAdminRoleId}>`);
+        await channel.send({ content: mentionParts.join(' '), embeds: [channelEmbed] }).catch(() => {});
       }
     }
 
