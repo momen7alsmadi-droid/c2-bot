@@ -268,11 +268,13 @@ async function initialize() {
         initEmbedModel();
         initAutoReplyModel();
         initReactModel();
+        initAdminModel();
         await ensureConfigLoaded();
         const { syncJsonToMongo: syncEmbeds } = require('./utils/embedStorage');
         await syncEmbeds();
         await syncAr();
         await syncRr();
+        if (syncAdminConfigFromMongo) { await syncAdminConfigFromMongo(); }
       } else {
         try {
           const { connectDatabase } = require('./utils/database');
