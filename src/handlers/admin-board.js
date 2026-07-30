@@ -421,6 +421,10 @@ async function showRoleLadder(interaction) {
 // ================== اللوحة الرئيسية (للأمر) ==================
 
 async function handleBoardMain(interaction) {
+  // للأزرار: تأكيد فوري قبل أي عملية طويلة (لمنع timeout)
+  if (!interaction.isCommand()) {
+    await interaction.deferUpdate().catch(() => {});
+  }
   const cfg = getAdminConfig();
   const guild = interaction.guild;
   const member = interaction.member;
@@ -441,25 +445,25 @@ async function handleBoardMain(interaction) {
   const embed = buildMainPanelEmbed(guild, cfg, stats);
   const components = buildMainPanelComponents(isHigh);
 
-  // الأمر: لوحة عامة / الزر: تحديث نفس الرسالة
+  // الأمر: لوحة عامة / الزر: رد على التأكيد الفوري
   if (interaction.isCommand()) {
     return interaction.reply({ embeds: [embed], components, ephemeral: false });
   }
-  return respondOrUpdate(interaction, { embeds: [embed], components });
+  return interaction.editReply({ embeds: [embed], components });
 }
 
 // ================== ترقية / تنزيل / سحب — قائمة منسدلة مع pagination ==================
 
 async function showMemberSelector(interaction, action) {
-  // تأكد فوراً قبل أي شيء — رسالة مخفية جديدة (لا نمس اللوحة الرئيسية ابداً)
-  await interaction.deferReply({ ephemeral: true }).catch(() => {});
+  // نأكد فوراً للزر (بدون تعديل اللوحة)، ثم نرسل كلشي كـ followUp مخفي
+  await interaction.deferUpdate().catch(() => {});
 
   const cfg = getAdminConfig();
   const guild = interaction.guild;
   const member = interaction.member;
 
   if (!isHighAdmin(member, cfg)) {
-    return interaction.editReply({ content: '❌ ليس لديك صلاحية الإدارة العليا لاستخدام هذا الزر.' });
+    return interaction.followUp({ content: '❌ ليس لديك صلاحية الإدارة العليا لاستخدام هذا الزر.', ephemeral: true }).catch(() => {});
   }
 
   // استبعد الإدارة العليا من نظام الترقية/التنزيل/السحب
@@ -469,7 +473,7 @@ async function showMemberSelector(interaction, action) {
     admins = admins.filter(m => !highRoles.some(roleId => m.roles.cache.has(roleId)));
   }
   if (admins.length === 0) {
-    return interaction.editReply({ content: '⚠️ لا يوجد أعضاء إدارة للاختيار منهم.' });
+    return interaction.followUp({ content: '⚠️ لا يوجد أعضاء إدارة للاختيار منهم.', ephemeral: true }).catch(() => {});
   }
 
   const totalPages = Math.ceil(admins.length / 25);
@@ -481,7 +485,7 @@ async function showMemberSelector(interaction, action) {
   setState(interaction.user.id, state);
 
   const firstPage = renderMemberPageContent(state);
-  return interaction.editReply({ embeds: [firstPage.embed], components: firstPage.components });
+  return interaction.followUp({ embeds: [firstPage.embed], components: firstPage.components, ephemeral: true });
 }
 
 function renderMemberPageContent(state) {
@@ -675,13 +679,16 @@ async function executeAction(interaction, action, targetId) {
 // ================== توب الإدارة ==================
 
 async function showTopAdmins(interaction) {
+  // تأكيد فوري للزر قبل العملية الطويلة
+  await interaction.deferUpdate().catch(() => {});
+
   const cfg = getAdminConfig();
   const guild = interaction.guild;
   const member = interaction.member;
 
   const admins = await getAdminMembers(guild, cfg);
   if (admins.length === 0) {
-    return interaction.reply({ content: '⚠️ لا يوجد أعضاء إدارة.', ephemeral: true });
+    return interaction.followUp({ content: '⚠️ لا يوجد أعضاء إدارة.', ephemeral: true }).catch(() => {});
   }
 
   const totalPages = Math.ceil(admins.length / 10);
@@ -698,7 +705,7 @@ async function showTopAdmins(interaction) {
   // إرسال التوب بشكل مخفي (خاص) لكل مستخدم
   const embed = buildTopEmbed(state);
   const navRow = buildTopNavRow(state);
-  return interaction.reply({ embeds: [embed], components: [navRow], ephemeral: true });
+  return interaction.followUp({ embeds: [embed], components: [navRow], ephemeral: true }).catch(() => {});
 }
 
 function buildTopEmbed(state) {
