@@ -291,11 +291,7 @@ async function handleReportButton(interaction, action, reportId) {
       } else {
         const newLevel = level + 1;
         const roleToAdd = getWarningRoleId(cfg, newLevel);
-        const roleToRemove = level > 0 ? getWarningRoleId(cfg, level) : null;
 
-        if (roleToRemove && member.roles.cache.has(roleToRemove)) {
-          await member.roles.remove(roleToRemove).catch(() => {});
-        }
         if (roleToAdd) {
           await member.roles.add(roleToAdd).catch(() => {});
         }
