@@ -522,22 +522,25 @@ async function renderMemberPage(interaction, state) {
 // ================== تنفيذ الترقية / التنزيل / السحب ==================
 
 async function executeAction(interaction, action, targetId) {
+  // تأجيل فوراً حتى كل الردود تكون followUp (رسالة جديدة مخفية) ولا تتغير أي لوحة موجودة
+  await interaction.deferUpdate().catch(() => {});
+
   const cfg = getAdminConfig();
   const guild = interaction.guild;
   const member = interaction.member;
 
   if (!isHighAdmin(member, cfg)) {
-    return respondOrUpdate(interaction, { content: '❌ ليس لديك صلاحية.', components: [] });
+    return interaction.followUp({ content: '❌ ليس لديك صلاحية.', ephemeral: true }).catch(() => {});
   }
 
   const targetMember = await guild.members.fetch(targetId).catch(() => null);
   if (!targetMember) {
-    return respondOrUpdate(interaction, { content: '⚠️ العضو غير موجود في السيرفر.', components: [] });
+    return interaction.followUp({ content: '⚠️ العضو غير موجود في السيرفر.', ephemeral: true }).catch(() => {});
   }
 
   const targetRole = getHighestAdminRole(targetMember, cfg, guild);
   if (!targetRole && action !== 'remove') {
-    return respondOrUpdate(interaction, { content: '⚠️ العضو لا يملك رتبة ضمن التسلسل الهرمي.', components: [] });
+    return interaction.followUp({ content: '⚠️ العضو لا يملك رتبة ضمن التسلسل الهرمي.', ephemeral: true }).catch(() => {});
   }
 
   const excludedRoles = cfg.excludedRoles || [];
@@ -551,7 +554,7 @@ async function executeAction(interaction, action, targetId) {
     if (action === 'promote') {
       const nextRole = getNextHigherRole(targetRole, guild, cfg);
       if (!nextRole) {
-        return respondOrUpdate(interaction, { content: `⚠️ العضو في أعلى رتبة بالفعل (${targetRole}).`, components: [] });
+        return interaction.followUp({ content: `⚠️ العضو في أعلى رتبة بالفعل (${targetRole}).`, ephemeral: true }).catch(() => {});
       }
       await targetMember.roles.add(nextRole.id);
       oldRoleName = `${targetRole}`;
@@ -566,7 +569,7 @@ async function executeAction(interaction, action, targetId) {
     } else if (action === 'demote') {
       const prevRole = getNextLowerRole(targetRole, guild, cfg);
       if (!prevRole) {
-        return respondOrUpdate(interaction, { content: `⚠️ العضو في أدنى رتبة بالفعل (${targetRole}).`, components: [] });
+        return interaction.followUp({ content: `⚠️ العضو في أدنى رتبة بالفعل (${targetRole}).`, ephemeral: true }).catch(() => {});
       }
       const sharedRoleId = cfg.sharedAdminRoleId;
       if (sharedRoleId && targetRole.id !== sharedRoleId) {
@@ -594,7 +597,7 @@ async function executeAction(interaction, action, targetId) {
         }
       }
       if (rolesToRemove.length === 0) {
-        return respondOrUpdate(interaction, { content: '⚠️ العضو لا يملك أي رتب إدارة قابلة للسحب.', components: [] });
+        return interaction.followUp({ content: '⚠️ العضو لا يملك أي رتب إدارة قابلة للسحب.', ephemeral: true }).catch(() => {});
       }
       for (const roleId of rolesToRemove) {
         await targetMember.roles.remove(roleId).catch(() => {});
@@ -643,15 +646,13 @@ async function executeAction(interaction, action, targetId) {
       )
       .setTimestamp();
 
-    return respondOrUpdate(interaction, {
+    return interaction.followUp({
       embeds: [resultEmbed],
-      components: [new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Primary)
-      )]
+      ephemeral: true
     });
   } catch (e) {
     console.error(`❌ executeAction ${action}:`, e.message);
-    return respondOrUpdate(interaction, { content: `⚠️ فشل التنفيذ: ${e.message}`, components: [] });
+    return interaction.followUp({ content: `⚠️ فشل التنفيذ: ${e.message}`, ephemeral: true }).catch(() => {});
   }
 }
 
