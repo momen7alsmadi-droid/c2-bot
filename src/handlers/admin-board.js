@@ -231,10 +231,13 @@ async function sendBoardPanelToChannel(guild, channelId) {
     const cfg = getAdminConfig();
     const admins = await getAdminMembers(guild, cfg);
     const rolesInRange = getHierarchyRolesInRange(guild, cfg);
+    const allHighIds = getHighAdminRoleIds(cfg, guild);
+    const highRoleObjs = allHighIds.map(id => guild.roles.cache.get(id)).filter(r => r);
+    const allAdminRoles = [...highRoleObjs, ...rolesInRange].sort((a, b) => b.position - a.position);
     const stats = {
       total: admins.length,
-      highestRole: rolesInRange.length > 0 ? `${rolesInRange[rolesInRange.length - 1]}` : '—',
-      lowestRole: rolesInRange.length > 0 ? `${rolesInRange[0]}` : '—',
+      highestRole: allAdminRoles.length > 0 ? `${allAdminRoles[0]}` : '—',
+      lowestRole: allAdminRoles.length > 0 ? `${allAdminRoles[allAdminRoles.length - 1]}` : '—',
     };
     const embed = buildMainPanelEmbed(guild, cfg, stats);
     const components = buildMainPanelComponents(true);
@@ -415,10 +418,14 @@ async function handleBoardMain(interaction) {
 
   const admins = await getAdminMembers(guild, cfg);
   const rolesInRange = getHierarchyRolesInRange(guild, cfg);
+  // دمج رتب الإدارة العليا لتحديد أعلى/أدنى رتبة
+  const allHighIds = getHighAdminRoleIds(cfg, guild);
+  const highRoleObjs = allHighIds.map(id => guild.roles.cache.get(id)).filter(r => r);
+  const allAdminRoles = [...highRoleObjs, ...rolesInRange].sort((a, b) => b.position - a.position);
   const stats = {
     total: admins.length,
-    highestRole: rolesInRange.length > 0 ? `${rolesInRange[rolesInRange.length - 1]}` : '—',
-    lowestRole: rolesInRange.length > 0 ? `${rolesInRange[0]}` : '—',
+    highestRole: allAdminRoles.length > 0 ? `${allAdminRoles[0]}` : '—',
+    lowestRole: allAdminRoles.length > 0 ? `${allAdminRoles[allAdminRoles.length - 1]}` : '—',
   };
 
   const embed = buildMainPanelEmbed(guild, cfg, stats);
