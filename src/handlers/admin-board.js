@@ -255,6 +255,7 @@ async function showMyProfile(interaction) {
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('adm_board_ladder').setLabel('🪜 سلم الرتب').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Danger),
   );
 
   return respondOrUpdate(interaction, { embeds: [embed], components: [row] });
@@ -338,6 +339,7 @@ async function showRoleLadder(interaction) {
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('adm_board_myprofile').setLabel('🔙 رجوع للملف').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Danger),
   );
 
   return respondOrUpdate(interaction, { embeds: [embed], components: [row] });
@@ -540,7 +542,7 @@ async function executeAction(interaction, action, targetId) {
     return respondOrUpdate(interaction, {
       embeds: [resultEmbed],
       components: [new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Primary)
       )]
     });
   } catch (e) {
