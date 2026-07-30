@@ -623,14 +623,14 @@ async function handleButton(interaction) {
     return handleStarboardInteraction(interaction);
   }
 
-  // أزرار نظام الإدارة (الإعدادات)
-  if (prefix === 'adm' && parts[1] !== 'board') {
-    return handleAdminInteraction(interaction);
+  // أزرار لوحة الإدارة (الترقية/التنزيل/التوب/السلم)
+  if (prefix === 'adm' && (parts[1] === 'board' || parts[1] === 'top')) {
+    return handleBoardInteraction(interaction);
   }
 
-  // أزرار لوحة الإدارة (الترقية/التنزيل/التوب)
-  if (prefix === 'adm' && parts[1] === 'board') {
-    return handleBoardInteraction(interaction);
+  // أزرار نظام الإدارة (الإعدادات)
+  if (prefix === 'adm') {
+    return handleAdminInteraction(interaction);
   }
 
   if (prefix === 'dev') {
