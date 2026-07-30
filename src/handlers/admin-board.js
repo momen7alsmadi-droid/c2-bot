@@ -51,8 +51,13 @@ async function getAdminMembers(guild, cfg) {
   const hierarchyRoles = getHierarchyRolesInRange(guild, cfg);
   const hierarchyRoleIds = hierarchyRoles.map(r => r.id);
 
+  const highRoles = cfg.highAdminRoles || [];
+
   return guild.members.cache.filter(m => {
     if (m.user.bot) return false;
+
+    // هل عنده رتبة من الإدارة العليا؟ (تظهر في التصنيف ولكنها محمية من الترقية/التنزيل)
+    if (highRoles.some(roleId => m.roles.cache.has(roleId))) return true;
 
     // هل عنده رتبة الإدارة المشتركة؟
     if (cfg.sharedAdminRoleId && m.roles.cache.has(cfg.sharedAdminRoleId)) {
@@ -93,7 +98,16 @@ function getHighestAdminRole(member, cfg, guild) {
   // ابحث عن أعلى رتبة يملكها العضو ضمن النطاق وغير مستثناة
   const validRoles = rolesInRange.filter(r => memberRoles.has(r.id) && !excluded.includes(r.id));
   if (validRoles.length === 0) {
-    // إذا ما لقي، استخدم الرتبة المشتركة كبديل
+    // إذا ما لقي، ابحث عن أعلى رتبة من الإدارة العليا
+    if (cfg.highAdminRoles && cfg.highAdminRoles.length > 0) {
+      const highRoleObjs = cfg.highAdminRoles
+        .map(id => guild.roles.cache.get(id))
+        .filter(r => r && memberRoles.has(r.id));
+      if (highRoleObjs.length > 0) {
+        return highRoleObjs.sort((a, b) => b.position - a.position)[0];
+      }
+    }
+    // استخدم الرتبة المشتركة كبديل
     if (cfg.sharedAdminRoleId && memberRoles.has(cfg.sharedAdminRoleId)) {
       return guild.roles.cache.get(cfg.sharedAdminRoleId) || null;
     }
@@ -271,7 +285,12 @@ async function showMemberSelector(interaction, action) {
     return respondOrUpdate(interaction, { content: '❌ ليس لديك صلاحية الإدارة العليا لاستخدام هذا الزر.', components: [] });
   }
 
-  const admins = (await getAdminMembers(guild, cfg)).filter(m => m.id !== member.id);
+  // استبعد الإدارة العليا من نظام الترقية/التنزيل/السحب
+  const highRoles = cfg.highAdminRoles || [];
+  let admins = (await getAdminMembers(guild, cfg)).filter(m => m.id !== member.id);
+  if (highRoles.length > 0) {
+    admins = admins.filter(m => !highRoles.some(roleId => m.roles.cache.has(roleId)));
+  }
   if (admins.length === 0) {
     return respondOrUpdate(interaction, { content: '⚠️ لا يوجد أعضاء إدارة للاختيار منهم.', components: [] });
   }
