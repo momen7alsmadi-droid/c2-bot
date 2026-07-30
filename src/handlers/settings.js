@@ -28,9 +28,6 @@ async function respondOrUpdate(interaction, payload) {
   if (interaction.deferred || interaction.replied) {
     return interaction.editReply(payload).catch(() => {});
   }
-  if (interaction.isCommand() || interaction.isModalSubmit()) {
-    return interaction.reply({ ...payload, ephemeral: true });
-  }
   // من زر أو قائمة منسدلة
   try {
     return await interaction.update(payload);
@@ -104,6 +101,12 @@ async function handleSettings(interaction) {
       new ButtonBuilder().setCustomId('set_report').setLabel('🛡️ بلاغات').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('set_resign').setLabel('📄 استقالة').setStyle(ButtonStyle.Primary),
     );
+    // الأمر السلاش → نؤجل أولاً ثم نرد
+    if (interaction.isCommand()) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      return interaction.editReply({ embeds: [embed], components: [row] });
+    }
+    // من زر → نحدث نفس الرسالة
     return respondOrUpdate(interaction, { embeds: [embed], components: [row] });
   } catch (e) {
     console.error('ERR-HOME:', e.message);
