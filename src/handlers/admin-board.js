@@ -450,7 +450,7 @@ async function showMemberSelector(interaction, action) {
   const member = interaction.member;
 
   if (!isHighAdmin(member, cfg)) {
-    return interaction.reply({ content: '❌ ليس لديك صلاحية الإدارة العليا لاستخدام هذا الزر.', ephemeral: true });
+    return respondOrUpdate(interaction, { content: '❌ ليس لديك صلاحية الإدارة العليا لاستخدام هذا الزر.', components: [] });
   }
 
   // استبعد الإدارة العليا من نظام الترقية/التنزيل/السحب
@@ -460,7 +460,7 @@ async function showMemberSelector(interaction, action) {
     admins = admins.filter(m => !highRoles.some(roleId => m.roles.cache.has(roleId)));
   }
   if (admins.length === 0) {
-    return interaction.reply({ content: '⚠️ لا يوجد أعضاء إدارة للاختيار منهم.', ephemeral: true });
+    return respondOrUpdate(interaction, { content: '⚠️ لا يوجد أعضاء إدارة للاختيار منهم.', components: [] });
   }
 
   const totalPages = Math.ceil(admins.length / 25);
@@ -470,13 +470,10 @@ async function showMemberSelector(interaction, action) {
     type: 'member_select'
   };
   setState(interaction.user.id, state);
-
-  // نرسل رسالة جديدة مخفية ولا نمسح اللوحة الرئيسية
-  const firstPage = renderMemberPageContent(state);
-  return interaction.reply({ embeds: [firstPage.embed], components: firstPage.components, ephemeral: true });
+  return renderMemberPage(interaction, state);
 }
 
-function renderMemberPageContent(state) {
+async function renderMemberPage(interaction, state) {
   const { action, page, totalPages, admins } = state;
   const start = page * 25;
   const end = Math.min(start + 25, admins.length);
@@ -519,12 +516,7 @@ function renderMemberPageContent(state) {
   navRow.addComponents(new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Danger));
   components.push(navRow);
 
-  return { embed, components };
-}
-
-async function renderMemberPage(interaction, state) {
-  const content = renderMemberPageContent(state);
-  return respondOrUpdate(interaction, { embeds: [content.embed], components: content.components });
+  return respondOrUpdate(interaction, { embeds: [embed], components });
 }
 
 // ================== تنفيذ الترقية / التنزيل / السحب ==================
