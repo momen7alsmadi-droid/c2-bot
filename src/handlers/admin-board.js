@@ -365,6 +365,12 @@ async function showRoleLadder(interaction) {
     lines.push(`🔄 ${indicator} ${sharedRole} *(مشتركة)*`);
   }
 
+  // إذا السلم فارغ تماماً
+  if (highRoles.length === 0 && hierarchyRoles.length === 0 && !sharedRole) {
+    lines.push('⚠️ لم يتم إعداد أي رتب بعد.');
+    lines.push('استخدم `/اعدادات_لوحة_الإدارة` لإعداد الرتب.');
+  }
+
   const embed = new EmbedBuilder()
     .setTitle(`🪜 سلم الرتب — ${member.user.tag}`)
     .setColor(0x9B59B6)

@@ -135,10 +135,14 @@ async function showRolesPage(interaction) {
       ),
     ];
 
-    return respondOrUpdate(interaction, { embeds: [embed], components });
+    await interaction.deferUpdate().catch(() => {});
+    return interaction.editReply({ embeds: [embed], components });
   } catch (e) {
     console.error('❌ showRolesPage:', e.message);
-    return respondOrUpdate(interaction, { content: '⚠️ خطأ.' });
+    try {
+      await interaction.deferUpdate().catch(() => {});
+      return interaction.editReply({ content: `⚠️ خطأ: ${e.message}` });
+    } catch {}
   }
 }
 
@@ -154,7 +158,11 @@ async function showHighAdminPage(interaction) {
       .filter(r => r.permissions.has('Administrator'))
       .sort((a, b) => b.position - a.position);
 
-    const adminRolesList = allRoles.map(r => `${r} — \`${r.id}\``).join('\n') || 'لا يوجد';
+    let adminRolesList = allRoles.map(r => `${r} — \`${r.id}\``).join('\n') || 'لا يوجد';
+    // تقطيع القائمة إذا كانت طويلة (حد 900 حرف)
+    if (adminRolesList.length > 900) {
+      adminRolesList = adminRolesList.slice(0, 900) + `\n… والباقي ${allRoles.size} رتبة`;
+    }
 
     const embed = new EmbedBuilder()
       .setTitle('👑 رتب الإدارة العليا')
@@ -162,7 +170,7 @@ async function showHighAdminPage(interaction) {
       .setDescription('اختر الرتب التي تمتلك صلاحية الإدارة العليا (تستطيع ترقية وتنزيل الأعضاء):')
       .addFields(
         { name: '👑 الرتب الحالية (مخزنة)', value: cfg.highAdminRoles.length > 0
-          ? cfg.highAdminRoles.map(id => `<@&${id}>`).join(', ') : '❌ غير محددة', inline: false },
+          ? cfg.highAdminRoles.map(id => `<@&${id}>`).join(', ').slice(0, 1000) || '❌ غير محددة' : '❌ غير محددة', inline: false },
         { name: '🤖 الرتب التي تملك Administrator', value: adminRolesList || 'لا يوجد', inline: false },
       )
       .setFooter({ text: `الإصدار: ${version}` })
@@ -185,10 +193,15 @@ async function showHighAdminPage(interaction) {
       new ButtonBuilder().setCustomId('adm_main').setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary)
     );
 
-    return respondOrUpdate(interaction, { embeds: [embed], components: [selectRow, btnRow, navRow] });
+    // استخدام deferUpdate + editReply مباشرة لتجنب مشاكل respondOrUpdate
+    await interaction.deferUpdate().catch(() => {});
+    return interaction.editReply({ embeds: [embed], components: [selectRow, btnRow, navRow] });
   } catch (e) {
     console.error('❌ showHighAdminPage:', e.message, e.stack?.split('\n')[1]);
-    return respondOrUpdate(interaction, { content: `⚠️ خطأ: ${e.message}` });
+    try {
+      await interaction.deferUpdate().catch(() => {});
+      return interaction.editReply({ content: `⚠️ خطأ: ${e.message}`, components: [] });
+    } catch {}
   }
 }
 
@@ -229,10 +242,14 @@ async function showRoomsPage(interaction) {
       ),
     ];
 
-    return respondOrUpdate(interaction, { embeds: [embed], components });
+    await interaction.deferUpdate().catch(() => {});
+    return interaction.editReply({ embeds: [embed], components });
   } catch (e) {
     console.error('❌ showRoomsPage:', e.message);
-    return respondOrUpdate(interaction, { content: '⚠️ خطأ.' });
+    try {
+      await interaction.deferUpdate().catch(() => {});
+      return interaction.editReply({ content: `⚠️ خطأ: ${e.message}` });
+    } catch {}
   }
 }
 
