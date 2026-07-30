@@ -26,19 +26,19 @@ function rangeSummary(arr, guild) {
 // ---------- دالة مساعدة: تحديث أو رد حسب حالة الـ interaction ----------
 async function respondOrUpdate(interaction, payload) {
   if (interaction.deferred || interaction.replied) {
-    return interaction.editReply(payload);
+    return interaction.editReply(payload).catch(() => {});
   }
   if (interaction.isCommand() || interaction.isModalSubmit()) {
-    // أول مرة من الأمر السلاش أو بعد مودال
     return interaction.reply({ ...payload, ephemeral: true });
   }
-  // من زر أو قائمة منسدلة → نستخدم update() مباشرة لتجنب InteractionNotReplied
+  // من زر أو قائمة منسدلة
   try {
     return await interaction.update(payload);
   } catch {
-    // إذا فشل update (مثلاً تم تأجيل التفاعل مسبقاً)، نؤجل ثم نعدل
-    await interaction.deferUpdate().catch(() => {});
-    return interaction.editReply(payload);
+    if (!interaction.deferred && !interaction.replied) {
+      try { await interaction.deferUpdate(); } catch {}
+    }
+    return interaction.editReply(payload).catch(() => {});
   }
 }
 
