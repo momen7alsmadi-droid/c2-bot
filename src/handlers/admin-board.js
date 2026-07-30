@@ -339,6 +339,9 @@ async function showRoleLadder(interaction) {
   // دالة: هل العضو يملك الرتبة؟
   const hasRole = (roleId) => member.roles.cache.has(roleId);
 
+  // أعلى رتبة للعضو (نحتاجها للقسمين: العليا + الهرمي)
+  const memberAdminRole = getHighestAdminRole(member, cfg, guild);
+
   const lines = [];
 
   // الإدارة العليا
@@ -363,7 +366,7 @@ async function showRoleLadder(interaction) {
 
   // التسلسل الهرمي
   lines.push('**📊 التسلسل الهرمي**');
-  const memberAdminRole = getHighestAdminRole(member, cfg, guild);
+  // memberAdminRole محدد أعلاه، يستخدم هنا أيضاً
   for (const role of hierarchyRoles) {
     if (excluded.includes(role.id)) continue;
     let indicator;
