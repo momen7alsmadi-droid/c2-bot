@@ -45,12 +45,15 @@ function isHighAdmin(member, cfg) {
 /** جلب جميع أعضاء الإدارة الفعليين (بدون الرتب المستثناة) */
 async function getAdminMembers(guild, cfg) {
   if (!guild) return [];
-  // نجلب كل الأعضاء أولاً لحل مشكلة الكاش الناقص
-  try { await guild.members.fetch(); } catch {}
+  // نجلب كل الأعضاء والرولات أولاً لحل مشكلة الكاش الناقص
+  try { await guild.members.fetch(); } catch (e) { console.error('❌ getAdminMembers fetch members:', e.message); }
+  try { await guild.roles.fetch(); } catch (e) { console.error('❌ getAdminMembers fetch roles:', e.message); }
   const hierarchyRoles = getHierarchyRolesInRange(guild, cfg);
   const hierarchyRoleIds = hierarchyRoles.map(r => r.id);
 
   const highRoles = getHighAdminRoleIds(cfg, guild);
+
+  console.log(`📊 getAdminMembers: members in cache = ${guild.members.cache.size}, roles in cache = ${guild.roles.cache.size}, highAdminRoles = ${highRoles.length}, hierarchyRoles = ${hierarchyRoles.length}`);
 
   return guild.members.cache.filter(m => {
     if (m.user.bot) return false;
@@ -76,7 +79,10 @@ function getHierarchyRolesInRange(guild, cfg) {
   if (!cfg.hierarchyRangeStartId || !cfg.hierarchyRangeEndId || !guild) return [];
   const roleA = guild.roles.cache.get(cfg.hierarchyRangeStartId);
   const roleB = guild.roles.cache.get(cfg.hierarchyRangeEndId);
-  if (!roleA || !roleB) return [];
+  if (!roleA || !roleB) {
+    console.log(`📊 getHierarchyRolesInRange: roles not found in cache. start=${cfg.hierarchyRangeStartId} ${!!roleA}, end=${cfg.hierarchyRangeEndId} ${!!roleB}`);
+    return [];
+  }
   const minPos = Math.min(roleA.position, roleB.position);
   const maxPos = Math.max(roleA.position, roleB.position);
   const excluded = cfg.excludedRoles || [];
