@@ -97,6 +97,13 @@ function buildSubPanel(type) {
         .setCustomId(`ticket_select_${type}`)
         .setPlaceholder('🎫 اختر تكت...');
 
+    // قائمة "إرسال" تسمح باختيار **عدة بنلات** دفعة واحدة لنشرها كباقة
+    // (الباقي: تعديل/سجل/حذف) يبقى باختيار واحد
+    if (type === 'send' && panels.length > 1) {
+        selectMenu.setMinValues(1).setMaxValues(Math.min(panels.length, 25));
+        selectMenu.setPlaceholder('🎫 اختر بنلاً واحداً أو أكثر (باقة) لنشرها معاً...');
+    }
+
     if (panels.length === 0) {
         // ⚠️ ديسكورد يرفض القوائم المنسدلة الفارغة تماماً (تسبب خطأ عند الإرسال)
         // لذلك نضع خياراً وهمياً واحداً عند عدم وجود أي لوحات محفوظة

@@ -108,8 +108,15 @@ function buildSettingsEmbed(panel, page, actionKey) {
             inline: true,
         },
         {
-            name: '🔗 البنل المرتبط',
-            value: panel.linkedPanel ? panel.linkedPanel : 'لا يوجد',
+            name: '🔗 البنلات المرتبطة',
+            value: (() => {
+                const linked = panel.linkedPanels || [];
+                if (!linked.length) return 'لا يوجد';
+                return linked
+                    .map(n => `🔗 ${n}`)
+                    .join('\n')
+                    .slice(0, 1000);
+            })(),
             inline: true,
         },
     );
@@ -267,26 +274,29 @@ function buildGeneralPage(panel) {
         );
     const ticketSystemRow = new ActionRowBuilder().addComponents(ticketSystemSelect);
 
-    // قائمة ربط البنلات: تجلب كل البنلات الأخرى عدا البنل الحالي
+    // قائمة ربط البنلات: اختيار متعدد (حتى 25 بنل) من كل البنلات الأخرى عدا الحالي
+    // إزالة التحديد = إلغاء الربط (لذلك minValues = 0)
     const otherPanels = getAllPanels().filter(p => p.name !== panel.name);
+    const currentLinked = panel.linkedPanels || [];
     const linkSelect = new StringSelectMenuBuilder()
         .setCustomId('settings_select_linked_panel')
-        .setPlaceholder('🔗 ربط بنل آخر بهذا البنل (اختياري)...');
+        .setPlaceholder(`🔗 اختر البنلات المرتبطة (${currentLinked.length} مرتبط حالياً)...`)
+        .setMinValues(0)
+        .setMaxValues(Math.min(otherPanels.length, 25));
 
     if (otherPanels.length === 0) {
         linkSelect
             .addOptions({ label: 'لا يوجد أي بنل آخر لربطه', value: 'none' })
             .setDisabled(true);
     } else {
-        linkSelect.addOptions([
-            { label: '❌ إلغاء الربط', value: 'unlink', default: !panel.linkedPanel },
-            ...otherPanels.map(p => ({
+        linkSelect.addOptions(
+            otherPanels.slice(0, 25).map(p => ({
                 label: p.name.slice(0, 100),
                 value: p.name,
                 emoji: safeEmoji(p.emoji),
-                default: panel.linkedPanel === p.name,
-            })),
-        ]);
+                default: currentLinked.includes(p.name),
+            }))
+        );
     }
     const linkRow = new ActionRowBuilder().addComponents(linkSelect);
 
@@ -472,9 +482,9 @@ function buildPanelSettings(panelName, page = 'general', actionKey) {
 
     const infoEmbed = buildSettingsEmbed(panel, page, actionKey);
 
-    // معاينة حية لما سيراه الأعضاء (نفس فكرة معاينة لوحة الإيمبد)
-    const previewEmbed = buildPublicPanelMessage(panel).embeds[0];
-    const embeds = [infoEmbed, previewEmbed];
+    // معاينة حية لما سيراه الأعضاء: البنل + كل البنلات المرتبطة به (الباقة)
+    const bundle = buildPublicPanelMessage(panel);
+    const embeds = [infoEmbed, ...bundle.embeds];
 
     // في صفحة الرسائل نضيف معاينة لإيمبد التكت (فوق الأزرار داخل التكت)
     if (page === 'messages') {
@@ -486,6 +496,9 @@ function buildPanelSettings(panelName, page = 'general', actionKey) {
         const preview = buildActionPreview(panel, actionKey);
         if (preview) embeds.push(preview);
     }
+
+    // حد ديسكورد: 10 إيمبدات كحد أقصى للرسالة الواحدة
+    if (embeds.length > 10) embeds.length = 10;
 
     let rows = [];
     if (page === 'general') rows = buildGeneralPage(panel);

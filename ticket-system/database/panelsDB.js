@@ -39,7 +39,7 @@ const DB_PATH = path.join(__dirname, '..', 'data', 'panels.json');
  *   // --- إعدادات عامة (General) ---
  *   enabled: Boolean                 -> هل البنل مفعّل
  *   ticketSystemType: String         -> 'buttons' | 'select'
- *   linkedPanel: String | null       -> بنل آخر مرتبط
+ *   linkedPanels: Array<String>      -> بنلات أخرى مرتبطة (تُعرض معه كأزرار/قائمة عند النشر)
  *
  *   // --- الرتب (Roles) ---
  *   staffRoles: Array<String>
@@ -62,7 +62,7 @@ const DB_PATH = path.join(__dirname, '..', 'data', 'panels.json');
 const DEFAULT_PANEL_FIELDS = {
     enabled: true,
     ticketSystemType: 'buttons',
-    linkedPanel: null,
+    linkedPanels: [],
     staffRoles: [],
     pingRoles: [],
     allowedRoles: [],
@@ -85,7 +85,7 @@ const panelSchema = new mongoose.Schema(
         updatedAt: { type: Number, default: Date.now },
         enabled: { type: Boolean, default: true },
         ticketSystemType: { type: String, default: 'buttons' },
-        linkedPanel: { type: String, default: null },
+        linkedPanels: { type: [String], default: [] },
         staffRoles: { type: [String], default: [] },
         pingRoles: { type: [String], default: [] },
         allowedRoles: { type: [String], default: [] },
@@ -153,7 +153,31 @@ function writeDB(data) {
 }
 
 function withDefaults(panel) {
-    return { ...DEFAULT_PANEL_FIELDS, ...panel };
+    const merged = { ...DEFAULT_PANEL_FIELDS, ...panel };
+
+    // ---- ترحيل: الحقل القديم linkedPanel (نص واحد) -> المصفوفة linkedPanels ----
+    if (!Array.isArray(merged.linkedPanels)) {
+        if (typeof panel.linkedPanel === 'string' && panel.linkedPanel.trim()) {
+            merged.linkedPanels = [panel.linkedPanel.trim()];
+        } else {
+            merged.linkedPanels = [];
+        }
+    }
+    delete merged.linkedPanel;
+
+    // ---- تنظيف المصفوفة: نصوص صالحة فقط، بلا مكررات، بلا اسم البنل نفسه، حد 25 ----
+    merged.linkedPanels = [
+        ...new Set(
+            merged.linkedPanels.filter(
+                n =>
+                    typeof n === 'string' &&
+                    n.trim() &&
+                    n !== merged.name
+            )
+        ),
+    ].slice(0, 25);
+
+    return merged;
 }
 
 // ---------- MongoDB helpers (غير متزامنة - تُستدعى بلا انتظار) ----------
@@ -326,7 +350,11 @@ function renamePanel(oldName, newName) {
     db.panels[index].updatedAt = Date.now();
 
     db.panels.forEach(p => {
-        if (p.linkedPanel === oldName) p.linkedPanel = newName;
+        // تحديث الروابط: أي بنل كان مرتبطاً بالاسم القديم ينتقل للجديد
+        if (Array.isArray(p.linkedPanels) && p.linkedPanels.includes(oldName)) {
+            p.linkedPanels[p.linkedPanels.indexOf(oldName)] = newName;
+        }
+        delete p.linkedPanel; // إزالة أي حقل قديم متبقي
     });
 
     writeDB(db);
@@ -356,6 +384,7 @@ module.exports = {
     updatePanel,
     renamePanel,
     deletePanel,
+    withDefaults,
     // أدوات التخزين المزدوج (تُستدعى من ملف التشغيل الرئيسي)
     initPanelsModel,
     syncPanelsToMongo,

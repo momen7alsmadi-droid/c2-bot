@@ -40,7 +40,11 @@ async function handleTicketCreate(interaction) {
     if (!isButton && !isSelect) return;
 
     try {
-        const panelName = interaction.customId.split(':')[1];
+        // في وضع الأزرار يأتي الاسم من customId، وفي وضع القائمة من قيمة الخيار
+        // (لأن القائمة المنسدلة يمكن أن تحوي عدة بنلات، قيمة كل خيار = اسم بنله)
+        const panelName = isSelect
+            ? interaction.values[0]
+            : interaction.customId.split(':')[1];
         const panel = getPanelByName(panelName);
 
         if (!panel) {

@@ -85,9 +85,9 @@ async function handleTicketSelectMenu(interaction) {
         //    ChannelSelectMenu مستقل (بدون المساس بلوحة الإدارة)
         // ---------------------------------------------------
         if (customId === 'ticket_select_send') {
-            const selectedValue = interaction.values[0];
+            const selectedValues = interaction.values;
 
-            if (selectedValue === 'none') {
+            if (selectedValues.includes('none')) {
                 await interaction.reply({
                     content: 'ℹ️ لا توجد أي لوحات تذاكر محفوظة بعد. أنشئ واحدة أولاً.',
                     ephemeral: true,
@@ -96,13 +96,21 @@ async function handleTicketSelectMenu(interaction) {
             }
 
             const { ChannelSelectMenuBuilder, ActionRowBuilder, ChannelType } = require('discord.js');
+            const { storePendingSend } = require('../utils/sendStore');
+
+            // اختيار متعدد: نخزن الأسماء مؤقتاً ونمرر token قصير في الـ customId
+            // (لأن حد الـ customId 100 حرف ولا يتسع لعدة أسماء بنلات)
+            const token = storePendingSend(selectedValues);
             const targetSelect = new ChannelSelectMenuBuilder()
-                .setCustomId(`ticket_send_target_channel:${selectedValue}`)
+                .setCustomId(`ticket_send_target_channel:${token}`)
                 .setPlaceholder('اختر الروم الذي سيُنشر فيه البنل...')
                 .addChannelTypes(ChannelType.GuildText);
 
             await interaction.reply({
-                content: `اختر الروم الذي تريد نشر بنل **${selectedValue}** فيه:`,
+                content:
+                    selectedValues.length === 1
+                        ? `اختر الروم الذي تريد نشر بنل **${selectedValues[0]}** فيه:`
+                        : `اختر الروم الذي تريد نشر **${selectedValues.length} بنلات** معاً فيه (باقة واحدة):`,
                 components: [new ActionRowBuilder().addComponents(targetSelect)],
                 ephemeral: true,
             });
@@ -143,6 +151,13 @@ async function handleTicketSelectMenu(interaction) {
                     { name: '📨 الحالة', value: panel.enabled ? '🟢 مفعّل' : '🔴 معطّل', inline: true },
                     { name: '🔘 نظام الفتح', value: panel.ticketSystemType === 'select' ? 'قائمة منسدلة' : 'أزرار', inline: true },
                     {
+                        name: '🔗 البنلات المرتبطة',
+                        value: (panel.linkedPanels || []).length
+                            ? (panel.linkedPanels || []).join('، ').slice(0, 1000)
+                            : 'لا يوجد',
+                        inline: true,
+                    },
+                    {
                         name: '📅 تاريخ الإنشاء',
                         value: panel.createdAt ? `<t:${Math.floor(panel.createdAt / 1000)}:F>` : 'غير معروف',
                         inline: false,
@@ -169,9 +184,10 @@ async function handleTicketSelectMenu(interaction) {
                 .setTimestamp();
 
             // معاينة حية لما سيراه الأعضاء (نفس فكرة معاينة لوحة الإيمبد)
-            let preview = null;
+            // مع الباقة: نعرض كل إيمبدات البنل + المرتبطين به
+            let previewEmbeds = [];
             try {
-                preview = buildPublicPanelMessage(panel).embeds[0];
+                previewEmbeds = buildPublicPanelMessage(panel).embeds;
             } catch (err) {
                 console.error('[selectMenuHandler] فشل بناء المعاينة:', err.message);
             }
@@ -188,7 +204,7 @@ async function handleTicketSelectMenu(interaction) {
             );
 
             await interaction.editReply({
-                embeds: preview ? [infoEmbed, preview] : [infoEmbed],
+                embeds: [infoEmbed, ...previewEmbeds],
                 components: [backRow],
             });
             return;
@@ -287,9 +303,9 @@ async function handleTicketSelectMenu(interaction) {
                 return;
             }
 
-            const selected = interaction.values[0];
-            const linkedPanel = selected === 'unlink' || selected === 'none' ? null : selected;
-            updatePanel(session.panelName, { linkedPanel });
+            // اختيار متعدد: values = مصفوفة أسماء البنلات المرتبطة مباشرة
+            const linkedPanels = interaction.values.filter(v => v !== 'none');
+            updatePanel(session.panelName, { linkedPanels });
 
             const result = buildPanelSettings(session.panelName, 'general');
             await interaction.editReply(result);

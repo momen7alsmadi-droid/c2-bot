@@ -20,6 +20,7 @@ const { buildPanelSettings } = require('./panelSettingsBuilder');
 const { updatePanel, getPanelByName } = require('../database/panelsDB');
 const { resolveSession } = require('../utils/panelResolver');
 const { buildPublicPanelMessage } = require('./publicPanelBuilder');
+const { takePendingSend } = require('../utils/sendStore');
 
 const FIELD_MAP = {
     settings_select_category: 'categoryId',
@@ -36,21 +37,30 @@ async function handleChannelSelectMenu(interaction) {
     // ---------------------------------------------------
     if (interaction.customId.startsWith('ticket_send_target_channel:')) {
         try {
-            const panelName = interaction.customId.split(':')[1];
-            const panel = getPanelByName(panelName);
-            if (!panel) {
-                await interaction.update({ content: '⚠️ لم يتم العثور على هذا البنل، ربما تم حذفه.', components: [] });
+            // الـ customId يحمل token قصير يشير للبنلات المختارة في الذاكرة
+            const token = interaction.customId.split(':')[1];
+            const names = takePendingSend(token);
+            const panels = names.map(getPanelByName).filter(Boolean);
+
+            if (!panels.length) {
+                await interaction.update({
+                    content: '⚠️ لم يتم العثور على البنلات المحددة، ربما انتهت صلاحية الاختيار أو حُذفت البنلات. أعد المحاولة من لوحة التحكم.',
+                    components: [],
+                });
                 return;
             }
 
             const targetChannel = interaction.channels.first();
-            const { embeds, components } = buildPublicPanelMessage(panel, {
+            const { embeds, components } = buildPublicPanelMessage(panels, {
                 guild: interaction.guild,
             });
             await targetChannel.send({ embeds, components });
 
             await interaction.update({
-                content: `✅ تم نشر بنل **${panel.name}** بنجاح في <#${targetChannel.id}>.`,
+                content:
+                    panels.length === 1
+                        ? `✅ تم نشر بنل **${panels[0].name}** بنجاح في <#${targetChannel.id}>.`
+                        : `✅ تم نشر **${panels.length} بنلات** معاً كباقة واحدة في <#${targetChannel.id}>.`,
                 components: [],
             });
         } catch (error) {
