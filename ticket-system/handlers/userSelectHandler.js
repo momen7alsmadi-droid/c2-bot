@@ -13,18 +13,21 @@ const { canUseRestrictedControls } = require('./permissionUtils');
 const { buildTicketControlRows } = require('./ticketControlBuilder');
 const { applyClaimPermissions, revertClaimPermissions } = require('./ticketPermissionHelpers');
 const { sendActionMessage } = require('../utils/actionMessages');
+const { enrichActionContext } = require('../utils/ticketContext');
 
 const RELEVANT_IDS = ['ticket_add_member_select', 'ticket_remove_member_select', 'ticket_transfer_select'];
 
 // سياق المتغيرات المشترك لرسائل الإجراءات
-function actionContext(interaction, targetId) {
-    return {
+// سياق المتغيرات: [actor] = من ضغط الزر، [member] = العضو المستهدف
+// + [opener] [claimed_by] [ticket_created] [category] من جلسة التذكرة
+async function actionContext(interaction, targetId) {
+    return enrichActionContext(interaction, {
         member: interaction.member,
         guild: interaction.guild,
         channelName: interaction.channel.name,
         channelId: interaction.channel.id,
         targetMention: targetId ? `<@${targetId}>` : null,
-    };
+    });
 }
 
 /**
@@ -69,7 +72,7 @@ async function handleUserSelectMenu(interaction) {
             await interaction.update({ content: `✅ تمت إضافة <@${selectedUser.id}> للتذكرة.`, components: [] });
 
             // رسالة "إضافة عضو"
-            await sendActionMessage(interaction.channel, panel, 'addMember', actionContext(interaction, selectedUser.id));
+            await sendActionMessage(interaction.channel, panel, 'addMember', await actionContext(interaction, selectedUser.id));
             return;
         }
 
@@ -94,7 +97,7 @@ async function handleUserSelectMenu(interaction) {
             await interaction.update({ content: `✅ تم إخراج <@${selectedUser.id}> من التذكرة.`, components: [] });
 
             // رسالة "إخراج عضو"
-            await sendActionMessage(interaction.channel, panel, 'removeMember', actionContext(interaction, selectedUser.id));
+            await sendActionMessage(interaction.channel, panel, 'removeMember', await actionContext(interaction, selectedUser.id));
             return;
         }
 
@@ -134,7 +137,7 @@ async function handleUserSelectMenu(interaction) {
             await interaction.update({ content: `✅ تم تحويل استلام التذكرة إلى <@${selectedUser.id}>.`, components: [] });
 
             // رسالة "تحويل الاستلام"
-            await sendActionMessage(interaction.channel, panel, 'transferClaim', actionContext(interaction, selectedUser.id));
+            await sendActionMessage(interaction.channel, panel, 'transferClaim', await actionContext(interaction, selectedUser.id));
             return;
         }
     } catch (error) {

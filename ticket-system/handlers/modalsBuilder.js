@@ -124,7 +124,7 @@ function buildWelcomeMessageModal(panel) {
 /**
  * Modal تخصيص رسالة البنل العامة (الإيمبد المنشور مع زر/قائمة
  * فتح التكت). أي حقل يُترك فارغاً يعود للقيمة الافتراضية،
- * والنصوص تدعم المتغيرات مثل [server] [server_id] [time].
+ * والنصوص تدعم المتغيرات مثل [server] [member_count] [time].
  * @param {Object} panel
  */
 function buildPanelMessageModal(panel) {
@@ -274,7 +274,7 @@ function buildTicketNameModal(panel) {
         .setCustomId('ticket_name_hint')
         .setLabel('المتغيرات المدعومة في الاسم')
         .setStyle(TextInputStyle.Paragraph)
-        .setValue('[username] الاسم • [id] الآيدي • [server] السيرفر • [server_id] • [member_count] • [ticket_number] • [boosts] • [boost_tier] • [time] • [date] • [day]\n\nمنشنات مثل [user] [staff] تتحول لشرطة - تلقائياً لأن أسماء الرومات لا تدعمها')
+        .setValue('[username] الاسم • [id] الآيدي • [server] السيرفر • [member_count] • [ticket_number] • [year] • [month] • [time] • [date] • [day]\n\nمنشنات مثل [user] [staff] [owner] تتحول لشرطة - تلقائياً لأن أسماء الرومات لا تدعمها')
         .setRequired(false);
 
     modal.addComponents(
@@ -323,7 +323,7 @@ function buildActionMessageModal(panel, actionKey) {
         .setLabel('الكلام داخل الإيمبد (يدعم المتغيرات)')
         .setStyle(TextInputStyle.Paragraph)
         .setValue(def.description || '')
-        .setPlaceholder('مثال: تم استلام هذه التذكرة بواسطة [user].')
+        .setPlaceholder('مثال: تم استلام هذه التذكرة بواسطة [actor].')
         .setMaxLength(1000)
         .setRequired(false);
 
@@ -331,7 +331,7 @@ function buildActionMessageModal(panel, actionKey) {
         .setCustomId('action_hint')
         .setLabel('المتغيرات المدعومة')
         .setStyle(TextInputStyle.Paragraph)
-        .setValue('[user] منشن الإداري المنفذ • [member] منشن العضو المستهدف • [username] • [server] • [server_id] • [ticket_name] • [ticket_number] • [time] • [date] • [day] • [member_count]')
+        .setValue('[actor] من ضغط الزر • [actor_name] اسمه • [actor_id] آيديه • [actor_role] رتبته • [member] العضو المستهدف • [opener] فاتح التذكرة • [claimed_by] المستلم • [ticket_created] تاريخ الفتح • [category] الكاتيجوري • [username] • [server] • [ticket_name] • [ticket_number] • [member_count] • [time] • [date] • [day] • [year] • [month]')
         .setRequired(false);
 
     modal.addComponents(

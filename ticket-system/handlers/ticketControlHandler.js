@@ -27,17 +27,20 @@ const {
 } = require('./ticketPermissionHelpers');
 const { sendClosedStateMessage } = require('./ticketCloseHandler');
 const { sendActionMessage } = require('../utils/actionMessages');
+const { enrichActionContext } = require('../utils/ticketContext');
 
 const RELEVANT_IDS = ['ticket_claim', 'ticket_lock'];
 
 // سياق المتغيرات المشترك لرسائل الإجراءات
-function actionContext(interaction) {
-    return {
+// [actor] = من ضغط الزر = interaction.member
+// + [opener] [claimed_by] [ticket_created] [category] من جلسة التذكرة
+async function actionContext(interaction) {
+    return enrichActionContext(interaction, {
         member: interaction.member,
         guild: interaction.guild,
         channelName: interaction.channel.name,
         channelId: interaction.channel.id,
-    };
+    });
 }
 
 /**
@@ -80,7 +83,7 @@ async function handleTicketControlButton(interaction) {
                 await interaction.editReply({ components: rows });
 
                 // رسالة "تم الاستلام" (قابلة للتخصيص/الإطفاء)
-                await sendActionMessage(interaction.channel, panel, 'claim', actionContext(interaction));
+                await sendActionMessage(interaction.channel, panel, 'claim', await actionContext(interaction));
                 return;
             }
 
@@ -104,7 +107,7 @@ async function handleTicketControlButton(interaction) {
             await interaction.editReply({ components: rows });
 
             // رسالة "إلغاء الاستلام"
-            await sendActionMessage(interaction.channel, panel, 'unclaim', actionContext(interaction));
+            await sendActionMessage(interaction.channel, panel, 'unclaim', await actionContext(interaction));
             return;
         }
 
@@ -138,7 +141,7 @@ async function handleTicketControlButton(interaction) {
                 await interaction.editReply({ components: rows });
 
                 // رسالة "قفل التذكرة"
-                await sendActionMessage(interaction.channel, panel, 'lock', actionContext(interaction));
+                await sendActionMessage(interaction.channel, panel, 'lock', await actionContext(interaction));
 
                 // إرسال رسالة الإغلاق المنفصلة (زر فتح + زر حذف)
                 await sendClosedStateMessage(interaction.channel);
@@ -153,7 +156,7 @@ async function handleTicketControlButton(interaction) {
                 await interaction.editReply({ components: rows });
 
                 // رسالة "فتح التذكرة" (المسار النادر من زر القفل نفسه)
-                await sendActionMessage(interaction.channel, panel, 'reopen', actionContext(interaction));
+                await sendActionMessage(interaction.channel, panel, 'reopen', await actionContext(interaction));
             }
             return;
         }

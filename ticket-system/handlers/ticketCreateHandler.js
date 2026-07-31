@@ -141,6 +141,8 @@ async function handleTicketCreate(interaction) {
             ticketNumber: category.children.cache.size,
             staffRoles: panel.staffRoles,
             pingRoles: panel.pingRoles,
+            categoryName: category.name,
+            ticketCreatedAt: Date.now(),
         });
 
         // منشن صاحب التكت + رتب المنشن خارج الإيمبد كما هو مطلوب

@@ -19,6 +19,7 @@ const { canUseRestrictedControls } = require('./permissionUtils');
 const { buildRenameTicketModal } = require('./modalsBuilder');
 const { applyEscalatePermissions } = require('./ticketPermissionHelpers');
 const { sendActionMessage } = require('../utils/actionMessages');
+const { enrichActionContext } = require('../utils/ticketContext');
 
 /**
  * @param {import('discord.js').StringSelectMenuInteraction} interaction
@@ -150,12 +151,17 @@ async function handleTicketStaffMenu(interaction) {
             addAuditLog(interaction.channel.id, `<@${interaction.member.id}> قام بتحويل التذكرة للإدارة العليا (تصعيد)`);
 
             // رسالة "التحويل للإدارة العليا"
-            await sendActionMessage(interaction.channel, panel, 'escalate', {
-                member: interaction.member,
-                guild: interaction.guild,
-                channelName: interaction.channel.name,
-                channelId: interaction.channel.id,
-            });
+            await sendActionMessage(
+                interaction.channel,
+                panel,
+                'escalate',
+                await enrichActionContext(interaction, {
+                    member: interaction.member,
+                    guild: interaction.guild,
+                    channelName: interaction.channel.name,
+                    channelId: interaction.channel.id,
+                })
+            );
 
             await interaction.editReply({ content: '📢 تم تحويل التذكرة للإدارة العليا بنجاح.' });
             return;

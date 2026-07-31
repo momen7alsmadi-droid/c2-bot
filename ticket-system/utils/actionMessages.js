@@ -12,8 +12,16 @@
  *   - تخصيص الكلام فوق الإيمبد (content) وداخله (description)
  *     والعنوان (title)
  *
- * المتغيرات المدعومة (بالإضافة إلى متغيرات النظام الـ 22):
- *   [member] -> منشن العضو المستهدف (في إضافة/إخراج/تحويل الاستلام)
+ * المتغيرات المدعومة (بالإضافة إلى متغيرات النظام):
+ *   [actor]        -> منشن من ضغط الزر (الإداري المنفذ)
+ *   [actor_name]   -> اسم من ضغط الزر
+ *   [actor_id]     -> آيدي من ضغط الزر
+ *   [actor_role]   -> أعلى رتبة لمن ضغط الزر
+ *   [member]       -> منشن العضو المستهدف (في إضافة/إخراج/تحويل الاستلام)
+ *   [opener]       -> منشن فاتح التذكرة
+ *   [claimed_by]   -> منشن مستلم التذكرة الحالي
+ *   [ticket_created]-> تاريخ فتح التذكرة
+ *   [category]     -> اسم الكاتيجوري
  *
  * التخزين: panel.actionMessages = {
  *   claim: { enabled, content, title, description }, ...
@@ -32,70 +40,70 @@ const DEFAULT_ACTION_MESSAGES = {
         enabled: true,
         content: '',
         title: '🤝 تم استلام التذكرة',
-        description: 'تم استلام هذه التذكرة بواسطة [user]. سيتم الرد عليك قريباً.',
+        description: 'تم استلام تذكرة [opener] بواسطة [actor]. سيتم الرد عليك قريباً.',
     },
     unclaim: {
         label: '↩️ إلغاء الاستلام',
         enabled: true,
         content: '',
         title: '↩️ تم إلغاء الاستلام',
-        description: 'تم إلغاء استلام هذه التذكرة بواسطة [user].',
+        description: 'تم إلغاء استلام هذه التذكرة بواسطة [actor].',
     },
     lock: {
         label: '🔒 قفل التذكرة',
         enabled: true,
         content: '',
         title: '🔒 تم قفل التذكرة',
-        description: 'تم قفل هذه التذكرة بواسطة [user].',
+        description: 'تم قفل هذه التذكرة بواسطة [actor].',
     },
     reopen: {
         label: '🔓 فتح التذكرة',
         enabled: true,
         content: '',
         title: '🔓 تم فتح التذكرة',
-        description: 'تم إعادة فتح هذه التذكرة بواسطة [user].',
+        description: 'تم إعادة فتح هذه التذكرة بواسطة [actor].',
     },
     delete: {
         label: '🗑️ حذف التذكرة',
         enabled: true,
         content: '',
         title: '🗑️ تم حذف التذكرة',
-        description: 'تم حذف هذه التذكرة بواسطة [user].',
+        description: 'تم حذف هذه التذكرة بواسطة [actor].',
     },
     escalate: {
         label: '📢 تحويل للإدارة العليا',
         enabled: true,
         content: '',
         title: '📢 تم تحويل التذكرة',
-        description: 'تم تحويل هذه التذكرة للإدارة العليا بواسطة [user].',
+        description: 'تم تحويل هذه التذكرة للإدارة العليا بواسطة [actor].',
     },
     addMember: {
         label: '➕ إضافة عضو',
         enabled: true,
         content: '',
         title: '➕ تمت إضافة عضو',
-        description: 'تمت إضافة [member] إلى التذكرة بواسطة [user].',
+        description: 'تمت إضافة [member] إلى التذكرة بواسطة [actor].',
     },
     removeMember: {
         label: '➖ إخراج عضو',
         enabled: true,
         content: '',
         title: '➖ تم إخراج عضو',
-        description: 'تم إخراج [member] من التذكرة بواسطة [user].',
+        description: 'تم إخراج [member] من التذكرة بواسطة [actor].',
     },
     transferClaim: {
         label: '🔄 تحويل الاستلام',
         enabled: true,
         content: '',
         title: '🔄 تم تحويل الاستلام',
-        description: 'تم تحويل استلام هذه التذكرة إلى [member] بواسطة [user].',
+        description: 'تم تحويل استلام هذه التذكرة إلى [member] بواسطة [actor].',
     },
     rename: {
         label: '✏️ تغيير اسم التذكرة',
         enabled: true,
         content: '',
         title: '✏️ تم تغيير اسم التذكرة',
-        description: 'تم تغيير اسم التذكرة إلى **[ticket_name]** بواسطة [user].',
+        description: 'تم تغيير اسم التذكرة إلى **[ticket_name]** بواسطة [actor].',
     },
 };
 

@@ -17,11 +17,12 @@
  *   - قصّ إلى 100 حرف
  *
  * المتغيرات المناسبة للاسم (نص/رقم):
- *   [username] [id] [server] [server_id] [member_count]
- *   [ticket_number] [time] [date] [day] [boosts] [boost_tier]
+ *   [username] [id] [server] [member_count]
+ *   [ticket_number] [year] [month] [time] [date] [day]
  *
  * المتغيرات التي تُنتج منشنات ([user] [owner] [bot] [staff]
- * [ping] [highest_role] [channel]) تتحول تلقائياً إلى شرطة -
+ * [ping] [highest_role] [channel] [actor] [opener]
+ * [claimed_by] [member]) تتحول تلقائياً إلى شرطة -
  * لأن أسماء الرومات لا تدعم المنشنات.
  * =========================================================
  */

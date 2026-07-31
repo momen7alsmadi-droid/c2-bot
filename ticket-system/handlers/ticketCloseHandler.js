@@ -31,6 +31,7 @@ const { canUseRestrictedControls } = require('./permissionUtils');
 const { applyUnlockPermissions } = require('./ticketPermissionHelpers');
 const { buildTicketControlRows } = require('./ticketControlBuilder');
 const { sendActionMessage } = require('../utils/actionMessages');
+const { enrichActionContext } = require('../utils/ticketContext');
 
 const DELETE_COUNTDOWN_SECONDS = 10;
 
@@ -132,12 +133,17 @@ async function handleTicketCloseButton(interaction) {
             }
 
             // رسالة "فتح التذكرة"
-            await sendActionMessage(interaction.channel, panel, 'reopen', {
-                member: interaction.member,
-                guild: interaction.guild,
-                channelName: interaction.channel.name,
-                channelId: interaction.channel.id,
-            });
+            await sendActionMessage(
+                interaction.channel,
+                panel,
+                'reopen',
+                await enrichActionContext(interaction, {
+                    member: interaction.member,
+                    guild: interaction.guild,
+                    channelName: interaction.channel.name,
+                    channelId: interaction.channel.id,
+                })
+            );
             return;
         }
 
@@ -163,12 +169,17 @@ async function handleTicketCloseButton(interaction) {
                     const { finalizeTicketDeletion } = require('./transcriptLogger');
 
                     // رسالة "حذف التذكرة" قبل الحذف الفعلي (تظهر في الأرشيف)
-                    await sendActionMessage(interaction.channel, panel, 'delete', {
-                        member: interaction.member,
-                        guild: interaction.guild,
-                        channelName: interaction.channel.name,
-                        channelId: interaction.channel.id,
-                    });
+                    await sendActionMessage(
+                        interaction.channel,
+                        panel,
+                        'delete',
+                        await enrichActionContext(interaction, {
+                            member: interaction.member,
+                            guild: interaction.guild,
+                            channelName: interaction.channel.name,
+                            channelId: interaction.channel.id,
+                        })
+                    );
 
                     await finalizeTicketDeletion(interaction.channel, panel).catch(err =>
                         console.error('[ticketCloseHandler] فشل في إتمام أرشفة/حذف التذكرة:', err)

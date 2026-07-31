@@ -29,6 +29,7 @@ const { getSession: getTicketSession, addAuditLog } = require('./ticketStore');
 const { safeEmoji } = require('../utils/emoji');
 const { resolveSession } = require('../utils/panelResolver');
 const { sendActionMessage } = require('../utils/actionMessages');
+const { enrichActionContext } = require('../utils/ticketContext');
 
 const RELEVANT_IDS = ['modal_create_panel', 'modal_edit_name_desc', 'modal_welcome_message', 'modal_panel_message', 'modal_ticket_embed', 'modal_ticket_name', 'modal_action_message', 'modal_rename_ticket'];
 
@@ -362,12 +363,17 @@ async function handleTicketModal(interaction) {
                 ? getPanelByName(getTicketSession(interaction.channel.id).panelName)
                 : null;
             if (panel) {
-                await sendActionMessage(interaction.channel, panel, 'rename', {
-                    member: interaction.member,
-                    guild: interaction.guild,
-                    channelName: newName.slice(0, 100),
-                    channelId: interaction.channel.id,
-                });
+                await sendActionMessage(
+                    interaction.channel,
+                    panel,
+                    'rename',
+                    await enrichActionContext(interaction, {
+                        member: interaction.member,
+                        guild: interaction.guild,
+                        channelName: newName.slice(0, 100),
+                        channelId: interaction.channel.id,
+                    })
+                );
             }
 
             await interaction.editReply({ content: `✅ تم تغيير اسم التذكرة إلى **${newName}**.` });

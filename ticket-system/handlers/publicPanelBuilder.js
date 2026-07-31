@@ -50,7 +50,7 @@ function safeColor(value) {
  * الرسالة قابلة للتخصيص بالكامل عبر panel.panelMessage:
  *   { title, description, footer, color }
  * أي حقل متروك فارغاً يعود للقيمة الافتراضية، وكل النصوص تدعم
- * المتغيرات مثل [server] [server_id] [time] (تمرر context عند الإرسال).
+ * المتغيرات مثل [server] [member_count] [time] (تمرر context عند الإرسال).
  *
  * حسب `panel.ticketSystemType` المحفوظ في قاعدة البيانات
  * (الجزء الثاني)، تُبنى إما زر واحد أو قائمة منسدلة بخيار واحد.
