@@ -50,7 +50,7 @@ function extractPageFromFooter(interaction) {
 /**
  * استرجاع الجلسة الفعالة (مع احتياط التذييل)
  * @param {import('discord.js').BaseInteraction} interaction
- * @returns {{ panelName: String, page: String }}
+ * @returns {{ panelName: String, page: String, actionKey: String|undefined }}
  */
 function resolveSession(interaction) {
     const messageId = interaction.message?.id;
@@ -58,14 +58,23 @@ function resolveSession(interaction) {
     // 1) الجلسة في الذاكرة
     const session = getSession(messageId);
     if (session && session.panelName) {
-        return { panelName: session.panelName, page: session.page || 'general' };
+        return {
+            panelName: session.panelName,
+            page: session.page || 'general',
+            actionKey: session.actionKey,
+        };
     }
 
     // 2) احتياط: من تذييل الإيمبد (بعد إعادة تشغيل البوت)
     const fromFooter = extractPanelNameFromFooter(interaction);
     if (fromFooter) {
         const page = extractPageFromFooter(interaction);
-        return { panelName: fromFooter, page: page || 'general' };
+        return {
+            panelName: fromFooter,
+            page: page || 'general',
+            // قد تكون الجلسة تحوي إجراءً محدداً حتى لو فُقد الاسم (نمرره مع الاحتياط)
+            actionKey: session.actionKey,
+        };
     }
 
     return { panelName: null, page: 'general' };

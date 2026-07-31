@@ -35,6 +35,7 @@ const { getPanelByName, updatePanel } = require('../database/panelsDB');
 const { setSession, getSession } = require('./sessionStore');
 const { buildPublicPanelMessage } = require('./publicPanelBuilder');
 const { resolveSession } = require('../utils/panelResolver');
+const { ACTION_KEYS } = require('../utils/actionMessages');
 
 async function handleTicketSelectMenu(interaction) {
     const { customId } = interaction;
@@ -42,7 +43,8 @@ async function handleTicketSelectMenu(interaction) {
     const isRelevant =
         customId.startsWith('ticket_select_') ||
         customId === 'settings_select_ticket_system' ||
-        customId === 'settings_select_linked_panel';
+        customId === 'settings_select_linked_panel' ||
+        customId === 'settings_select_action';
 
     if (!isRelevant) return;
 
@@ -290,6 +292,33 @@ async function handleTicketSelectMenu(interaction) {
             updatePanel(session.panelName, { linkedPanel });
 
             const result = buildPanelSettings(session.panelName, 'general');
+            await interaction.editReply(result);
+            return;
+        }
+
+        // ---------------------------------------------------
+        // اختيار إجراء من صفحة "رسائل الأزرار"
+        // نحفظ الإجراء المحدد في الجلسة ثم نعيد بناء الصفحة
+        // ليظهر الإجراء المحدد + أزرار التعديل/التبديل تعمل عليه
+        // ---------------------------------------------------
+        if (customId === 'settings_select_action') {
+            await interaction.deferUpdate().catch(() => {});
+
+            const session = resolveSession(interaction);
+            if (!session.panelName) {
+                await interaction.followUp({
+                    content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء الرجوع للوحة الرئيسية والمحاولة مجدداً.',
+                    ephemeral: true,
+                }).catch(() => {});
+                return;
+            }
+
+            const actionKey = interaction.values[0];
+            if (!ACTION_KEYS.includes(actionKey)) return;
+
+            setSession(interaction.message.id, { actionKey });
+
+            const result = buildPanelSettings(session.panelName, 'actions', actionKey);
             await interaction.editReply(result);
             return;
         }

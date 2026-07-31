@@ -26,8 +26,19 @@ const {
     applyUnlockPermissions,
 } = require('./ticketPermissionHelpers');
 const { sendClosedStateMessage } = require('./ticketCloseHandler');
+const { sendActionMessage } = require('../utils/actionMessages');
 
 const RELEVANT_IDS = ['ticket_claim', 'ticket_lock'];
+
+// سياق المتغيرات المشترك لرسائل الإجراءات
+function actionContext(interaction) {
+    return {
+        member: interaction.member,
+        guild: interaction.guild,
+        channelName: interaction.channel.name,
+        channelId: interaction.channel.id,
+    };
+}
 
 /**
  * @param {import('discord.js').ButtonInteraction} interaction
@@ -67,6 +78,9 @@ async function handleTicketControlButton(interaction) {
 
                 const rows = buildTicketControlRows(updated, !!updated.lockedAt);
                 await interaction.editReply({ components: rows });
+
+                // رسالة "تم الاستلام" (قابلة للتخصيص/الإطفاء)
+                await sendActionMessage(interaction.channel, panel, 'claim', actionContext(interaction));
                 return;
             }
 
@@ -88,6 +102,9 @@ async function handleTicketControlButton(interaction) {
 
             const rows = buildTicketControlRows(updated, !!updated.lockedAt);
             await interaction.editReply({ components: rows });
+
+            // رسالة "إلغاء الاستلام"
+            await sendActionMessage(interaction.channel, panel, 'unclaim', actionContext(interaction));
             return;
         }
 
@@ -120,6 +137,9 @@ async function handleTicketControlButton(interaction) {
                 const rows = buildTicketControlRows(updated, true);
                 await interaction.editReply({ components: rows });
 
+                // رسالة "قفل التذكرة"
+                await sendActionMessage(interaction.channel, panel, 'lock', actionContext(interaction));
+
                 // إرسال رسالة الإغلاق المنفصلة (زر فتح + زر حذف)
                 await sendClosedStateMessage(interaction.channel);
             } else {
@@ -131,6 +151,9 @@ async function handleTicketControlButton(interaction) {
 
                 const rows = buildTicketControlRows(updated, false);
                 await interaction.editReply({ components: rows });
+
+                // رسالة "فتح التذكرة" (المسار النادر من زر القفل نفسه)
+                await sendActionMessage(interaction.channel, panel, 'reopen', actionContext(interaction));
             }
             return;
         }

@@ -28,8 +28,9 @@ const { setSession, getSession } = require('./sessionStore');
 const { getSession: getTicketSession, addAuditLog } = require('./ticketStore');
 const { safeEmoji } = require('../utils/emoji');
 const { resolveSession } = require('../utils/panelResolver');
+const { sendActionMessage } = require('../utils/actionMessages');
 
-const RELEVANT_IDS = ['modal_create_panel', 'modal_edit_name_desc', 'modal_welcome_message', 'modal_panel_message', 'modal_ticket_embed', 'modal_ticket_name', 'modal_rename_ticket'];
+const RELEVANT_IDS = ['modal_create_panel', 'modal_edit_name_desc', 'modal_welcome_message', 'modal_panel_message', 'modal_ticket_embed', 'modal_ticket_name', 'modal_action_message', 'modal_rename_ticket'];
 
 /**
  * تحويل إدخال الصورة من الإداري إلى رابط صورة صالح:
@@ -306,6 +307,41 @@ async function handleTicketModal(interaction) {
         }
 
         // ---------------------------------------------------
+        // 3-هـ) حفظ رسالة إجراء مخصصة (من صفحة رسائل الأزرار)
+        //      content = فوق الإيمبد • title = العنوان • description = داخل الإيمبد
+        //      أي حقل فارغ يعود للجملة الافتراضية
+        // ---------------------------------------------------
+        if (interaction.customId === 'modal_action_message') {
+            const session = resolveSession(interaction);
+            if (!session.panelName || !session.actionKey) {
+                await interaction.reply({ content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء المحاولة مجدداً.', ephemeral: true });
+                return;
+            }
+
+            const content = interaction.fields.getTextInputValue('action_content').trim();
+            const title = interaction.fields.getTextInputValue('action_title').trim();
+            const description = interaction.fields.getTextInputValue('action_description').trim();
+
+            const panel = getPanelByName(session.panelName) || {};
+            const current = panel.actionMessages || {};
+            updatePanel(session.panelName, {
+                actionMessages: {
+                    ...current,
+                    [session.actionKey]: {
+                        ...(current[session.actionKey] || {}),
+                        content: content || null,
+                        title: title || null,
+                        description: description || null,
+                    },
+                },
+            });
+
+            const result = buildPanelSettings(session.panelName, 'actions');
+            await interaction.update(result);
+            return;
+        }
+
+        // ---------------------------------------------------
         // 4) تغيير اسم التذكرة (من قائمة تحكم الستاف داخل التكت)
         // ---------------------------------------------------
         if (interaction.customId === 'modal_rename_ticket') {
@@ -320,6 +356,19 @@ async function handleTicketModal(interaction) {
             await interaction.deferReply({ ephemeral: true });
             await interaction.channel.setName(newName.slice(0, 100)).catch(() => {});
             addAuditLog(interaction.channel.id, `<@${interaction.user.id}> قام بتغيير اسم التذكرة إلى "${newName}"`);
+
+            // رسالة "تغيير اسم التذكرة"
+            const panel = getTicketSession(interaction.channel.id)
+                ? getPanelByName(getTicketSession(interaction.channel.id).panelName)
+                : null;
+            if (panel) {
+                await sendActionMessage(interaction.channel, panel, 'rename', {
+                    member: interaction.member,
+                    guild: interaction.guild,
+                    channelName: newName.slice(0, 100),
+                    channelId: interaction.channel.id,
+                });
+            }
 
             await interaction.editReply({ content: `✅ تم تغيير اسم التذكرة إلى **${newName}**.` });
             return;

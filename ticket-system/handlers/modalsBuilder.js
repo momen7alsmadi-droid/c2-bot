@@ -286,6 +286,65 @@ function buildTicketNameModal(panel) {
 }
 
 /**
+ * Modal تخصيص رسالة إجراء (زر) — من صفحة رسائل الأزرار
+ * content = الكلام فوق الإيمبد • title = العنوان • description = داخل الإيمبد
+ * أي حقل فارغ يعود للجملة الافتراضية الجاهزة
+ * @param {Object} panel
+ * @param {String} actionKey
+ */
+function buildActionMessageModal(panel, actionKey) {
+    const { getActionMessage } = require('../utils/actionMessages');
+    const def = getActionMessage(panel, actionKey);
+    if (!def) return buildPanelMessageModal(panel); // احتياط نظري
+
+    const modal = new ModalBuilder()
+        .setCustomId('modal_action_message')
+        .setTitle(`🔔 ${def.label}`);
+
+    const contentInput = new TextInputBuilder()
+        .setCustomId('action_content')
+        .setLabel('الكلام فوق الإيمبد (فارغ = بدون)')
+        .setStyle(TextInputStyle.Short)
+        .setValue(def.content || '')
+        .setPlaceholder('مثال: تم استلام تذكرتك، يرجى الانتظار.')
+        .setMaxLength(1000)
+        .setRequired(false);
+
+    const titleInput = new TextInputBuilder()
+        .setCustomId('action_title')
+        .setLabel('عنوان الإيمبد (فارغ = الافتراضي)')
+        .setStyle(TextInputStyle.Short)
+        .setValue(def.title || '')
+        .setMaxLength(256)
+        .setRequired(false);
+
+    const descInput = new TextInputBuilder()
+        .setCustomId('action_description')
+        .setLabel('الكلام داخل الإيمبد (يدعم المتغيرات)')
+        .setStyle(TextInputStyle.Paragraph)
+        .setValue(def.description || '')
+        .setPlaceholder('مثال: تم استلام هذه التذكرة بواسطة [user].')
+        .setMaxLength(1000)
+        .setRequired(false);
+
+    const hintInput = new TextInputBuilder()
+        .setCustomId('action_hint')
+        .setLabel('المتغيرات المدعومة')
+        .setStyle(TextInputStyle.Paragraph)
+        .setValue('[user] منشن الإداري المنفذ • [member] منشن العضو المستهدف • [username] • [server] • [server_id] • [ticket_name] • [ticket_number] • [time] • [date] • [day] • [member_count]')
+        .setRequired(false);
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(contentInput),
+        new ActionRowBuilder().addComponents(titleInput),
+        new ActionRowBuilder().addComponents(descInput),
+        new ActionRowBuilder().addComponents(hintInput)
+    );
+
+    return modal;
+}
+
+/**
  * Modal تغيير اسم التذكرة (من قائمة تحكم الستاف داخل التكت)
  * @param {String} currentName
  */
@@ -313,5 +372,6 @@ module.exports = {
     buildPanelMessageModal,
     buildTicketEmbedModal,
     buildTicketNameModal,
+    buildActionMessageModal,
     buildRenameTicketModal,
 };

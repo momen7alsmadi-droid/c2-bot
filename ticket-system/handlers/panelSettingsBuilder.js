@@ -34,6 +34,7 @@ const { buildPublicPanelMessage } = require('./publicPanelBuilder');
 const { buildTicketEmbed } = require('./ticketEmbedBuilder');
 const { SUPPORTED_VARIABLES } = require('../utils/messageVariables');
 const { safeEmoji } = require('../utils/emoji');
+const { ACTION_KEYS, DEFAULT_ACTION_MESSAGES, getActionMessage, isActionEnabled } = require('../utils/actionMessages');
 
 const INFO_COLOR = 0x2ECC71; // أخضر مثل إيمبد "معلومات الإيمبد" في لوحة الإيمبد
 
@@ -43,6 +44,7 @@ const PAGES = {
     roles: { label: 'إعدادات الرتب', emoji: '🎭' },
     channels: { label: 'إعدادات الرومات', emoji: '📁' },
     messages: { label: 'الرسائل', emoji: '💬' },
+    actions: { label: 'رسائل الأزرار', emoji: '🔔' },
 };
 
 /**
@@ -89,7 +91,7 @@ function channelToText(channelId) {
  * @param {String} page - تُستخدم فقط في الفوتر (الصفحة الحالية)
  * @returns {EmbedBuilder}
  */
-function buildSettingsEmbed(panel, page) {
+function buildSettingsEmbed(panel, page, actionKey) {
     const embed = new EmbedBuilder()
         .setColor(INFO_COLOR)
         .setTitle('ℹ️ معلومات البنل')
@@ -171,11 +173,37 @@ function buildSettingsEmbed(panel, page) {
             inline: false,
         },
         {
+            name: '🔔 رسائل الأزرار',
+            value: (() => {
+                const enabledCount = ACTION_KEYS.filter(k => isActionEnabled(panel, k)).length;
+                return `🟢 ${enabledCount} مفعّلة من ${ACTION_KEYS.length} إجراءات (تخصيص كامل في صفحة رسائل الأزرار)`;
+            })(),
+            inline: false,
+        },
+        {
             name: '🔤 المتغيرات المدعومة',
             value: SUPPORTED_VARIABLES,
             inline: false,
         },
     );
+
+    // ===== صفحة رسائل الأزرار: تفاصيل الإجراء المحدد =====
+    if (page === 'actions' && actionKey) {
+        const msg = getActionMessage(panel, actionKey);
+        if (msg) {
+            const def = DEFAULT_ACTION_MESSAGES[actionKey];
+            embed.addFields({
+                name: `🔔 الإجراء المحدد: ${def.label}`,
+                value: [
+                    `**الحالة:** ${msg.enabled ? '🟢 مفعّلة' : '🔴 معطّلة'}`,
+                    msg.content ? `**فوق الإيمبد:** ${msg.content.slice(0, 500)}` : '**فوق الإيمبد:** (فارغ)',
+                    `**العنوان:** ${msg.title.slice(0, 256)}`,
+                    `**داخل الإيمبد:** ${msg.description.slice(0, 500)}`,
+                ].join('\n'),
+                inline: false,
+            });
+        }
+    }
 
     return embed;
 }
@@ -213,6 +241,10 @@ function buildGeneralPage(panel) {
         new ButtonBuilder()
             .setCustomId('settings_page_messages')
             .setLabel('💬 الرسائل')
+            .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+            .setCustomId('settings_page_actions')
+            .setLabel('🔔 رسائل الأزرار')
             .setStyle(ButtonStyle.Primary)
     );
 
@@ -372,6 +404,56 @@ function buildMessagesPage() {
 }
 
 /**
+ * بناء صفحة "رسائل الأزرار" — قائمة بكل إجراءات الأزرار مع
+ * حالتها (✅/❌)، واختيار أحدها يفعّل زري التعديل والتفعيل/الإطفاء
+ * عليه (يُحفظ الإجراء المحدد في الجلسة عبر settings_select_action).
+ * @param {Object} panel
+ * @param {String|null} actionKey - الإجراء المحدد حالياً (من الجلسة)
+ */
+function buildActionsPage(panel, actionKey) {
+    const select = new StringSelectMenuBuilder()
+        .setCustomId('settings_select_action')
+        .setPlaceholder('🔔 اختر الإجراء لتخصيص رسالته...')
+        .addOptions(
+            ACTION_KEYS.map(key => ({
+                label: `${isActionEnabled(panel, key) ? '✅' : '❌'} ${DEFAULT_ACTION_MESSAGES[key].label}`,
+                value: key,
+                default: actionKey === key,
+            }))
+        );
+
+    const selectRow = new ActionRowBuilder().addComponents(select);
+
+    const actionsRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('settings_edit_action')
+            .setLabel('📝 تعديل الرسالة')
+            .setStyle(ButtonStyle.Primary)
+            .setDisabled(!actionKey),
+        new ButtonBuilder()
+            .setCustomId('settings_toggle_action')
+            .setLabel('🔄 تفعيل / إطفاء')
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(!actionKey)
+    );
+
+    return [selectRow, actionsRow];
+}
+
+/**
+ * بناء إيمبد معاينة رسالة إجراء معيّن (كما ستراها في التكت)
+ */
+function buildActionPreview(panel, actionKey) {
+    const msg = getActionMessage(panel, actionKey);
+    if (!msg) return null;
+    return new EmbedBuilder()
+        .setColor(0x2ECC71)
+        .setTitle(msg.title)
+        .setDescription(msg.description)
+        .setTimestamp();
+}
+
+/**
  * الدالة الرئيسية المصدَّرة: تبني لوحة إعدادات البنل كاملة لواجهة معينة
  * بنفس شكل لوحة الإيمبد: إيمبد أخضر للمعلومات + معاينة حية + أزرار التحكم.
  *
@@ -380,14 +462,15 @@ function buildMessagesPage() {
  *  - roles/channels/messages : واجهات فرعية بصف رجوع للإعدادات العامة
  *
  * @param {String} panelName
- * @param {'general'|'roles'|'channels'|'messages'} page
+ * @param {'general'|'roles'|'channels'|'messages'|'actions'} page
+ * @param {String} [actionKey] - الإجراء المحدد في صفحة رسائل الأزرار
  * @returns {{ embeds: EmbedBuilder[], components: ActionRowBuilder[] } | null} null إذا لم يوجد البنل
  */
-function buildPanelSettings(panelName, page = 'general') {
+function buildPanelSettings(panelName, page = 'general', actionKey) {
     const panel = getPanelByName(panelName);
     if (!panel) return null;
 
-    const infoEmbed = buildSettingsEmbed(panel, page);
+    const infoEmbed = buildSettingsEmbed(panel, page, actionKey);
 
     // معاينة حية لما سيراه الأعضاء (نفس فكرة معاينة لوحة الإيمبد)
     const previewEmbed = buildPublicPanelMessage(panel).embeds[0];
@@ -398,11 +481,18 @@ function buildPanelSettings(panelName, page = 'general') {
         embeds.push(buildTicketEmbed(panel));
     }
 
+    // في صفحة رسائل الأزرار: معاينة رسالة الإجراء المحدد
+    if (page === 'actions' && actionKey) {
+        const preview = buildActionPreview(panel, actionKey);
+        if (preview) embeds.push(preview);
+    }
+
     let rows = [];
     if (page === 'general') rows = buildGeneralPage(panel);
     else if (page === 'roles') rows = [...buildRolesPage(panel), buildBackToGeneralRow()];
     else if (page === 'channels') rows = [...buildChannelsPage(), buildBackToGeneralRow()];
     else if (page === 'messages') rows = [...buildMessagesPage(), buildBackToGeneralRow()];
+    else if (page === 'actions') rows = [...buildActionsPage(panel, actionKey), buildBackToGeneralRow()];
 
     return {
         embeds,

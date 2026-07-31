@@ -39,10 +39,12 @@ const {
     buildPanelMessageModal,
     buildTicketEmbedModal,
     buildTicketNameModal,
+    buildActionMessageModal,
 } = require('./modalsBuilder');
 const { getPanelByName, updatePanel, deletePanel } = require('../database/panelsDB');
 const { getSession, setSession, clearSession } = require('./sessionStore');
 const { resolvePanel, resolveSession } = require('../utils/panelResolver');
+const { getActionMessage } = require('../utils/actionMessages');
 
 // خريطة تربط كل customId (الجزء الأول) بنوع اللوحة الفرعية المطلوب بناؤها
 const SUB_PANEL_MAP = {
@@ -58,6 +60,7 @@ const SETTINGS_PAGE_IDS = [
     'settings_page_roles',
     'settings_page_channels',
     'settings_page_messages',
+    'settings_page_actions',
 ];
 
 /**
@@ -74,6 +77,8 @@ async function handleTicketButton(interaction) {
         'settings_edit_panel_message',
         'settings_edit_ticket_embed',
         'settings_edit_ticket_name',
+        'settings_edit_action',
+        'settings_toggle_action',
         'settings_toggle_enabled',
         'settings_save',
         'ticket_log_back',
@@ -195,7 +200,8 @@ async function handleTicketButton(interaction) {
             // نصلّح الجلسة بصراحة (الاسم من الجلسة أو من التذييل)
             setSession(interaction.message.id, { panelName: session.panelName, page });
 
-            const result = buildPanelSettings(session.panelName, page);
+            // في صفحة رسائل الأزرار نمرر الإجراء المحدد لعرض تفاصيله ومعاينته
+            const result = buildPanelSettings(session.panelName, page, session.actionKey);
             if (!result) {
                 await interaction.followUp({
                     content: '⚠️ لم يتم العثور على هذا البنل، ربما تم حذفه.',
@@ -275,6 +281,57 @@ async function handleTicketButton(interaction) {
                 return;
             }
             await interaction.showModal(buildTicketNameModal(panel));
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 7-هـ) زر "تعديل رسالة الإجراء" -> فتح Modal
+        //      يعمل على الإجراء المحدد في الجلسة (session.actionKey)
+        // ---------------------------------------------------
+        if (interaction.customId === 'settings_edit_action') {
+            const session = resolveSession(interaction);
+            if (!session.panelName || !session.actionKey) {
+                await interaction.reply({ content: '⚠️ اختر إجراءً من القائمة أولاً.', ephemeral: true });
+                return;
+            }
+            const panel = getPanelByName(session.panelName);
+            if (!panel) {
+                await interaction.reply({ content: '⚠️ لم يتم العثور على هذا البنل.', ephemeral: true });
+                return;
+            }
+            await interaction.showModal(buildActionMessageModal(panel, session.actionKey));
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 7-و) زر "تفعيل / إطفاء" رسالة الإجراء المحدد
+        // ---------------------------------------------------
+        if (interaction.customId === 'settings_toggle_action') {
+            await interaction.deferUpdate().catch(() => {});
+
+            const session = resolveSession(interaction);
+            if (!session.panelName || !session.actionKey) {
+                await interaction.followUp({ content: '⚠️ اختر إجراءً من القائمة أولاً.', ephemeral: true }).catch(() => {});
+                return;
+            }
+            const panel = getPanelByName(session.panelName);
+            if (!panel) {
+                await interaction.followUp({ content: '⚠️ لم يتم العثور على هذا البنل.', ephemeral: true }).catch(() => {});
+                return;
+            }
+
+            const current = panel.actionMessages || {};
+            const currentMsg = current[session.actionKey] || {};
+            const wasEnabled = getActionMessage(panel, session.actionKey).enabled;
+            updatePanel(session.panelName, {
+                actionMessages: {
+                    ...current,
+                    [session.actionKey]: { ...currentMsg, enabled: !wasEnabled },
+                },
+            });
+
+            const result = buildPanelSettings(session.panelName, 'actions');
+            await interaction.editReply(result);
             return;
         }
 

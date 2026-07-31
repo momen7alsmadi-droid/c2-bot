@@ -30,6 +30,7 @@ const { getSession, updateSession } = require('./ticketStore');
 const { canUseRestrictedControls } = require('./permissionUtils');
 const { applyUnlockPermissions } = require('./ticketPermissionHelpers');
 const { buildTicketControlRows } = require('./ticketControlBuilder');
+const { sendActionMessage } = require('../utils/actionMessages');
 
 const DELETE_COUNTDOWN_SECONDS = 10;
 
@@ -129,6 +130,14 @@ async function handleTicketCloseButton(interaction) {
                     await controlMessage.edit({ components: rows }).catch(() => {});
                 }
             }
+
+            // رسالة "فتح التذكرة"
+            await sendActionMessage(interaction.channel, panel, 'reopen', {
+                member: interaction.member,
+                guild: interaction.guild,
+                channelName: interaction.channel.name,
+                channelId: interaction.channel.id,
+            });
             return;
         }
 
@@ -152,6 +161,15 @@ async function handleTicketCloseButton(interaction) {
                     // نستدعي منطق الأرشفة والحذف الفعلي (transcript + log + delete channel)
                     // بشكل منفصل حتى لا يتضخم هذا الملف بمنطق لا يخصه
                     const { finalizeTicketDeletion } = require('./transcriptLogger');
+
+                    // رسالة "حذف التذكرة" قبل الحذف الفعلي (تظهر في الأرشيف)
+                    await sendActionMessage(interaction.channel, panel, 'delete', {
+                        member: interaction.member,
+                        guild: interaction.guild,
+                        channelName: interaction.channel.name,
+                        channelId: interaction.channel.id,
+                    });
+
                     await finalizeTicketDeletion(interaction.channel, panel).catch(err =>
                         console.error('[ticketCloseHandler] فشل في إتمام أرشفة/حذف التذكرة:', err)
                     );
