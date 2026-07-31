@@ -27,6 +27,7 @@ const { buildPanelSettings } = require('./panelSettingsBuilder');
 const { setSession, getSession } = require('./sessionStore');
 const { getSession: getTicketSession, addAuditLog } = require('./ticketStore');
 const { safeEmoji } = require('../utils/emoji');
+const { resolveSession } = require('../utils/panelResolver');
 
 const RELEVANT_IDS = ['modal_create_panel', 'modal_edit_name_desc', 'modal_welcome_message', 'modal_panel_message', 'modal_rename_ticket'];
 
@@ -104,7 +105,7 @@ async function handleTicketModal(interaction) {
         // 2) تعديل الاسم / الوصف / الإيموجي لبنل موجود
         // ---------------------------------------------------
         if (interaction.customId === 'modal_edit_name_desc') {
-            const session = getSession(interaction.isFromMessage() ? interaction.message.id : null);
+            const session = resolveSession(interaction);
             if (!session.panelName) {
                 await interaction.reply({ content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء المحاولة مجدداً.', ephemeral: true });
                 return;
@@ -146,7 +147,7 @@ async function handleTicketModal(interaction) {
         // 3) حفظ رسالة الترحيب المخصصة
         // ---------------------------------------------------
         if (interaction.customId === 'modal_welcome_message') {
-            const session = getSession(interaction.isFromMessage() ? interaction.message.id : null);
+            const session = resolveSession(interaction);
             if (!session.panelName) {
                 await interaction.reply({ content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء المحاولة مجدداً.', ephemeral: true });
                 return;
@@ -166,7 +167,7 @@ async function handleTicketModal(interaction) {
         //      (كل حقل فارغ = القيمة الافتراضية عند العرض)
         // ---------------------------------------------------
         if (interaction.customId === 'modal_panel_message') {
-            const session = getSession(interaction.isFromMessage() ? interaction.message.id : null);
+            const session = resolveSession(interaction);
             if (!session.panelName) {
                 await interaction.reply({ content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء المحاولة مجدداً.', ephemeral: true });
                 return;

@@ -34,6 +34,7 @@ const { buildPanelSettings } = require('./panelSettingsBuilder');
 const { getPanelByName, updatePanel } = require('../database/panelsDB');
 const { setSession, getSession } = require('./sessionStore');
 const { buildPublicPanelMessage } = require('./publicPanelBuilder');
+const { resolveSession } = require('../utils/panelResolver');
 
 async function handleTicketSelectMenu(interaction) {
     const { customId } = interaction;
@@ -166,7 +167,12 @@ async function handleTicketSelectMenu(interaction) {
                 .setTimestamp();
 
             // معاينة حية لما سيراه الأعضاء (نفس فكرة معاينة لوحة الإيمبد)
-            const preview = buildPublicPanelMessage(panel).embeds[0];
+            let preview = null;
+            try {
+                preview = buildPublicPanelMessage(panel).embeds[0];
+            } catch (err) {
+                console.error('[selectMenuHandler] فشل بناء المعاينة:', err.message);
+            }
 
             const backRow = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
@@ -179,7 +185,10 @@ async function handleTicketSelectMenu(interaction) {
                     .setStyle(ButtonStyle.Secondary),
             );
 
-            await interaction.editReply({ embeds: [infoEmbed, preview], components: [backRow] });
+            await interaction.editReply({
+                embeds: preview ? [infoEmbed, preview] : [infoEmbed],
+                components: [backRow],
+            });
             return;
         }
 
@@ -244,8 +253,14 @@ async function handleTicketSelectMenu(interaction) {
         if (customId === 'settings_select_ticket_system') {
             await interaction.deferUpdate().catch(() => {});
 
-            const session = getSession(interaction.message.id);
-            if (!session.panelName) return;
+            const session = resolveSession(interaction);
+            if (!session.panelName) {
+                await interaction.followUp({
+                    content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء الرجوع للوحة الرئيسية والمحاولة مجدداً.',
+                    ephemeral: true,
+                }).catch(() => {});
+                return;
+            }
 
             const selectedType = interaction.values[0]; // 'buttons' | 'select'
             updatePanel(session.panelName, { ticketSystemType: selectedType });
@@ -261,8 +276,14 @@ async function handleTicketSelectMenu(interaction) {
         if (customId === 'settings_select_linked_panel') {
             await interaction.deferUpdate().catch(() => {});
 
-            const session = getSession(interaction.message.id);
-            if (!session.panelName) return;
+            const session = resolveSession(interaction);
+            if (!session.panelName) {
+                await interaction.followUp({
+                    content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء الرجوع للوحة الرئيسية والمحاولة مجدداً.',
+                    ephemeral: true,
+                }).catch(() => {});
+                return;
+            }
 
             const selected = interaction.values[0];
             const linkedPanel = selected === 'unlink' || selected === 'none' ? null : selected;
@@ -275,7 +296,10 @@ async function handleTicketSelectMenu(interaction) {
     } catch (error) {
         console.error('[selectMenuHandler] حدث خطأ أثناء معالجة القائمة المنسدلة:', error);
 
-        const errorPayload = { content: '❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الإجراء.', ephemeral: true };
+        const errorPayload = {
+            content: `❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الإجراء.\n\`\`\`${error.message}\`\`\``,
+            ephemeral: true,
+        };
         if (interaction.deferred || interaction.replied) {
             await interaction.followUp(errorPayload).catch(() => {});
         } else {

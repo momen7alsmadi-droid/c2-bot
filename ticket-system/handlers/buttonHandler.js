@@ -40,6 +40,7 @@ const {
 } = require('./modalsBuilder');
 const { getPanelByName, updatePanel, deletePanel } = require('../database/panelsDB');
 const { getSession, setSession, clearSession } = require('./sessionStore');
+const { resolvePanel, resolveSession } = require('../utils/panelResolver');
 
 // خريطة تربط كل customId (الجزء الأول) بنوع اللوحة الفرعية المطلوب بناؤها
 const SUB_PANEL_MAP = {
@@ -176,9 +177,9 @@ async function handleTicketButton(interaction) {
         if (SETTINGS_PAGE_IDS.includes(interaction.customId)) {
             await interaction.deferUpdate().catch(() => {});
 
-            const session = getSession(interaction.message.id);
+            const session = resolveSession(interaction);
             if (!session.panelName) {
-                // حماية إضافية: إذا فُقدت الجلسة (مثلاً بعد إعادة تشغيل البوت)
+                // حماية إضافية: إذا فُقدت الجلسة ولم يوجد التذييل
                 await interaction.followUp({
                     content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء الرجوع للوحة الرئيسية والمحاولة مجدداً.',
                     ephemeral: true,
@@ -187,7 +188,8 @@ async function handleTicketButton(interaction) {
             }
 
             const page = interaction.customId.replace('settings_page_', ''); // general/roles/channels/messages
-            setSession(interaction.message.id, { page });
+            // نصلّح الجلسة بصراحة (الاسم من الجلسة أو من التذييل)
+            setSession(interaction.message.id, { panelName: session.panelName, page });
 
             const result = buildPanelSettings(session.panelName, page);
             if (!result) {
@@ -206,8 +208,7 @@ async function handleTicketButton(interaction) {
         // 6) زر "تعديل الاسم والوصف" -> فتح Modal (بدون defer)
         // ---------------------------------------------------
         if (interaction.customId === 'settings_edit_name_desc') {
-            const session = getSession(interaction.message.id);
-            const panel = session.panelName ? getPanelByName(session.panelName) : null;
+            const panel = resolvePanel(interaction);
             if (!panel) {
                 await interaction.reply({ content: '⚠️ لم يتم العثور على هذا البنل.', ephemeral: true });
                 return;
@@ -220,8 +221,7 @@ async function handleTicketButton(interaction) {
         // 7) زر "تخصيص رسالة الترحيب" -> فتح Modal (بدون defer)
         // ---------------------------------------------------
         if (interaction.customId === 'settings_edit_welcome') {
-            const session = getSession(interaction.message.id);
-            const panel = session.panelName ? getPanelByName(session.panelName) : null;
+            const panel = resolvePanel(interaction);
             if (!panel) {
                 await interaction.reply({ content: '⚠️ لم يتم العثور على هذا البنل.', ephemeral: true });
                 return;
@@ -236,8 +236,7 @@ async function handleTicketButton(interaction) {
         //      للتخصيص: العنوان + الوصف + التذييل + اللون
         // ---------------------------------------------------
         if (interaction.customId === 'settings_edit_panel_message') {
-            const session = getSession(interaction.message.id);
-            const panel = session.panelName ? getPanelByName(session.panelName) : null;
+            const panel = resolvePanel(interaction);
             if (!panel) {
                 await interaction.reply({ content: '⚠️ لم يتم العثور على هذا البنل.', ephemeral: true });
                 return;
@@ -252,7 +251,7 @@ async function handleTicketButton(interaction) {
         if (interaction.customId === 'settings_toggle_enabled') {
             await interaction.deferUpdate().catch(() => {});
 
-            const session = getSession(interaction.message.id);
+            const session = resolveSession(interaction);
             const panel = session.panelName ? getPanelByName(session.panelName) : null;
             if (!panel) {
                 await interaction.followUp({ content: '⚠️ لم يتم العثور على هذا البنل.', ephemeral: true }).catch(() => {});
@@ -273,8 +272,7 @@ async function handleTicketButton(interaction) {
         if (interaction.customId === 'settings_save') {
             await interaction.deferUpdate().catch(() => {});
 
-            const session = getSession(interaction.message.id);
-            const panel = session.panelName ? getPanelByName(session.panelName) : null;
+            const panel = resolvePanel(interaction);
             if (!panel) {
                 await interaction.followUp({ content: '⚠️ لم يتم العثور على هذا البنل.', ephemeral: true }).catch(() => {});
                 return;

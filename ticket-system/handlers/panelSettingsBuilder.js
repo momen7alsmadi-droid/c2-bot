@@ -92,7 +92,7 @@ function buildSettingsEmbed(panel, page) {
     const embed = new EmbedBuilder()
         .setColor(INFO_COLOR)
         .setTitle('ℹ️ معلومات البنل')
-        .setFooter({ text: `الصفحة الحالية: ${PAGES[page].label}` })
+        .setFooter({ text: `بنل: ${panel.name} | الصفحة: ${PAGES[page].label}` })
         .setTimestamp();
 
     // ===== الحقول الصغيرة (inline) =====
