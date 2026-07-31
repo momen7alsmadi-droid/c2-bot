@@ -479,6 +479,60 @@ async function handleArEdit(interaction) {
   });
 }
 
+// ================== 3.1 معالج قائمة التعديل (ar_edit_select) ==================
+
+/**
+ * معالج اختيار رد من القائمة المنسدلة لتعديله.
+ * الحل الصارم لمشكلتين:
+ *  1) InteractionNotReplied → deferUpdate في أول سطر.
+ *  2) "الرد غير موجود" → استخراج الاسم بـ slice ليطابق مفتاح قاعدة البيانات تماماً،
+ *     مع التحقق من وجوده قبل عرض اللوحة، وتحديث نفس الرسالة عبر editReply.
+ */
+async function handleArEditSelect(interaction) {
+  // 1) تأجيل فوري — أول رد للتفاعل (يمنع خطأ InteractionNotReplied)
+  await interaction.deferUpdate().catch(() => {});
+
+  // 2) فحص القيمة القادمة من القائمة المنسدلة
+  const val = interaction.values[0];
+  console.log(`🔽 [ar_edit_select] القيمة من القائمة: "${val}"`);
+
+  if (!val) {
+    return respondOrUpdate(interaction, { content: '⚠️ لم يتم تحديد أي رد.' });
+  }
+
+  // 3) استخراج اسم الرد من القيمة — slice يقطع البادئة بالضبط
+  //    (القيم بُنيت في handleArEdit على الصيغة: ar_edit_text_{name} / ar_edit_react_{name})
+  let name;
+  let isReact = false;
+  if (val.startsWith('ar_edit_react_')) {
+    isReact = true;
+    name = val.slice('ar_edit_react_'.length);
+  } else if (val.startsWith('ar_edit_text_')) {
+    name = val.slice('ar_edit_text_'.length);
+  } else {
+    console.error(`❌ [ar_edit_select] قيمة غير معروفة: "${val}"`);
+    return respondOrUpdate(interaction, { content: `⚠️ قيمة غير معروفة: \`${val}\`` });
+  }
+
+  console.log(`🔽 [ar_edit_select] اسم الرد المستخرج: "${name}"`);
+
+  // 4) مطابقة الاسم مع مفتاح البحث في قاعدة البيانات
+  if (isReact) {
+    const { showRrControlPanel } = require('./reactReply');
+    return showRrControlPanel(interaction, name);
+  }
+
+  const data = await getReply(name);
+  if (!data) {
+    console.error(`❌ [ar_edit_select] الرد غير موجود في قاعدة البيانات: "${name}"`);
+    return respondOrUpdate(interaction, { content: `⚠️ الرد غير موجود في قاعدة البيانات: \`${name}\`` });
+  }
+  console.log(`✅ [ar_edit_select] تم العثور على الرد: "${name}"`);
+
+  // 5) عرض لوحة التحكم على نفس الرسالة (respondOrUpdate → editReply بعد deferUpdate)
+  return showArControlPanel(interaction, name);
+}
+
 // ================== 4. حذف رد ==================
 
 async function handleArDelete(interaction) {
@@ -1024,17 +1078,9 @@ async function handleAutoReplyInteraction(interaction) {
     return handleArView(interaction, name);
   }
 
-  // اختيار للتعديل (نصي أو تفاعل)
+  // اختيار للتعديل (نصي أو تفاعل) — معالج مخصص بإصلاح صارم
   if (id === 'ar_edit_select') {
-    const val = interaction.values[0];
-    if (val.startsWith('ar_edit_react_')) {
-      const name = val.replace('ar_edit_react_', '');
-      const { showRrControlPanel } = require('./reactReply');
-      return showRrControlPanel(interaction, name);
-    } else {
-      const name = val.replace('ar_edit_text_', '');
-      return showArControlPanel(interaction, name);
-    }
+    return handleArEditSelect(interaction);
   }
 
   // اختيار للحذف (نصي أو تفاعل)
