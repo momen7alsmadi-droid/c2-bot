@@ -252,6 +252,40 @@ function buildTicketEmbedModal(panel) {
 }
 
 /**
+ * Modal تخصيص اسم روم التذكرة (يدعم المتغيرات)
+ * مثال: ticket-[username] أو [ticket_number]-[username]
+ * @param {Object} panel
+ */
+function buildTicketNameModal(panel) {
+    const modal = new ModalBuilder()
+        .setCustomId('modal_ticket_name')
+        .setTitle('🏷️ تخصيص اسم التكت');
+
+    const templateInput = new TextInputBuilder()
+        .setCustomId('ticket_name_template')
+        .setLabel('قالب اسم الروم (فارغ = ticket-[username])')
+        .setStyle(TextInputStyle.Short)
+        .setValue(panel.ticketNameTemplate || '')
+        .setPlaceholder('مثال: ticket-[username] أو [ticket_number]-[username]')
+        .setMaxLength(100)
+        .setRequired(false);
+
+    const hintInput = new TextInputBuilder()
+        .setCustomId('ticket_name_hint')
+        .setLabel('المتغيرات المدعومة في الاسم')
+        .setStyle(TextInputStyle.Paragraph)
+        .setValue('[username] الاسم • [id] الآيدي • [server] السيرفر • [server_id] • [member_count] • [ticket_number] • [boosts] • [boost_tier] • [time] • [date] • [day]\n\nمنشنات مثل [user] [staff] تتحول لشرطة - تلقائياً لأن أسماء الرومات لا تدعمها')
+        .setRequired(false);
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(templateInput),
+        new ActionRowBuilder().addComponents(hintInput)
+    );
+
+    return modal;
+}
+
+/**
  * Modal تغيير اسم التذكرة (من قائمة تحكم الستاف داخل التكت)
  * @param {String} currentName
  */
@@ -278,5 +312,6 @@ module.exports = {
     buildWelcomeMessageModal,
     buildPanelMessageModal,
     buildTicketEmbedModal,
+    buildTicketNameModal,
     buildRenameTicketModal,
 };

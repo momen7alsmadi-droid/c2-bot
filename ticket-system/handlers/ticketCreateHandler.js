@@ -29,14 +29,7 @@ const { canOpenTicket } = require('./permissionUtils');
 const { createSession, updateSession, addAuditLog } = require('./ticketStore');
 const { buildTicketControlRows } = require('./ticketControlBuilder');
 const { buildTicketEmbed } = require('./ticketEmbedBuilder');
-
-/**
- * توليد اسم روم آمن (بدون رموز يرفضها ديسكورد) من اسم العضو
- */
-function buildChannelName(panel, member) {
-    const safeUsername = member.user.username.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]/gi, '-');
-    return `ticket-${safeUsername}`.slice(0, 90);
-}
+const { buildTicketChannelName } = require('../utils/ticketChannelName');
 
 /**
  * @param {import('discord.js').ButtonInteraction | import('discord.js').StringSelectMenuInteraction} interaction
@@ -112,7 +105,15 @@ async function handleTicketCreate(interaction) {
             })),
         ];
 
-        const channelName = buildChannelName(panel, interaction.member);
+        // اسم روم التذكرة: قالب مخصص يدعم المتغيرات (يُنظف تلقائياً)
+        // الافتراضي: ticket-[username]
+        const channelName = buildTicketChannelName(panel, {
+            member: interaction.member,
+            guild,
+            ticketNumber: category.children.cache.size,
+            staffRoles: panel.staffRoles,
+            pingRoles: panel.pingRoles,
+        });
 
         const ticketChannel = await guild.channels.create({
             name: channelName,

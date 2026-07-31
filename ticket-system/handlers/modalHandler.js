@@ -29,7 +29,7 @@ const { getSession: getTicketSession, addAuditLog } = require('./ticketStore');
 const { safeEmoji } = require('../utils/emoji');
 const { resolveSession } = require('../utils/panelResolver');
 
-const RELEVANT_IDS = ['modal_create_panel', 'modal_edit_name_desc', 'modal_welcome_message', 'modal_panel_message', 'modal_ticket_embed', 'modal_rename_ticket'];
+const RELEVANT_IDS = ['modal_create_panel', 'modal_edit_name_desc', 'modal_welcome_message', 'modal_panel_message', 'modal_ticket_embed', 'modal_ticket_name', 'modal_rename_ticket'];
 
 /**
  * تحويل إدخال الصورة من الإداري إلى رابط صورة صالح:
@@ -286,6 +286,25 @@ async function handleTicketModal(interaction) {
             await interaction.update(result);
             return;
         }
+        // ---------------------------------------------------
+        // 3-د) حفظ قالب اسم روم التذكرة (يدعم المتغيرات)
+        //      فارغ = الافتراضي ticket-[username]
+        // ---------------------------------------------------
+        if (interaction.customId === 'modal_ticket_name') {
+            const session = resolveSession(interaction);
+            if (!session.panelName) {
+                await interaction.reply({ content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء المحاولة مجدداً.', ephemeral: true });
+                return;
+            }
+
+            const template = interaction.fields.getTextInputValue('ticket_name_template').trim();
+            updatePanel(session.panelName, { ticketNameTemplate: template || null });
+
+            const result = buildPanelSettings(session.panelName, 'messages');
+            await interaction.update(result);
+            return;
+        }
+
         // ---------------------------------------------------
         // 4) تغيير اسم التذكرة (من قائمة تحكم الستاف داخل التكت)
         // ---------------------------------------------------

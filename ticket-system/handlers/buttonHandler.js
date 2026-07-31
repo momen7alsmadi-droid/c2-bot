@@ -38,6 +38,7 @@ const {
     buildWelcomeMessageModal,
     buildPanelMessageModal,
     buildTicketEmbedModal,
+    buildTicketNameModal,
 } = require('./modalsBuilder');
 const { getPanelByName, updatePanel, deletePanel } = require('../database/panelsDB');
 const { getSession, setSession, clearSession } = require('./sessionStore');
@@ -72,6 +73,7 @@ async function handleTicketButton(interaction) {
         'settings_edit_welcome',
         'settings_edit_panel_message',
         'settings_edit_ticket_embed',
+        'settings_edit_ticket_name',
         'settings_toggle_enabled',
         'settings_save',
         'ticket_log_back',
@@ -259,6 +261,20 @@ async function handleTicketButton(interaction) {
                 return;
             }
             await interaction.showModal(buildTicketEmbedModal(panel));
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 7-د) زر "تخصيص اسم التكت" -> فتح Modal (بدون defer)
+        //      قالب اسم روم التذكرة يدعم المتغيرات
+        // ---------------------------------------------------
+        if (interaction.customId === 'settings_edit_ticket_name') {
+            const panel = resolvePanel(interaction);
+            if (!panel) {
+                await interaction.reply({ content: '⚠️ لم يتم العثور على هذا البنل.', ephemeral: true });
+                return;
+            }
+            await interaction.showModal(buildTicketNameModal(panel));
             return;
         }
 

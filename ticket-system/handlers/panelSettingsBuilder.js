@@ -164,6 +164,13 @@ function buildSettingsEmbed(panel, page) {
             inline: false,
         },
         {
+            name: '🏷️ اسم روم التكت',
+            value: panel.ticketNameTemplate
+                ? `\`${panel.ticketNameTemplate.slice(0, 100)}\``
+                : '\`ticket-[username]\` (الافتراضي)',
+            inline: false,
+        },
+        {
             name: '🔤 المتغيرات المدعومة',
             value: SUPPORTED_VARIABLES,
             inline: false,
@@ -354,7 +361,14 @@ function buildMessagesPage() {
             .setStyle(ButtonStyle.Secondary)
     );
 
-    return [messagesRow, ticketEmbedRow];
+    const ticketNameRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('settings_edit_ticket_name')
+            .setLabel('🏷️ تخصيص اسم التكت')
+            .setStyle(ButtonStyle.Secondary)
+    );
+
+    return [messagesRow, ticketEmbedRow, ticketNameRow];
 }
 
 /**
