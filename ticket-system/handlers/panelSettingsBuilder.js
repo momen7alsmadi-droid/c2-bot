@@ -70,10 +70,12 @@ function buildNavRow(activePage) {
 
 /**
  * تحويل مصفوفة آيدي الرتب إلى نص منشنات (أو "لا يوجد")
+ * مع قصّ آمن عند تجاوز الحد الأقصى لحقل الإيمبد (1024)
  */
 function rolesToText(roleIds) {
     if (!roleIds || roleIds.length === 0) return 'لا يوجد';
-    return roleIds.map(id => `<@&${id}>`).join(', ');
+    const text = roleIds.map(id => `<@&${id}>`).join(', ');
+    return text.length > 1000 ? text.slice(0, 1000) + '…' : text;
 }
 
 /**
@@ -84,10 +86,16 @@ function channelToText(channelId) {
 }
 
 /**
- * بناء الإيمبد المشترك لكل صفحات الإعدادات - بنفس شكل لوحة الإيمبد:
- * إيمبد أخضر "معلومات" يعرض ملخصاً حسب الصفحة الحالية.
+ * بناء إيمبد معلومات البنل — بنفس نظام الردود التلقائية:
+ * يعرض كل إعدادات البنل في نفس الوقت (ديناميكياً) ويتحدّث
+ * فوراً عند أي تغيير: رتب، رومات، رسائل، نظام فتح... إلخ.
+ *
+ * الحقول الصغيرة: inline:true (بجانب بعضها)
+ * القوائم الطويلة: inline:false (سطر كامل)
+ * الحالة: مؤشرات 🟢/🔴 مثل لوحة الردود التلقائية
+ *
  * @param {Object} panel
- * @param {String} page
+ * @param {String} page - تُستخدم فقط في الفوتر (الصفحة الحالية)
  * @returns {EmbedBuilder}
  */
 function buildSettingsEmbed(panel, page) {
@@ -97,60 +105,60 @@ function buildSettingsEmbed(panel, page) {
         .setFooter({ text: `الصفحة الحالية: ${PAGES[page].label}` })
         .setTimestamp();
 
-    // شريط حالة علوي يظهر في كل الصفحات (نفس فكرة حقل الحالة في لوحة الإيمبد)
+    // ===== الحقول الصغيرة (inline) =====
     embed.addFields(
         { name: '🏷️ الاسم', value: `${panel.emoji || '🎫'} ${panel.name}`, inline: true },
         { name: '📨 الحالة', value: panel.enabled ? '🟢 مفعّل' : '🔴 معطّل', inline: true },
+        {
+            name: '🔘 نظام فتح التكت',
+            value: panel.ticketSystemType === 'select' ? '📋 قائمة منسدلة' : '🔘 أزرار',
+            inline: true,
+        },
+        {
+            name: '🔗 البنل المرتبط',
+            value: panel.linkedPanel ? panel.linkedPanel : 'لا يوجد',
+            inline: true,
+        },
     );
 
-    if (page === 'general') {
-        embed.setDescription(panel.description || 'لا يوجد وصف');
-        embed.addFields(
-            {
-                name: '🔘 نظام فتح التكت',
-                value: panel.ticketSystemType === 'select' ? 'قائمة منسدلة' : 'أزرار',
-                inline: true,
-            },
-            {
-                name: '🔗 البنل المرتبط',
-                value: panel.linkedPanel ? panel.linkedPanel : 'لا يوجد',
-                inline: true,
-            }
-        );
-    }
-
-    if (page === 'roles') {
-        embed.addFields(
-            { name: '🎭 الستاف (Staff)', value: rolesToText(panel.staffRoles) },
-            { name: '🔔 رتب المنشن (Ping)', value: rolesToText(panel.pingRoles) },
-            { name: '✅ الرتب المسموحة', value: rolesToText(panel.allowedRoles) },
-            { name: '🚫 الرتب الممنوعة', value: rolesToText(panel.deniedRoles) },
-            {
-                name: '📝 ملاحظة',
-                value: 'أي رتبة تملك صلاحية Administrator لها كامل الصلاحيات تلقائياً في كل الحالات.',
-            }
-        );
-    }
-
-    if (page === 'channels') {
-        embed.addFields(
-            { name: '📁 الكاتيجوري', value: channelToText(panel.categoryId), inline: true },
-            { name: '📜 روم اللوق', value: channelToText(panel.logChannelId), inline: true }
-        );
-    }
-
-    if (page === 'messages') {
+    // ===== الوصف (إن وُجد) =====
+    if (panel.description) {
         embed.addFields({
-            name: '💬 رسالة الترحيب الحالية',
-            value: panel.welcomeMessage
-                ? panel.welcomeMessage.slice(0, 1000)
-                : 'لم يتم تخصيص رسالة بعد (سيتم استخدام رسالة افتراضية)',
+            name: '📝 الوصف',
+            value: panel.description.slice(0, 1024),
+            inline: false,
         });
-        embed.addFields({
+    }
+
+    // ===== الرتب (قوائم كاملة) =====
+    embed.addFields(
+        { name: '🎭 الستاف', value: rolesToText(panel.staffRoles), inline: false },
+        { name: '🔔 رتب المنشن', value: rolesToText(panel.pingRoles), inline: false },
+        { name: '✅ الرتب المسموحة', value: rolesToText(panel.allowedRoles), inline: false },
+        { name: '🚫 الرتب الممنوعة', value: rolesToText(panel.deniedRoles), inline: false },
+    );
+
+    // ===== الرومات =====
+    embed.addFields(
+        { name: '📁 الكاتيجوري', value: channelToText(panel.categoryId), inline: true },
+        { name: '📜 روم اللوق', value: channelToText(panel.logChannelId), inline: true },
+    );
+
+    // ===== الرسائل =====
+    embed.addFields(
+        {
+            name: '💬 رسالة الترحيب',
+            value: panel.welcomeMessage
+                ? panel.welcomeMessage.slice(0, 1024)
+                : 'لم تُخصص بعد (ستُستخدم الافتراضية)',
+            inline: false,
+        },
+        {
             name: '🔤 المتغيرات المدعومة',
             value: '`[user]` منشن العضو • `[server]` اسم السيرفر • `[ticket_name]` اسم التكت • `[time]` الوقت',
-        });
-    }
+            inline: false,
+        },
+    );
 
     return embed;
 }
