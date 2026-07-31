@@ -330,7 +330,7 @@ async function handleTicketButton(interaction) {
                 },
             });
 
-            const result = buildPanelSettings(session.panelName, 'actions');
+            const result = buildPanelSettings(session.panelName, 'actions', session.actionKey);
             await interaction.editReply(result);
             return;
         }

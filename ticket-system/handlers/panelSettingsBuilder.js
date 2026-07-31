@@ -434,6 +434,11 @@ function buildActionsPage(panel, actionKey) {
 
     const selectRow = new ActionRowBuilder().addComponents(select);
 
+    // زر التبديل ديناميكي اللون حسب حالة الرسالة:
+    //   - لم يُختر إجراء بعد  -> رمادي معطّل
+    //   - الرسالة تعمل       -> أخضر (Success) "🟢 الرسالة مفعّلة"
+    //   - الرسالة مطفأة      -> أحمر (Danger) "🔴 الرسالة معطّلة"
+    const isOn = actionKey ? isActionEnabled(panel, actionKey) : null;
     const actionsRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('settings_edit_action')
@@ -442,8 +447,20 @@ function buildActionsPage(panel, actionKey) {
             .setDisabled(!actionKey),
         new ButtonBuilder()
             .setCustomId('settings_toggle_action')
-            .setLabel('🔄 تفعيل / إطفاء')
-            .setStyle(ButtonStyle.Secondary)
+            .setLabel(
+                isOn === null
+                    ? '🔄 تفعيل / إطفاء'
+                    : isOn
+                    ? '🟢 الرسالة مفعّلة'
+                    : '🔴 الرسالة معطّلة'
+            )
+            .setStyle(
+                isOn === null
+                    ? ButtonStyle.Secondary
+                    : isOn
+                    ? ButtonStyle.Success
+                    : ButtonStyle.Danger
+            )
             .setDisabled(!actionKey)
     );
 
