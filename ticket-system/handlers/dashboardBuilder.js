@@ -115,12 +115,14 @@ function buildSubPanel(type) {
         selectMenu.setDisabled(true); // تعطيل القائمة لأنه لا يوجد ما يُختار
     } else {
         selectMenu.addOptions(
-            panels.map(panel => ({
-                label: panel.name.slice(0, 100),
-                description: (panel.description ? String(panel.description).slice(0, 100) : undefined) || 'لا يوجد وصف',
-                value: panel.name.slice(0, 100),
-                emoji: safeEmoji(panel.emoji),
-            }))
+            panels
+                .slice(0, 25) // حد ديسكورد: 25 خيار كحد أقصى للقائمة الواحدة
+                .map(panel => ({
+                    label: panel.name.slice(0, 100),
+                    description: (panel.description ? String(panel.description).slice(0, 100) : undefined) || 'لا يوجد وصف',
+                    value: panel.name.slice(0, 100),
+                    emoji: safeEmoji(panel.emoji),
+                }))
         );
     }
 

@@ -2,20 +2,15 @@
  * =========================================================
  *  handlers/ticketStore.js
  * =========================================================
- * تخزين مؤقت (In-Memory Map) لحالة كل تذكرة "أثناء عملها" فقط.
+ * تخزين حالة كل تذكرة "أثناء عملها".
  * المفتاح: channelId الخاص بروم التذكرة.
  *
- * ✅ هذا هو المكان الذي نحفظ فيه "سجل الأحداث المؤقت" المطلوب
- * في الجزء الثالث (Audit Log) — كل ضغطة زر مهمة (استلام، قفل،
- * تحويل، تصعيد...) تُضاف كسطر هنا عبر addAuditLog()، ثم عند
- * إغلاق/حذف التذكرة نستخدم هذه المصفوفة لبناء حقل "سجل الأحداث"
- * داخل إيمبد اللوق النهائي في transcriptLogger.js.
- *
- * لماذا في الذاكرة وليس في قاعدة البيانات (panelsDB)؟
- * لأن panelsDB مخصص فقط لإعدادات "القوالب" (كما حُدد في الجزء
- * الأول)، بينما هذه بيانات "حية" تخص تذكرة قيد التشغيل فقط وتُمحى
- * نهائياً بعد إرسال اللوق - تماماً كما طُلب: "مصفوفة مؤقتة داخل
- * التكت أثناء عمله".
+ * ⚠️ ملاحظة مهمة: سابقاً كانت الجلسات في الذاكرة فقط، وبعد أي
+ * إعادة تشغيل للبوت كانت كل رومات التذاكر المفتوحة تفقد جلستها
+ * وتصبح "غير فعّالة" (كل الأزرار ترفض العمل). الآن تُحفظ الجلسات
+ * تلقائياً في ملف JSON على القرص (مع كتابة مخفّفة Debounced)
+ * وتُستعاد عند إقلاع البوت عبر initTicketStore() — فيبقى كل تكت
+ * مفتوح يعمل بنفس الحالة بعد إعادة التشغيل.
  *
  * شكل الجلسة الواحدة:
  * {
@@ -26,14 +21,120 @@
  *   escalated: Boolean,       -> هل تم تصعيد التكت للإدارة العليا
  *   openedAt: Number,
  *   lockedAt: Number|null,
- *   deleteTimer: NodeJS.Timeout|null, -> مرجع العداد التنازلي (للإلغاء)
+ *   deleteTimer: NodeJS.Timeout|null, -> مرجع العداد التنازلي (لا يُحفظ)
  *   deleteCountdown: Number,
  *   auditLog: Array<{ text: String, timestamp: Number }>,
  * }
  * =========================================================
  */
 
+const fs = require('fs');
+const path = require('path');
+
+const SESSIONS_PATH = path.join(__dirname, '..', 'data', 'ticket-sessions.json');
+
 const sessions = new Map();
+let saveTimer = null;
+
+// المفاتيح المسموح حفظها في ملف الجلسات (نستبعد المؤقّتات والمراجع)
+const SERIALIZABLE_KEYS = [
+    'channelId',
+    'panelName',
+    'openerId',
+    'claimedBy',
+    'addedMembers',
+    'escalated',
+    'openedAt',
+    'lockedAt',
+    'controlMessageId',
+    'closeMessageId',
+    'deleteCountdown',
+    'auditLog',
+];
+
+// ---------- الحفظ على القرص (كتابة مخفّفة) ----------
+
+function ensureSessionsFile() {
+    const dir = path.dirname(SESSIONS_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(SESSIONS_PATH)) {
+        fs.writeFileSync(SESSIONS_PATH, JSON.stringify({ sessions: [] }, null, 2), 'utf-8');
+    }
+}
+
+function writeSessionsNow() {
+    try {
+        ensureSessionsFile();
+        const data = { sessions: [...sessions.values()].map(serializeSession) };
+        fs.writeFileSync(SESSIONS_PATH, JSON.stringify(data, null, 2), 'utf-8');
+    } catch (err) {
+        console.error('[ticketStore] فشل حفظ الجلسات على القرص:', err.message);
+    }
+}
+
+/**
+ * كتابة مخفّفة: دمج عدة تحديثات سريعة في كتابة واحدة بعد 400ms
+ */
+function persistSessions() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(writeSessionsNow, 400);
+}
+
+function serializeSession(session) {
+    const out = {};
+    for (const key of SERIALIZABLE_KEYS) {
+        if (session[key] !== undefined) out[key] = session[key];
+    }
+    return out;
+}
+
+/**
+ * تنظيف جلسة مستعادة من القرص: ضمان المصفوفات + إبطال أي عداد
+ * تنازلي قديم (لا يمكن استئنافه بعد إعادة التشغيل)
+ */
+function sanitizeLoadedSession(raw) {
+    return {
+        panelName: typeof raw.panelName === 'string' ? raw.panelName : null,
+        openerId: typeof raw.openerId === 'string' ? raw.openerId : '',
+        claimedBy: typeof raw.claimedBy === 'string' ? raw.claimedBy : null,
+        addedMembers: Array.isArray(raw.addedMembers) ? raw.addedMembers : [],
+        escalated: !!raw.escalated,
+        openedAt: typeof raw.openedAt === 'number' ? raw.openedAt : Date.now(),
+        lockedAt: typeof raw.lockedAt === 'number' ? raw.lockedAt : null,
+        controlMessageId: typeof raw.controlMessageId === 'string' ? raw.controlMessageId : null,
+        closeMessageId: typeof raw.closeMessageId === 'string' ? raw.closeMessageId : null,
+        deleteTimer: null,
+        deleteCountdown: 0,
+        auditLog: Array.isArray(raw.auditLog) ? raw.auditLog : [],
+    };
+}
+
+/**
+ * استعادة الجلسات المحفوظة عند إقلاع البوت (يُستدعى من ملف التشغيل)
+ */
+function initTicketStore() {
+    try {
+        ensureSessionsFile();
+        const raw = fs.readFileSync(SESSIONS_PATH, 'utf-8');
+        const data = JSON.parse(raw);
+        if (data && Array.isArray(data.sessions)) {
+            let restored = 0;
+            for (const s of data.sessions) {
+                if (s && typeof s.channelId === 'string' && s.panelName) {
+                    sessions.set(s.channelId, sanitizeLoadedSession(s));
+                    restored++;
+                }
+            }
+            if (restored > 0) {
+                console.log(`[ticketStore] ✅ تمت استعادة ${restored} جلسة تذكرة من القرص`);
+            }
+        }
+    } catch (err) {
+        console.error('[ticketStore] تعذّر استعادة الجلسات (سيبدأ من جديد):', err.message);
+    }
+}
+
+// ---------- عمليات الجلسات ----------
 
 /**
  * إنشاء جلسة جديدة عند فتح تذكرة
@@ -55,7 +156,9 @@ function createSession(channelId, data) {
         deleteCountdown: 0,
         auditLog: [],
         ...data,
+        channelId, // نحفظ المفتاح داخل الجلسة لاستعادته من القرص
     });
+    persistSessions();
 }
 
 /**
@@ -77,6 +180,7 @@ function updateSession(channelId, updates) {
     if (!current) return null;
     const merged = { ...current, ...updates };
     sessions.set(channelId, merged);
+    persistSessions();
     return merged;
 }
 
@@ -89,6 +193,7 @@ function addAuditLog(channelId, text) {
     const session = sessions.get(channelId);
     if (!session) return;
     session.auditLog.push({ text, timestamp: Date.now() });
+    persistSessions();
 }
 
 /**
@@ -99,6 +204,7 @@ function deleteSession(channelId) {
     const session = sessions.get(channelId);
     if (session?.deleteTimer) clearInterval(session.deleteTimer);
     sessions.delete(channelId);
+    persistSessions();
 }
 
 module.exports = {
@@ -107,4 +213,5 @@ module.exports = {
     updateSession,
     addAuditLog,
     deleteSession,
+    initTicketStore,
 };

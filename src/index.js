@@ -38,6 +38,7 @@ const { handleTicketSelectMenu } = require('../ticket-system/handlers/selectMenu
 const { handleTicketCreate } = require('../ticket-system/handlers/ticketCreateHandler');
 const { handleTicketControlButton } = require('../ticket-system/handlers/ticketControlHandler');
 const { handleTicketStaffMenu } = require('../ticket-system/handlers/ticketStaffMenuHandler');
+const { initTicketStore } = require('../ticket-system/handlers/ticketStore');
 const { handleUserSelectMenu } = require('../ticket-system/handlers/userSelectHandler');
 const { handleTicketCloseButton } = require('../ticket-system/handlers/ticketCloseHandler');
 const { handleRoleSelectMenu } = require('../ticket-system/handlers/roleSelectHandler');
@@ -251,6 +252,8 @@ async function initialize() {
   const sbReady = initStarboardModels();
   const admReady = initAdminModel();
   const panelsReady = initPanelsModel();
+  // استعادة جلسات التذاكر المفتوحة (حتى لا تفقد التذاكر حالتها بعد إعادة التشغيل)
+  initTicketStore();
 
   // تأكيد حالة التخزين
   console.log('\n═══════════════════════════════════════');
