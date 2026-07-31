@@ -863,11 +863,24 @@ async function handleArChansBlacklist(interaction, replyName) {
 
 // نوع الإرسال
 async function handleArSetStyle(interaction) {
-  const value = interaction.values[0];
-  // ar_setstyle_{name}_{style}
-  const parts = value.split('_');
-  const style = parts[parts.length - 1];
-  const name = parts.slice(2, -1).join('_');
+  const value = interaction.values[0]; // الصيغة: ar_setstyle_{name}_{style}
+
+  // استخراج النمط من نهاية القيمة (يدعم أسماء تحتوي على _ داخلها)
+  let style = null;
+  if (value.endsWith('_reply_mention')) style = 'reply_mention';
+  else if (value.endsWith('_reply_no_mention')) style = 'reply_no_mention';
+  else if (value.endsWith('_normal')) style = 'normal';
+
+  if (!style) {
+    return respondOrUpdate(interaction, { content: '⚠️ نمط إرسال غير صالح.' });
+  }
+
+  // استخراج اسم الرد بقطع البادئة ar_setstyle_ واللاحقة _style
+  const name = value.replace(/^ar_setstyle_/, '').slice(0, -(style.length + 1));
+
+  const data = await getReply(name);
+  if (!data) return respondOrUpdate(interaction, { content: '⚠️ الرد غير موجود.' });
+
   await updateReply(name, { sendStyle: style });
   return showArControlPanel(interaction, name);
 }
@@ -987,6 +1000,16 @@ async function handleAutoReplyInteraction(interaction) {
   const id = interaction.customId;
   const parts = id.split('_');
   const prefix = parts[0];
+
+  // ✅ تأجيل فوري لأي قائمة منسدلة (StringSelect / RoleSelect / ChannelSelect)
+  // لمنع خطأ InteractionNotReplied عند تأخر عمليات قاعدة البيانات.
+  // بعد التأجيل يتم تحديث نفس الرسالة عبر editReply داخل respondOrUpdate.
+  if (
+    id.startsWith('ar_') &&
+    (interaction.isStringSelectMenu() || interaction.isRoleSelectMenu() || interaction.isChannelSelectMenu())
+  ) {
+    await interaction.deferUpdate().catch(() => {});
+  }
 
   // الأزرار الرئيسية
   if (id === 'ar_main') return handleAutoReplyMain(interaction);
