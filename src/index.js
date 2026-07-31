@@ -32,6 +32,7 @@ const { initAdminModel, syncAdminConfigFromMongo } = require('./utils/adminStora
 
 // ====== نظام التذاكر ======
 const ticketSetupCmd = require('../ticket-system/commands/ticket-setup');
+const panelImageCmd = require('../ticket-system/commands/panel-image');
 const { handleTicketButton } = require('../ticket-system/handlers/buttonHandler');
 const { handleTicketSelectMenu } = require('../ticket-system/handlers/selectMenuHandler');
 const { handleTicketCreate } = require('../ticket-system/handlers/ticketCreateHandler');
@@ -496,6 +497,9 @@ client.on('interactionCreate', async (interaction) => {
       try {
         if (interaction.commandName === 'broadcast' && interaction.options.getFocused(true).name === 'color') {
           await handleColorAutocomplete(interaction);
+        } else if (interaction.commandName === 'رفع-صورة') {
+          const { handlePanelImageAutocomplete } = require('../ticket-system/handlers/panelImageAutocomplete');
+          await handlePanelImageAutocomplete(interaction);
         }
       } catch (acErr) {
         console.error('❌ Autocomplete error:', acErr.message);
@@ -582,6 +586,7 @@ async function handleSlashCommand(interaction) {
     case 'اعدادات_لوحة_الإدارة': return handleAdminPanelMain(interaction);
     case 'لوحة_الإدارة': return handleBoardMain(interaction);
     case 'ticket-setup': return ticketSetupCmd.execute(interaction);
+    case 'رفع-صورة': return panelImageCmd.execute(interaction);
   }
 }
 

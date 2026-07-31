@@ -123,6 +123,19 @@ try {
   console.error('❌ ticket-setup.js فشل التحميل:', err.message);
 }
 
+// 3) أمر رفع الصور لنظام التذاكر
+try {
+  const panelImage = require('../ticket-system/commands/panel-image');
+  if (panelImage && panelImage.data && typeof panelImage.execute === 'function') {
+    commands.push(panelImage.data.toJSON());
+    console.log(`✅ تم تحميل الأمر: ${panelImage.data.name}`);
+  } else {
+    console.error('❌ panel-image.js: exports غير صحيحة (data أو execute مفقودة)');
+  }
+} catch (err) {
+  console.error('❌ panel-image.js فشل التحميل:', err.message);
+}
+
 // طباعة أسماء جميع الأوامر المحملة
 console.log(`\n📋 الأوامر المحملة (${commands.length}):`);
 commands.forEach(cmd => console.log(`   - ${cmd.name}`));

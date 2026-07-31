@@ -172,10 +172,10 @@ function buildPanelMessageModal(panel) {
 
     const imageInput = new TextInputBuilder()
         .setCustomId('panel_message_image')
-        .setLabel('🖼️ صورة الإيمبد (رابط مباشر أو رابط رسالة)')
+        .setLabel('🖼️ صورة الإيمبد')
         .setStyle(TextInputStyle.Short)
         .setValue(custom.image || '')
-        .setPlaceholder('ارفع الصورة في أي روم ثم انسخ رابط الرسالة أو استخدم رابط مباشر https://')
+        .setPlaceholder('الأفضل: استخدم /رفع-صورة لرفع صورة مباشرة. هنا يمكنك أيضاً لصق رابط http/https')
         .setMaxLength(500)
         .setRequired(false);
 
@@ -225,10 +225,10 @@ function buildTicketEmbedModal(panel) {
 
     const imageInput = new TextInputBuilder()
         .setCustomId('ticket_embed_image')
-        .setLabel('🖼️ صورة الإيمبد (رابط مباشر أو رابط رسالة)')
+        .setLabel('🖼️ صورة الإيمبد')
         .setStyle(TextInputStyle.Short)
         .setValue(custom.image || '')
-        .setPlaceholder('ارفع الصورة في أي روم ثم انسخ رابط الرسالة أو استخدم رابط مباشر https://')
+        .setPlaceholder('الأفضل: استخدم /رفع-صورة لرفع صورة مباشرة. هنا يمكنك أيضاً لصق رابط http/https')
         .setMaxLength(500)
         .setRequired(false);
 
