@@ -42,6 +42,7 @@ const INFO_COLOR = 0x2ECC71; // أخضر مثل إيمبد "معلومات ال�
 const PAGES = {
     general: { label: 'إعدادات عامة', emoji: '⚙️' },
     roles: { label: 'إعدادات الرتب', emoji: '🎭' },
+    roles2: { label: 'الرتب 2/2', emoji: '🎭' },
     channels: { label: 'إعدادات الرومات', emoji: '📁' },
     messages: { label: 'الرسائل', emoji: '💬' },
     actions: { label: 'رسائل الأزرار', emoji: '🔔' },
@@ -57,6 +58,35 @@ function buildBackToGeneralRow() {
         new ButtonBuilder()
             .setCustomId('settings_page_general')
             .setLabel('🔙 رجوع للإعدادات العامة')
+            .setStyle(ButtonStyle.Secondary)
+    );
+}
+
+/**
+ * صف تنقل صفحة الرتب (1/2): زر رجوع + زر "الرتب 2/2" البرتقالي
+ * (لا يمكن إضافة قائمة رتب خامسة بسبب حد 5 صفوف، لذلك فتحنا صفحة ثانية)
+ */
+function buildRolesNavRow() {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('settings_page_general')
+            .setLabel('🔙 رجوع للإعدادات العامة')
+            .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+            .setCustomId('settings_page_roles2')
+            .setLabel('🎭 الرتب 2/2')
+            .setStyle(ButtonStyle.Danger) // برتقالي/أحمر (لا يوجد برتقالي صريح في ديسكورد)
+    );
+}
+
+/**
+ * صف رجوع من صفحة الرتب 2/2 إلى صفحة الرتب 1/2
+ */
+function buildBackToRolesRow() {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('settings_page_roles')
+            .setLabel('🔙 رجوع للرتب 1/2')
             .setStyle(ButtonStyle.Secondary)
     );
 }
@@ -136,6 +166,7 @@ function buildSettingsEmbed(panel, page, actionKey) {
         { name: '🔔 رتب المنشن', value: rolesToText(panel.pingRoles), inline: false },
         { name: '✅ الرتب المسموحة', value: rolesToText(panel.allowedRoles), inline: false },
         { name: '🚫 الرتب الممنوعة', value: rolesToText(panel.deniedRoles), inline: false },
+        { name: '👑 الإدارة العليا (الرتب 2/2)', value: rolesToText(panel.upperManagementRoles), inline: false },
     );
 
     // ===== الرومات =====
@@ -359,6 +390,24 @@ function buildRolesPage(panel) {
 }
 
 /**
+ * بناء صفحة "الرتب 2/2": رتب الإدارة العليا
+ * (صفحة منفصلة لأن ديسكورد يسمح بـ 5 صفوف فقط في الرسالة)
+ * الإدارة العليا تلقائياً تضم كل رتبة تملك Administrator —
+ * هنا فقط نختار رتباً إضافية بدون Administrator.
+ */
+function buildRoles2Page(panel) {
+    const upperRow = new ActionRowBuilder().addComponents(
+        new RoleSelectMenuBuilder()
+            .setCustomId('settings_select_upper_mgmt')
+            .setPlaceholder('👑 اختر رتب الإدارة العليا (اختياري — أي رتبة Administrator هي إدارة عليا تلقائياً)')
+            .setMinValues(0)
+            .setMaxValues(25)
+    );
+
+    return [upperRow];
+}
+
+/**
  * بناء صفحة "إعدادات الرومات"
  */
 function buildChannelsPage() {
@@ -497,6 +546,11 @@ function buildPanelSettings(panelName, page = 'general', actionKey) {
     const panel = getPanelByName(panelName);
     if (!panel) return null;
 
+    // تطبيع الصفحة: إذا جاء الاسم من تذييل الإيمبد (بعد إعادة التشغيل)
+    // نبحث عن المفتاح المطابق لتسمية الصفحة (مثلاً "الرتب 2/2" -> roles2)
+    const pageKey = Object.keys(PAGES).find(k => PAGES[k].label === page) || page;
+    page = pageKey;
+
     const infoEmbed = buildSettingsEmbed(panel, page, actionKey);
 
     // معاينة حية لما سيراه الأعضاء: البنل + كل البنلات المرتبطة به (الباقة)
@@ -519,7 +573,8 @@ function buildPanelSettings(panelName, page = 'general', actionKey) {
 
     let rows = [];
     if (page === 'general') rows = buildGeneralPage(panel);
-    else if (page === 'roles') rows = [...buildRolesPage(panel), buildBackToGeneralRow()];
+    else if (page === 'roles') rows = [...buildRolesPage(panel), buildRolesNavRow()];
+    else if (page === 'roles2') rows = [...buildRoles2Page(panel), buildBackToRolesRow()];
     else if (page === 'channels') rows = [...buildChannelsPage(), buildBackToGeneralRow()];
     else if (page === 'messages') rows = [...buildMessagesPage(), buildBackToGeneralRow()];
     else if (page === 'actions') rows = [...buildActionsPage(panel, actionKey), buildBackToGeneralRow()];

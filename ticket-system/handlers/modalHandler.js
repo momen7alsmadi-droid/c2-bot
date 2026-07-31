@@ -347,6 +347,7 @@ async function handleTicketModal(interaction) {
         // 4) تغيير اسم التذكرة (من قائمة تحكم الستاف داخل التكت)
         // ---------------------------------------------------
         if (interaction.customId === 'modal_rename_ticket') {
+            const oldChannelName = interaction.channel.name;
             const newName = interaction.fields.getTextInputValue('new_ticket_name').trim();
 
             const ticketSession = getTicketSession(interaction.channel.id);
@@ -357,9 +358,9 @@ async function handleTicketModal(interaction) {
 
             await interaction.deferReply({ ephemeral: true });
             await interaction.channel.setName(newName.slice(0, 100)).catch(() => {});
-            addAuditLog(interaction.channel.id, `<@${interaction.user.id}> قام بتغيير اسم التذكرة إلى "${newName}"`);
+            addAuditLog(interaction.channel.id, `<@${interaction.user.id}> قام بتغيير اسم التذكرة من "${oldChannelName}" إلى "${newName}"`);
 
-            // رسالة "تغيير اسم التذكرة"
+            // رسالة "تغيير اسم التذكرة" — مع متغيرات [old_name] و [new_name]
             const panel = getTicketSession(interaction.channel.id)
                 ? getPanelByName(getTicketSession(interaction.channel.id).panelName)
                 : null;
@@ -373,6 +374,8 @@ async function handleTicketModal(interaction) {
                         guild: interaction.guild,
                         channelName: newName.slice(0, 100),
                         channelId: interaction.channel.id,
+                        oldName: oldChannelName,
+                        newName: newName.slice(0, 100),
                     })
                 );
             }

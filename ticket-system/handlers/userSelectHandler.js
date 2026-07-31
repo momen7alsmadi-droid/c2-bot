@@ -51,7 +51,7 @@ async function handleUserSelectMenu(interaction) {
         }
 
         // إعادة تأكيد الصلاحية (نفس شرط قائمة تحكم الستاف)
-        if (!canUseRestrictedControls(interaction.member, session)) {
+        if (!canUseRestrictedControls(interaction.member, session, panel)) {
             await interaction.update({ content: '❌ لا تملك صلاحية تنفيذ هذا الإجراء.', components: [] });
             return;
         }

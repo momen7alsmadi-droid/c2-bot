@@ -55,7 +55,7 @@ async function handleTicketStaffMenu(interaction) {
         }
 
         // حماية إضافية: هذه القائمة تتطلب استلاماً + أن يكون الضاغط المستلم أو الإدارة
-        if (!session.claimedBy || !canUseRestrictedControls(interaction.member, session)) {
+        if (!session.claimedBy || !canUseRestrictedControls(interaction.member, session, panel)) {
             await interaction.reply({
                 content: '❌ يجب استلام التذكرة أولاً، ولا يمكن استخدام هذه القائمة إلا من قبل المستلم أو الإدارة العليا.',
                 ephemeral: true,

@@ -27,6 +27,7 @@ const FIELD_MAP = {
     settings_select_ping_roles: 'pingRoles',
     settings_select_allowed_roles: 'allowedRoles',
     settings_select_denied_roles: 'deniedRoles',
+    settings_select_upper_mgmt: 'upperManagementRoles',
 };
 
 /**
@@ -55,7 +56,11 @@ async function handleRoleSelectMenu(interaction) {
         updatePanel(session.panelName, { [field]: selectedRoleIds });
 
         // نحدّث الإيمبد ليعكس القيم الجديدة فوراً
-        const result = buildPanelSettings(session.panelName, 'roles');
+        // (نستخدم صفحة الجلسة: roles أو roles2 حتى لا نقفز للمستخدم للصفحة الأولى؛
+        //  نتعامل أيضاً مع الاسم القادم من تذييل الإيمبد بعد إعادة التشغيل)
+        const targetPage =
+            session.page === 'roles2' || session.page === 'الرتب 2/2' ? 'roles2' : 'roles';
+        const result = buildPanelSettings(session.panelName, targetPage);
         if (!result) {
             await interaction.followUp({ content: '⚠️ لم يتم العثور على هذا البنل.', ephemeral: true }).catch(() => {});
             return;

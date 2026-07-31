@@ -59,6 +59,7 @@ const SUB_PANEL_MAP = {
 const SETTINGS_PAGE_IDS = [
     'settings_page_general',
     'settings_page_roles',
+    'settings_page_roles2',
     'settings_page_channels',
     'settings_page_messages',
     'settings_page_actions',

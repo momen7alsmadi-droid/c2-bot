@@ -89,7 +89,7 @@ async function handleTicketControlButton(interaction) {
             }
 
             // يوجد مستلم بالفعل -> فقط هو أو الإدارة العليا يمكنهم إلغاء الاستلام
-            if (!canUseRestrictedControls(interaction.member, session)) {
+            if (!canUseRestrictedControls(interaction.member, session, panel)) {
                 await interaction.reply({
                     content: `❌ هذه التذكرة مستلمة بالفعل من قبل <@${session.claimedBy}>. فقط المستلم أو الإدارة العليا يمكنهم إلغاء الاستلام.`,
                     ephemeral: true,
@@ -117,7 +117,7 @@ async function handleTicketControlButton(interaction) {
         // ---------------------------------------------------
         if (interaction.customId === 'ticket_lock') {
             const requesterAllowed = session.claimedBy
-                ? canUseRestrictedControls(interaction.member, session)
+                ? canUseRestrictedControls(interaction.member, session, panel)
                 : isStaff(interaction.member, panel);
 
             if (!requesterAllowed) {

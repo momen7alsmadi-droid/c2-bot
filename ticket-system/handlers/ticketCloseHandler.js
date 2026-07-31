@@ -103,7 +103,7 @@ async function handleTicketCloseButton(interaction) {
             return;
         }
 
-        const allowed = canUseRestrictedControls(interaction.member, session);
+        const allowed = canUseRestrictedControls(interaction.member, session, panel);
         if (!allowed) {
             await interaction.reply({
                 content: '❌ فقط المستلم الحالي أو الإدارة العليا يمكنهم التحكم بإغلاق/حذف هذه التذكرة.',

@@ -86,6 +86,8 @@ function applyMessageVariables(
         claimedBy,
         categoryName,
         ticketCreatedAt,
+        oldName,
+        newName,
     } = {}
 ) {
     let text = String(template || '');
@@ -159,6 +161,14 @@ function applyMessageVariables(
         text = text.replaceAll('[ping]', pingRoles.map(id => `<@&${id}>`).join(' '));
     }
 
+    // ===== متغيرات تغيير الاسم (لرسالة "تغيير اسم التكت") =====
+    if (oldName !== undefined && oldName !== null) {
+        text = text.replaceAll('[old_name]', String(oldName));
+    }
+    if (newName !== undefined && newName !== null) {
+        text = text.replaceAll('[new_name]', String(newName));
+    }
+
     // ===== متغيرات الوقت (متاحة دائماً) =====
     const now = new Date();
     const unix = Math.floor(now.getTime() / 1000);
@@ -176,6 +186,6 @@ function applyMessageVariables(
  * نص عرض المتغيرات المدعومة — يُستخدم في إيمبد المعلومات
  */
 const SUPPORTED_VARIABLES =
-    '`[user]` العضو • `[username]` الاسم • `[id]` الآيدي • `[avatar]` صورة العضو • `[created_at]` تاريخ الحساب • `[joined_at]` تاريخ الانضمام • `[highest_role]` أعلى رتبة • `[server]` اسم السيرفر • `[member_count]` عدد الأعضاء • `[owner]` المالك • `[bot]` البوت • `[ticket_name]` اسم التكت • `[channel]` منشن التكت • `[ticket_number]` رقم التكت • `[category]` الكاتيجوري • `[ticket_created]` تاريخ الفتح • `[staff]` الستاف • `[ping]` المنشن • `[time]` الوقت • `[date]` التاريخ • `[day]` اليوم • `[year]` السنة • `[month]` الشهر • `[actor]` من ضغط الزر • `[actor_name]` اسمه • `[actor_id]` آيديه • `[actor_role]` رتبته • `[member]` العضو المستهدف • `[opener]` فاتح التكت • `[opener_name]` اسمه • `[claimed_by]` المستلم';
+    '`[user]` العضو • `[username]` الاسم • `[id]` الآيدي • `[avatar]` صورة العضو • `[created_at]` تاريخ الحساب • `[joined_at]` تاريخ الانضمام • `[highest_role]` أعلى رتبة • `[server]` اسم السيرفر • `[member_count]` عدد الأعضاء • `[owner]` المالك • `[bot]` البوت • `[ticket_name]` اسم التكت • `[channel]` منشن التكت • `[ticket_number]` رقم التكت • `[category]` الكاتيجوري • `[ticket_created]` تاريخ الفتح • `[staff]` الستاف • `[ping]` المنشن • `[time]` الوقت • `[date]` التاريخ • `[day]` اليوم • `[year]` السنة • `[month]` الشهر • `[actor]` من ضغط الزر • `[actor_name]` اسمه • `[actor_id]` آيديه • `[actor_role]` رتبته • `[member]` العضو المستهدف • `[opener]` فاتح التكت • `[opener_name]` اسمه • `[claimed_by]` المستلم • `[old_name]` الاسم القديم • `[new_name]` الاسم الجديد';
 
 module.exports = { applyMessageVariables, SUPPORTED_VARIABLES };

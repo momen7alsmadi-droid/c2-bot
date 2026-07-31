@@ -67,6 +67,7 @@ const DEFAULT_PANEL_FIELDS = {
     pingRoles: [],
     allowedRoles: [],
     deniedRoles: [],
+    upperManagementRoles: [],
     categoryId: null,
     logChannelId: null,
     welcomeMessage: null,
@@ -90,6 +91,7 @@ const panelSchema = new mongoose.Schema(
         pingRoles: { type: [String], default: [] },
         allowedRoles: { type: [String], default: [] },
         deniedRoles: { type: [String], default: [] },
+        upperManagementRoles: { type: [String], default: [] },
         categoryId: { type: String, default: null },
         logChannelId: { type: String, default: null },
         welcomeMessage: { type: String, default: null },
@@ -164,6 +166,12 @@ function withDefaults(panel) {
         }
     }
     delete merged.linkedPanel;
+
+    // ---- ترحيل: ضمان وجود مصفوفة رتب الإدارة العليا ----
+    if (!Array.isArray(merged.upperManagementRoles)) merged.upperManagementRoles = [];
+    merged.upperManagementRoles = merged.upperManagementRoles.filter(
+        id => typeof id === 'string' && id.trim()
+    ).slice(0, 25);
 
     // ---- تنظيف المصفوفة: نصوص صالحة فقط، بلا مكررات، بلا اسم البنل نفسه، حد 25 ----
     merged.linkedPanels = [

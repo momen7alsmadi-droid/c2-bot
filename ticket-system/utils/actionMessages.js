@@ -104,7 +104,7 @@ const DEFAULT_ACTION_MESSAGES = {
         enabled: true,
         content: '',
         title: '✏️ تم تغيير اسم التذكرة',
-        description: 'تم تغيير اسم التذكرة إلى **[ticket_name]** بواسطة [actor].',
+        description: 'تم تغيير اسم التذكرة من **[old_name]** إلى **[new_name]** بواسطة [actor].',
     },
 };
 

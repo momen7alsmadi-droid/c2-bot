@@ -18,6 +18,24 @@ function isAdmin(member) {
 }
 
 /**
+ * هل العضو من "الإدارة العليا"؟
+ * القاعدة: أي رتبة تملك Administrator تعتبر إدارة عليا تلقائياً
+ * (بدون الحاجة لإضافتها)، أو يملك إحدى رتب الإدارة العليا المختارة
+ * في إعدادات البنل (upperManagementRoles).
+ * @param {import('discord.js').GuildMember} member
+ * @param {Object} panel
+ */
+function isUpperManagement(member, panel) {
+    // 1) أي عضو يملك صلاحية Administrator هو إدارة عليا تلقائياً
+    if (isAdmin(member)) return true;
+
+    // 2) رتب الإدارة العليا المختارة يدوياً في إعدادات البنل
+    const roleIds = (panel && Array.isArray(panel.upperManagementRoles)) ? panel.upperManagementRoles : [];
+    if (roleIds.length === 0) return false;
+    return member.roles.cache.some(role => roleIds.includes(role.id));
+}
+
+/**
  * هل العضو يملك إحدى رتب "الستاف" الخاصة بالبنل (أو إداري)؟
  * @param {import('discord.js').GuildMember} member
  * @param {Object} panel
@@ -62,14 +80,16 @@ function canOpenTicket(member, panel) {
  * @param {import('discord.js').GuildMember} member
  * @param {Object} ticketSession
  */
-function canUseRestrictedControls(member, ticketSession) {
-    if (isAdmin(member)) return true;
+function canUseRestrictedControls(member, ticketSession, panel) {
+    // الإدارة العليا (Administrator تلقائياً أو رتبة مختارة) دائماً لها الحق
+    if (isUpperManagement(member, panel)) return true;
     if (!ticketSession.claimedBy) return false; // لا يوجد مستلم بعد
     return member.id === ticketSession.claimedBy;
 }
 
 module.exports = {
     isAdmin,
+    isUpperManagement,
     isStaff,
     canOpenTicket,
     canUseRestrictedControls,
