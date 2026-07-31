@@ -68,6 +68,7 @@ async function handleTicketButton(interaction) {
         'settings_edit_name_desc',
         'settings_edit_welcome',
         'settings_toggle_enabled',
+        'settings_save',
         'ticket_log_back',
         'ticket_delete_no',
         ...Object.keys(SUB_PANEL_MAP),
@@ -244,6 +245,42 @@ async function handleTicketButton(interaction) {
 
             const result = buildPanelSettings(panel.name, session.page || 'general');
             await interaction.editReply(result);
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 9) زر "💾 حفظ" -> نفس ميكانيكة زر حفظ لوحة الإيمبد
+        //    يعرض تأكيد الحفظ مع إمكانية الرجوع أو متابعة التعديل
+        // ---------------------------------------------------
+        if (interaction.customId === 'settings_save') {
+            await interaction.deferUpdate().catch(() => {});
+
+            const session = getSession(interaction.message.id);
+            const panel = session.panelName ? getPanelByName(session.panelName) : null;
+            if (!panel) {
+                await interaction.followUp({ content: '⚠️ لم يتم العثور على هذا البنل.', ephemeral: true }).catch(() => {});
+                return;
+            }
+
+            // لمس updatedAt فقط (كل التغييرات تُحفظ فوراً كما في لوحة الإيمبد)
+            updatePanel(panel.name, {});
+
+            await interaction.editReply({
+                content: `✅ تم حفظ إعدادات البنل **${panel.name}** بنجاح.`,
+                embeds: [],
+                components: [
+                    new ActionRowBuilder().addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('settings_page_general')
+                            .setLabel('⚙️ متابعة التعديل')
+                            .setStyle(ButtonStyle.Primary),
+                        new ButtonBuilder()
+                            .setCustomId('settings_page_back')
+                            .setLabel('🔙 رجوع للرئيسية')
+                            .setStyle(ButtonStyle.Secondary)
+                    ),
+                ],
+            });
             return;
         }
     } catch (error) {

@@ -48,12 +48,12 @@ const PAGES = {
 function buildNavRow(activePage) {
     const row = new ActionRowBuilder();
 
+    // الإيموجي داخل نص الزر (نفس أسلوب لوحة الإيمبد) بدل .setEmoji() منفصل
     for (const [key, meta] of Object.entries(PAGES)) {
         row.addComponents(
             new ButtonBuilder()
                 .setCustomId(`settings_page_${key}`)
-                .setLabel(meta.label)
-                .setEmoji(meta.emoji)
+                .setLabel(`${meta.emoji} ${meta.label}`)
                 .setStyle(key === activePage ? ButtonStyle.Primary : ButtonStyle.Secondary)
         );
     }
@@ -156,25 +156,26 @@ function buildSettingsEmbed(panel, page) {
 }
 
 /**
- * بناء صفحة "إعدادات عامة"
+ * بناء صفحة "إعدادات عامة" — بنفس تصميم لوحة تحكم الإيمبد:
+ *  - زر تعديل (Secondary) + زر تبديل الحالة بنمط 🟢/🔴 (Success/Danger)
+ *  - قوائم منسدلة للخيارات
+ *  - زر حفظ (Success)
  */
 function buildGeneralPage(panel) {
     const editButtonRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('settings_edit_name_desc')
-            .setLabel('تعديل الاسم والوصف')
-            .setEmoji('📝')
+            .setLabel('📝 تعديل الاسم والوصف')
             .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
             .setCustomId('settings_toggle_enabled')
-            .setLabel(panel.enabled ? 'إيقاف البنل' : 'تشغيل البنل')
-            .setEmoji(panel.enabled ? '⏸️' : '▶️')
-            .setStyle(panel.enabled ? ButtonStyle.Danger : ButtonStyle.Success)
+            .setLabel(panel.enabled ? '🟢 البنل مفعّل' : '🔴 البنل معطّل')
+            .setStyle(panel.enabled ? ButtonStyle.Success : ButtonStyle.Danger)
     );
 
     const ticketSystemSelect = new StringSelectMenuBuilder()
         .setCustomId('settings_select_ticket_system')
-        .setPlaceholder('نظام فتح التكت للأعضاء...')
+        .setPlaceholder('🔘 نظام فتح التكت للأعضاء...')
         .addOptions(
             {
                 label: 'أزرار (Buttons)',
@@ -195,7 +196,7 @@ function buildGeneralPage(panel) {
     const otherPanels = getAllPanels().filter(p => p.name !== panel.name);
     const linkSelect = new StringSelectMenuBuilder()
         .setCustomId('settings_select_linked_panel')
-        .setPlaceholder('ربط بنل آخر بهذا البنل (اختياري)...');
+        .setPlaceholder('🔗 ربط بنل آخر بهذا البنل (اختياري)...');
 
     if (otherPanels.length === 0) {
         linkSelect
@@ -214,7 +215,15 @@ function buildGeneralPage(panel) {
     }
     const linkRow = new ActionRowBuilder().addComponents(linkSelect);
 
-    return [editButtonRow, ticketSystemRow, linkRow];
+    // صف الحفظ — نفس فكرة زر 💾 حفظ في لوحة الإيمبد
+    const saveRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('settings_save')
+            .setLabel('💾 حفظ')
+            .setStyle(ButtonStyle.Success)
+    );
+
+    return [editButtonRow, ticketSystemRow, linkRow, saveRow];
 }
 
 /**
@@ -287,8 +296,7 @@ function buildMessagesPage() {
     const welcomeRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('settings_edit_welcome')
-            .setLabel('تخصيص رسالة الترحيب')
-            .setEmoji('💬')
+            .setLabel('💬 تخصيص رسالة الترحيب')
             .setStyle(ButtonStyle.Secondary)
     );
 

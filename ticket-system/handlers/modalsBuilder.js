@@ -63,7 +63,7 @@ function buildCreatePanelModal() {
 function buildEditNameDescModal(panel) {
     const modal = new ModalBuilder()
         .setCustomId('modal_edit_name_desc')
-        .setTitle(`تعديل: ${panel.name}`);
+        .setTitle('📝 تعديل التكت');
 
     const nameInput = new TextInputBuilder()
         .setCustomId('panel_name')
@@ -105,7 +105,7 @@ function buildEditNameDescModal(panel) {
 function buildWelcomeMessageModal(panel) {
     const modal = new ModalBuilder()
         .setCustomId('modal_welcome_message')
-        .setTitle('تخصيص رسالة الترحيب');
+        .setTitle('💬 تخصيص رسالة الترحيب');
 
     const messageInput = new TextInputBuilder()
         .setCustomId('welcome_message')
