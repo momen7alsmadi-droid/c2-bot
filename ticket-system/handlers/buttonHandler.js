@@ -206,8 +206,13 @@ async function handleTicketButton(interaction) {
             // في صفحة رسائل الأزرار نمرر الإجراء المحدد لعرض تفاصيله ومعاينته
             const result = buildPanelSettings(session.panelName, page, session.actionKey);
             if (!result) {
+                // البنل حُذف أو أُعيدت تسميته بعد فتح الصفحة (رسالة قديمة):
+                // بدل ترك الإداري في طريق مسدود نعيد فتح لوحة الإدارة الرئيسية
+                clearSession(interaction.message.id);
+                const { embeds, components } = buildMainDashboard();
+                await interaction.editReply({ embeds, components }).catch(() => {});
                 await interaction.followUp({
-                    content: '⚠️ لم يتم العثور على هذا البنل، ربما تم حذفه.',
+                    content: '⚠️ لم يتم العثور على هذا البنل (ربما تم حذفه أو إعادة تسميته). تمت إعادة فتح لوحة الإدارة الرئيسية — اختر البنل من جديد.',
                     ephemeral: true,
                 }).catch(() => {});
                 return;
