@@ -31,6 +31,7 @@ const {
     ButtonStyle,
 } = require('discord.js');
 const { buildPanelSettings } = require('./panelSettingsBuilder');
+const { buildSubPanel } = require('./dashboardBuilder');
 const { reportError } = require('../../src/utils/errorLogger');
 const { safeDeferUpdate } = require('../utils/interactionGuard');
 const { getPanelByName, updatePanel } = require('../database/panelsDB');
@@ -71,9 +72,22 @@ async function handleTicketSelectMenu(interaction) {
             // نخزّن في الجلسة اسم البنل الذي بدأ الإداري تعديله + الصفحة الافتراضية
             setSession(interaction.message.id, { panelName: selected, page: 'general' });
 
-            const result = buildPanelSettings(selected, 'general');
+            let result = buildPanelSettings(selected, 'general');
+
+            // البنل قد يكون أُعيدت تسميته أو حُذف بعد فتح القائمة (قائمة قديمة):
+            // 1) نحاول بحثاً مرناً (إزالة المسافات الزائدة)
+            if (!result && selected.trim() !== selected) {
+                result = buildPanelSettings(selected.trim(), 'general');
+            }
+
             if (!result) {
-                await interaction.followUp({ content: '⚠️ لم يتم العثور على هذا البنل.', ephemeral: true }).catch(() => {});
+                // 2) إذا ما زال غير موجود: نحدّث القائمة فوراً بأسماء البنلات الحالية
+                //    حتى لا يصل الإداري إلى طريق مسدود ويعيد فتح اللوحة يدوياً
+                await interaction.editReply(buildSubPanel('edit')).catch(() => {});
+                await interaction.followUp({
+                    content: '⚠️ لم يتم العثور على البنل المختار (ربما أُعيدت تسميته أو حُذف). هذه القائمة محدّثة — اختر البنل من جديد.',
+                    ephemeral: true,
+                }).catch(() => {});
                 return;
             }
 

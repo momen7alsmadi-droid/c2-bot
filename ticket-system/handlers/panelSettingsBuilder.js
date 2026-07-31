@@ -30,6 +30,7 @@ const {
 } = require('discord.js');
 
 const { getPanelByName, getAllPanels } = require('../database/panelsDB');
+const { reportError } = require('../../src/utils/errorLogger');
 const { buildPublicPanelMessage } = require('./publicPanelBuilder');
 const { buildTicketEmbed } = require('./ticketEmbedBuilder');
 const { SUPPORTED_VARIABLES } = require('../utils/messageVariables');
@@ -554,8 +555,16 @@ function buildPanelSettings(panelName, page = 'general', actionKey) {
     const infoEmbed = buildSettingsEmbed(panel, page, actionKey);
 
     // معاينة حية لما سيراه الأعضاء: البنل + كل البنلات المرتبطة به (الباقة)
-    const bundle = buildPublicPanelMessage(panel);
-    const embeds = [infoEmbed, ...bundle.embeds];
+    // (إن فشل عرض الباقة — بنل مرتبط محذوف أو إيموجي غير صالح — نكتفي
+    //  بإيمبد المعلومات حتى لا يصل الإداري إلى "لم يتم العثور على البنل")
+    let bundle = { embeds: [] };
+    try {
+        bundle = buildPublicPanelMessage(panel);
+    } catch (bundleErr) {
+        console.error('[panelSettingsBuilder] فشل بناء معاينة الباقة:', bundleErr.message);
+        reportError('TICKET_BUNDLE_PREVIEW', panel.name, bundleErr);
+    }
+    const embeds = [infoEmbed, ...(bundle.embeds || [])];
 
     // في صفحة الرسائل نضيف معاينة لإيمبد التكت (فوق الأزرار داخل التكت)
     if (page === 'messages') {
