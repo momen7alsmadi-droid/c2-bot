@@ -34,6 +34,19 @@ async function handleTicketStaffMenu(interaction) {
             return;
         }
 
+        // ---------------------------------------------------
+        // 0) خيار شكلي "إعادة تعيين القائمة" (آخر خيار في القائمة)
+        //    لا يغيّر أي شيء — فقط تأكيد مخفي جميل.
+        //    يوضع قبل كل الفحوصات ليعمل دائماً بلا أخطاء
+        // ---------------------------------------------------
+        if (interaction.values[0] === 'reload_menu') {
+            await interaction.deferUpdate().catch(() => {});
+            await interaction
+                .followUp({ content: '♻️ تم إعادة تعيين القائمة بنجاح.', ephemeral: true })
+                .catch(() => {});
+            return;
+        }
+
         const panel = getPanelByName(session.panelName);
         if (!panel) {
             await interaction.reply({ content: '⚠️ لم يتم العثور على إعدادات البنل الخاص بهذه التذكرة.', ephemeral: true });

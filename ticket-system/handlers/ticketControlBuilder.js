@@ -51,21 +51,13 @@ function buildTicketControlRows(session, locked = false) {
             { label: 'إدخال عضو للتكت', value: 'add_member', emoji: '➕' },
             { label: 'إخراج عضو من التكت', value: 'remove_member', emoji: '➖' },
             { label: 'تحويل ملكية الاستلام', value: 'transfer', emoji: '🔄' },
-            { label: 'التحويل للإدارة العليا', value: 'escalate', emoji: '📢' }
+            { label: 'التحويل للإدارة العليا', value: 'escalate', emoji: '📢' },
+            { label: 'إعادة تعيين القائمة', value: 'reload_menu', emoji: '♻️' } // شكلي فقط، آخر خيار
         );
 
     const row2 = new ActionRowBuilder().addComponents(staffMenu);
 
-    // زر شكلي (منظر فقط): "إعادة تعيين القائمة" — يعيد بناء الأزرار
-    // من الحالة الحالية للجلسة دون تغيير أي شيء (لا يفعل شيئاً فعلياً)
-    const reloadRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId('ticket_reload_menu')
-            .setLabel('🔄 إعادة تعيين القائمة')
-            .setStyle(ButtonStyle.Secondary)
-    );
-
-    return [row1, row2, reloadRow];
+    return [row1, row2];
 }
 
 module.exports = { buildTicketControlRows };

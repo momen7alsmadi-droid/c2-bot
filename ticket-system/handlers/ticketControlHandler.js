@@ -29,7 +29,7 @@ const { sendClosedStateMessage } = require('./ticketCloseHandler');
 const { sendActionMessage } = require('../utils/actionMessages');
 const { enrichActionContext } = require('../utils/ticketContext');
 
-const RELEVANT_IDS = ['ticket_claim', 'ticket_lock', 'ticket_reload_menu'];
+const RELEVANT_IDS = ['ticket_claim', 'ticket_lock'];
 
 // سياق المتغيرات المشترك لرسائل الإجراءات
 // [actor] = من ضغط الزر = interaction.member
@@ -53,32 +53,6 @@ async function handleTicketControlButton(interaction) {
         const session = getSession(interaction.channel.id);
         if (!session) {
             await interaction.reply({ content: '⚠️ هذا الروم ليس تذكرة فعّالة.', ephemeral: true });
-            return;
-        }
-
-        // ---------------------------------------------------
-        // زر شكلي "🔄 إعادة تعيين القائمة" — لا يغيّر أي شيء،
-        // فقط يعيد بناء الأزرار من الحالة الحالية (منظر) + تأكيد
-        // (يوضع قبل فحص البنل حتى يعمل دائماً حتى لو حُذف البنل)
-        // ---------------------------------------------------
-        if (interaction.customId === 'ticket_reload_menu') {
-            await interaction.deferUpdate().catch(() => {});
-
-            const current = getSession(interaction.channel.id);
-            if (current) {
-                const rows = buildTicketControlRows(current, !!current.lockedAt);
-                await interaction.editReply({ components: rows }).catch(() => {});
-            }
-
-            await interaction
-                .followUp({ content: '🔄 تم إعادة تعيين القائمة بنجاح.', ephemeral: true })
-                .catch(() => {});
-            return;
-        }
-
-        const panel = getPanelByName(session.panelName);
-        if (!panel) {
-            await interaction.reply({ content: '⚠️ لم يتم العثور على إعدادات البنل الخاص بهذه التذكرة.', ephemeral: true });
             return;
         }
 
