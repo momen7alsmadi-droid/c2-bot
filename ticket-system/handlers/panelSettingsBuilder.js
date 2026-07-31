@@ -64,19 +64,32 @@ function buildBackToGeneralRow() {
 }
 
 /**
- * صف تنقل صفحة الرتب (1/2): زر رجوع + زر "الرتب 2/2" البرتقالي
- * (لا يمكن إضافة قائمة رتب خامسة بسبب حد 5 صفوف، لذلك فتحنا صفحة ثانية)
+ * صف زر "الرتب 2/2" — صف مستقل فوق صف الرجوع (كما طُلب)
+ * ملاحظة: ديسكورد لا يدعم اللون البرتقالي في الأزرار،
+ * والأقرب له هو اللون الأحمر (Danger) — لون برتقالي-أحمر.
  */
 function buildRolesNavRow() {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('settings_page_roles2')
+            .setLabel('🎭 الرتب 2/2')
+            .setStyle(ButtonStyle.Danger)
+    );
+}
+
+/**
+ * صف رجوع صفحة الرتب 1/2: رجوع للإعدادات العامة + رجوع للوحة الرئيسية
+ */
+function buildRolesBackRow() {
     return new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('settings_page_general')
             .setLabel('🔙 رجوع للإعدادات العامة')
             .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
-            .setCustomId('settings_page_roles2')
-            .setLabel('🎭 الرتب 2/2')
-            .setStyle(ButtonStyle.Danger) // برتقالي/أحمر (لا يوجد برتقالي صريح في ديسكورد)
+            .setCustomId('settings_page_back')
+            .setLabel('🏠 رجوع للوحة الرئيسية')
+            .setStyle(ButtonStyle.Secondary)
     );
 }
 
@@ -371,14 +384,6 @@ function buildRolesPage(panel) {
             .setMaxValues(10)
     );
 
-    const allowedRow = new ActionRowBuilder().addComponents(
-        new RoleSelectMenuBuilder()
-            .setCustomId('settings_select_allowed_roles')
-            .setPlaceholder('الرتب المسموح لها بفتح التكت (اتركها فارغة = الجميع)')
-            .setMinValues(0)
-            .setMaxValues(25)
-    );
-
     const deniedRow = new ActionRowBuilder().addComponents(
         new RoleSelectMenuBuilder()
             .setCustomId('settings_select_denied_roles')
@@ -387,16 +392,26 @@ function buildRolesPage(panel) {
             .setMaxValues(25)
     );
 
-    return [staffRow, pingRow, allowedRow, deniedRow];
+    // ملاحظة: قائمة "الرتب المسموحة" انتقلت للصفحة 2/2 (لإفساح
+    // صفين للأزرار: زر الرتب 2/2 + صف الرجوعين) — حد ديسكورد 5 صفوف
+    return [staffRow, pingRow, deniedRow];
 }
 
 /**
- * بناء صفحة "الرتب 2/2": رتب الإدارة العليا
+ * بناء صفحة "الرتب 2/2": الرتب المسموحة + رتب الإدارة العليا
  * (صفحة منفصلة لأن ديسكورد يسمح بـ 5 صفوف فقط في الرسالة)
  * الإدارة العليا تلقائياً تضم كل رتبة تملك Administrator —
  * هنا فقط نختار رتباً إضافية بدون Administrator.
  */
 function buildRoles2Page(panel) {
+    const allowedRow = new ActionRowBuilder().addComponents(
+        new RoleSelectMenuBuilder()
+            .setCustomId('settings_select_allowed_roles')
+            .setPlaceholder('الرتب المسموح لها بفتح التكت (اتركها فارغة = الجميع)')
+            .setMinValues(0)
+            .setMaxValues(25)
+    );
+
     const upperRow = new ActionRowBuilder().addComponents(
         new RoleSelectMenuBuilder()
             .setCustomId('settings_select_upper_mgmt')
@@ -405,7 +420,7 @@ function buildRoles2Page(panel) {
             .setMaxValues(25)
     );
 
-    return [upperRow];
+    return [allowedRow, upperRow];
 }
 
 /**
@@ -582,7 +597,7 @@ function buildPanelSettings(panelName, page = 'general', actionKey) {
 
     let rows = [];
     if (page === 'general') rows = buildGeneralPage(panel);
-    else if (page === 'roles') rows = [...buildRolesPage(panel), buildRolesNavRow()];
+    else if (page === 'roles') rows = [...buildRolesPage(panel), buildRolesNavRow(), buildRolesBackRow()];
     else if (page === 'roles2') rows = [...buildRoles2Page(panel), buildBackToRolesRow()];
     else if (page === 'channels') rows = [...buildChannelsPage(), buildBackToGeneralRow()];
     else if (page === 'messages') rows = [...buildMessagesPage(), buildBackToGeneralRow()];
