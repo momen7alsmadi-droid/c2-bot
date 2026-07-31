@@ -14,6 +14,7 @@
 
 const { PermissionFlagsBits, ActionRowBuilder, UserSelectMenuBuilder } = require('discord.js');
 const { reportError } = require('../../src/utils/errorLogger');
+const { safeDeferUpdate } = require('../utils/interactionGuard');
 const { getPanelByName } = require('../database/panelsDB');
 const { getSession, updateSession, addAuditLog } = require('./ticketStore');
 const { canUseRestrictedControls } = require('./permissionUtils');
@@ -41,7 +42,7 @@ async function handleTicketStaffMenu(interaction) {
         //    يوضع قبل كل الفحوصات ليعمل دائماً بلا أخطاء
         // ---------------------------------------------------
         if (interaction.values[0] === 'reload_menu') {
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
             await interaction
                 .followUp({ content: '♻️ تم إعادة تعيين القائمة بنجاح.', ephemeral: true })
                 .catch(() => {});

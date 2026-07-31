@@ -32,6 +32,7 @@ const {
 } = require('discord.js');
 const { buildPanelSettings } = require('./panelSettingsBuilder');
 const { reportError } = require('../../src/utils/errorLogger');
+const { safeDeferUpdate } = require('../utils/interactionGuard');
 const { getPanelByName, updatePanel } = require('../database/panelsDB');
 const { setSession, getSession } = require('./sessionStore');
 const { buildPublicPanelMessage } = require('./publicPanelBuilder');
@@ -65,7 +66,7 @@ async function handleTicketSelectMenu(interaction) {
                 return;
             }
 
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
 
             // نخزّن في الجلسة اسم البنل الذي بدأ الإداري تعديله + الصفحة الافتراضية
             setSession(interaction.message.id, { panelName: selected, page: 'general' });
@@ -142,7 +143,7 @@ async function handleTicketSelectMenu(interaction) {
                 return;
             }
 
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
 
             const infoEmbed = new EmbedBuilder()
                 .setColor(0x2ECC71)
@@ -235,7 +236,7 @@ async function handleTicketSelectMenu(interaction) {
                 return;
             }
 
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
 
             const confirmEmbed = new EmbedBuilder()
                 .setTitle('🗑️ تأكيد الحذف')
@@ -270,7 +271,7 @@ async function handleTicketSelectMenu(interaction) {
         // 3) قائمة "نظام فتح التكت" (أزرار / قائمة منسدلة)
         // ---------------------------------------------------
         if (customId === 'settings_select_ticket_system') {
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
 
             const session = resolveSession(interaction);
             if (!session.panelName) {
@@ -293,7 +294,7 @@ async function handleTicketSelectMenu(interaction) {
         // 4) قائمة "ربط البنلات" (Linked Panels)
         // ---------------------------------------------------
         if (customId === 'settings_select_linked_panel') {
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
 
             const session = resolveSession(interaction);
             if (!session.panelName) {
@@ -319,7 +320,7 @@ async function handleTicketSelectMenu(interaction) {
         // ليظهر الإجراء المحدد + أزرار التعديل/التبديل تعمل عليه
         // ---------------------------------------------------
         if (customId === 'settings_select_action') {
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
 
             const session = resolveSession(interaction);
             if (!session.panelName) {

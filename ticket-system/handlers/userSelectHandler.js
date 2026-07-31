@@ -9,6 +9,7 @@
 
 const { getPanelByName } = require('../database/panelsDB');
 const { reportError } = require('../../src/utils/errorLogger');
+const { safeDeferUpdate } = require('../utils/interactionGuard');
 const { getSession, updateSession, addAuditLog } = require('./ticketStore');
 const { canUseRestrictedControls } = require('./permissionUtils');
 const { buildTicketControlRows } = require('./ticketControlBuilder');

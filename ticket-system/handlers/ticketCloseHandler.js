@@ -27,6 +27,7 @@ const {
 
 const { getPanelByName } = require('../database/panelsDB');
 const { reportError } = require('../../src/utils/errorLogger');
+const { safeDeferUpdate } = require('../utils/interactionGuard');
 const { getSession, updateSession, addAuditLog } = require('./ticketStore');
 const { canUseRestrictedControls } = require('./permissionUtils');
 const { applyUnlockPermissions } = require('./ticketPermissionHelpers');
@@ -116,7 +117,7 @@ async function handleTicketCloseButton(interaction) {
         // زر [فتح] -> إعادة التذكرة لحالتها الطبيعية
         // ---------------------------------------------------
         if (interaction.customId === 'ticket_reopen') {
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
 
             await applyUnlockPermissions(interaction.channel, panel, session);
             const updated = updateSession(interaction.channel.id, { lockedAt: null });
@@ -152,7 +153,7 @@ async function handleTicketCloseButton(interaction) {
         // زر [حذف] -> بدء العد التنازلي (10 ثوانٍ)
         // ---------------------------------------------------
         if (interaction.customId === 'ticket_delete_confirm') {
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
 
             // تسجيل من طلب الحذف (يظهر في لوق الأرشيف) + سجل الأحداث
             updateSession(interaction.channel.id, { deletedBy: interaction.member.id });
@@ -205,7 +206,7 @@ async function handleTicketCloseButton(interaction) {
         // زر [إلغاء الحذف] -> إيقاف العداد والعودة لحالة الإغلاق العادية
         // ---------------------------------------------------
         if (interaction.customId === 'ticket_delete_cancel') {
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
 
             if (session.deleteTimer) clearInterval(session.deleteTimer);
             updateSession(interaction.channel.id, { deleteTimer: null, deleteCountdown: 0, deletedBy: null });

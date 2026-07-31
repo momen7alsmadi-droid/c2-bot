@@ -18,6 +18,7 @@
 
 const { buildPanelSettings } = require('./panelSettingsBuilder');
 const { reportError } = require('../../src/utils/errorLogger');
+const { safeDeferUpdate } = require('../utils/interactionGuard');
 const { updatePanel } = require('../database/panelsDB');
 const { resolveSession } = require('../utils/panelResolver');
 
@@ -38,7 +39,7 @@ async function handleRoleSelectMenu(interaction) {
     if (!field) return;
 
     try {
-        await interaction.deferUpdate().catch(() => {});
+        if (!(await safeDeferUpdate(interaction))) return;
 
         const session = resolveSession(interaction);
         if (!session.panelName) {

@@ -31,6 +31,7 @@
 
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const { reportError } = require('../../src/utils/errorLogger');
+const { safeDeferUpdate } = require('../utils/interactionGuard');
 const { buildMainDashboard, buildSubPanel } = require('./dashboardBuilder');
 const { buildPanelSettings } = require('./panelSettingsBuilder');
 const {
@@ -104,7 +105,7 @@ async function handleTicketButton(interaction) {
         // 2) زر "رجوع" (من اللوحات الفرعية في الجزء الأول)
         // ---------------------------------------------------
         if (interaction.customId === 'ticket_back') {
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
             const { embeds, components } = buildMainDashboard();
             await interaction.editReply({ embeds, components });
             return;
@@ -115,7 +116,7 @@ async function handleTicketButton(interaction) {
         //    -> نمسح الجلسة الخاصة بهذه الرسالة أيضاً
         // ---------------------------------------------------
         if (interaction.customId === 'settings_page_back') {
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
             clearSession(interaction.message.id);
             const { embeds, components } = buildMainDashboard();
             await interaction.editReply({ embeds, components });
@@ -127,7 +128,7 @@ async function handleTicketButton(interaction) {
         //    نمرر النتيجة كاملة (content + embeds + components)
         // ---------------------------------------------------
         if (SUB_PANEL_MAP[interaction.customId]) {
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
             const type = SUB_PANEL_MAP[interaction.customId];
             const result = buildSubPanel(type);
             await interaction.editReply(result);
@@ -138,7 +139,7 @@ async function handleTicketButton(interaction) {
         // 4.5) زر رجوع من عرض "سجل التكت" -> لقائمة السجل
         // ---------------------------------------------------
         if (interaction.customId === 'ticket_log_back') {
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
             const result = buildSubPanel('log');
             await interaction.editReply(result);
             return;
@@ -148,7 +149,7 @@ async function handleTicketButton(interaction) {
         // 4.6) زر [❌ لا، تراجع] بعد تأكيد الحذف -> لقائمة الحذف
         // ---------------------------------------------------
         if (interaction.customId === 'ticket_delete_no') {
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
             const result = buildSubPanel('delete');
             await interaction.editReply(result);
             return;
@@ -159,7 +160,7 @@ async function handleTicketButton(interaction) {
         // ---------------------------------------------------
         if (interaction.customId.startsWith('ticket_delete_yes:')) {
             const name = interaction.customId.split(':')[1];
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
 
             const success = deletePanel(name);
             if (success) {
@@ -186,7 +187,7 @@ async function handleTicketButton(interaction) {
         //    نعتمد على sessionStore لمعرفة أي بنل نحن نعدّله الآن
         // ---------------------------------------------------
         if (SETTINGS_PAGE_IDS.includes(interaction.customId)) {
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
 
             const session = resolveSession(interaction);
             if (!session.panelName) {
@@ -309,7 +310,7 @@ async function handleTicketButton(interaction) {
         // 7-و) زر "تفعيل / إطفاء" رسالة الإجراء المحدد
         // ---------------------------------------------------
         if (interaction.customId === 'settings_toggle_action') {
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
 
             const session = resolveSession(interaction);
             if (!session.panelName || !session.actionKey) {
@@ -341,7 +342,7 @@ async function handleTicketButton(interaction) {
         // 8) زر "تشغيل / إيقاف" -> Toggle مباشر بدون Modal
         // ---------------------------------------------------
         if (interaction.customId === 'settings_toggle_enabled') {
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
 
             const session = resolveSession(interaction);
             const panel = session.panelName ? getPanelByName(session.panelName) : null;
@@ -362,7 +363,7 @@ async function handleTicketButton(interaction) {
         //    يعرض تأكيد الحفظ مع إمكانية الرجوع أو متابعة التعديل
         // ---------------------------------------------------
         if (interaction.customId === 'settings_save') {
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
 
             const panel = resolvePanel(interaction);
             if (!panel) {

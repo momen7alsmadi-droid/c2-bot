@@ -17,6 +17,7 @@
 
 const { getPanelByName } = require('../database/panelsDB');
 const { reportError } = require('../../src/utils/errorLogger');
+const { safeDeferUpdate } = require('../utils/interactionGuard');
 const { getSession, updateSession, addAuditLog } = require('./ticketStore');
 const { isStaff, canUseRestrictedControls } = require('./permissionUtils');
 const { buildTicketControlRows } = require('./ticketControlBuilder');
@@ -74,7 +75,7 @@ async function handleTicketControlButton(interaction) {
                     return;
                 }
 
-                await interaction.deferUpdate().catch(() => {});
+                if (!(await safeDeferUpdate(interaction))) return;
                 await applyClaimPermissions(interaction.channel, panel, interaction.member.id);
 
                 const updated = updateSession(interaction.channel.id, { claimedBy: interaction.member.id });
@@ -97,7 +98,7 @@ async function handleTicketControlButton(interaction) {
                 return;
             }
 
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
             const previousClaimer = session.claimedBy;
             await revertClaimPermissions(interaction.channel, panel, previousClaimer, session.openerId);
 
@@ -128,7 +129,7 @@ async function handleTicketControlButton(interaction) {
                 return;
             }
 
-            await interaction.deferUpdate().catch(() => {});
+            if (!(await safeDeferUpdate(interaction))) return;
 
             const currentlyLocked = !!session.lockedAt;
 
