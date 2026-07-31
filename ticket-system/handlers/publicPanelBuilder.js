@@ -115,10 +115,27 @@ function buildPanelEmbed(panel, context) {
  */
 function buildPublicPanelMessage(panel, context = {}) {
     // توسيع الباقة: بنل واحد => نفسه + كل المرتبطين به (المصفوفة كما هي)
-    const raw = Array.isArray(panel)
-        ? panel
-        : [panel, ...(panel.linkedPanels || []).map(getPanelByName).filter(Boolean)];
-    const panels = raw.filter(Boolean).slice(0, 25); // حد Discord: 25 زر/خيار كحد أقصى
+    // توسيع الباقة دائماً (بنل واحد أو مصفوفة): كل بنل يجلب المرتبطين به
+    // (مستوى واحد)، مع إزالة التكرار والحفاظ على الترتيب (المختار أولاً)
+    const expandPanels = input => {
+        const initial = Array.isArray(input) ? input : [input];
+        const seen = new Set();
+        const result = [];
+        for (const p of initial) {
+            if (!p || !p.name || seen.has(p.name)) continue;
+            seen.add(p.name);
+            result.push(p);
+            for (const linked of p.linkedPanels || []) {
+                const lp = getPanelByName(linked);
+                if (lp && !seen.has(lp.name) && result.length < 25) {
+                    seen.add(lp.name);
+                    result.push(lp);
+                }
+            }
+        }
+        return result.slice(0, 25); // حد Discord: 25 زر/خيار كحد أقصى
+    };
+    const panels = expandPanels(panel);
     if (!panels.length) return { embeds: [], components: [] };
 
     // إيمبد لكل بنل (حد Discord: 10 إيمبدات كحد أقصى)
