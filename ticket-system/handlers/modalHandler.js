@@ -26,6 +26,7 @@ const { createPanel, updatePanel, renamePanel, getPanelByName } = require('../da
 const { buildPanelSettings } = require('./panelSettingsBuilder');
 const { setSession, getSession } = require('./sessionStore');
 const { getSession: getTicketSession, addAuditLog } = require('./ticketStore');
+const { safeEmoji } = require('../utils/emoji');
 
 const RELEVANT_IDS = ['modal_create_panel', 'modal_edit_name_desc', 'modal_welcome_message', 'modal_panel_message', 'modal_rename_ticket'];
 
@@ -63,6 +64,15 @@ async function handleTicketModal(interaction) {
             const name = interaction.fields.getTextInputValue('panel_name').trim();
             const description = interaction.fields.getTextInputValue('panel_description').trim();
             const emoji = interaction.fields.getTextInputValue('panel_emoji').trim();
+
+            // التحقق من صحة الإيموجي قبل الحفظ (يمنع أخطاء Discord عند العرض)
+            if (emoji && safeEmoji(emoji) !== emoji) {
+                await interaction.reply({
+                    content: '❌ الإيموجي غير صالح. استخدم إيموجي يونيكود (مثل 🎫) أو إيموجي مخصص صحيح بهذا الشكل: `<:name:id>`',
+                    ephemeral: true,
+                });
+                return;
+            }
 
             let panel;
             try {
@@ -103,6 +113,15 @@ async function handleTicketModal(interaction) {
             const newName = interaction.fields.getTextInputValue('panel_name').trim();
             const description = interaction.fields.getTextInputValue('panel_description').trim();
             const emoji = interaction.fields.getTextInputValue('panel_emoji').trim();
+
+            // التحقق من صحة الإيموجي قبل الحفظ
+            if (emoji && safeEmoji(emoji) !== emoji) {
+                await interaction.reply({
+                    content: '❌ الإيموجي غير صالح. استخدم إيموجي يونيكود (مثل 🎫) أو إيموجي مخصص صحيح بهذا الشكل: `<:name:id>`',
+                    ephemeral: true,
+                });
+                return;
+            }
 
             try {
                 // إعادة التسمية فقط إذا تغيّر الاسم فعلياً (تتحقق من عدم التكرار داخلياً)

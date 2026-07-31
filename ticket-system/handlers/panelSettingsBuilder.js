@@ -32,6 +32,7 @@ const {
 const { getPanelByName, getAllPanels } = require('../database/panelsDB');
 const { buildPublicPanelMessage } = require('./publicPanelBuilder');
 const { SUPPORTED_VARIABLES } = require('../utils/messageVariables');
+const { safeEmoji } = require('../utils/emoji');
 
 const INFO_COLOR = 0x2ECC71; // أخضر مثل إيمبد "معلومات الإيمبد" في لوحة الإيمبد
 
@@ -233,9 +234,9 @@ function buildGeneralPage(panel) {
         linkSelect.addOptions([
             { label: '❌ إلغاء الربط', value: 'unlink', default: !panel.linkedPanel },
             ...otherPanels.map(p => ({
-                label: p.name,
+                label: p.name.slice(0, 100),
                 value: p.name,
-                emoji: p.emoji || '🎫',
+                emoji: safeEmoji(p.emoji),
                 default: panel.linkedPanel === p.name,
             })),
         ]);

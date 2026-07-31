@@ -113,7 +113,35 @@ function readDB() {
     ensureDBFile();
     const raw = fs.readFileSync(DB_PATH, 'utf-8');
     try {
-        return JSON.parse(raw);
+        const data = JSON.parse(raw);
+
+        // حماية 1: هيكل غير متوقع (ملف قديم/تالف)
+        if (!data || typeof data !== 'object' || !Array.isArray(data.panels)) {
+            // بعض النسخ القديمة خزّنت { panels: { panels: [...] } } — نستعيدها
+            if (data && data.panels && Array.isArray(data.panels.panels)) {
+                console.warn('[panelsDB] تم اكتشاف هيكل قديم متداخل، جاري التصحيح تلقائياً');
+                return { panels: data.panels.panels };
+            }
+            console.warn('[panelsDB] هيكل ملف قديم/تالف، سيتم استخدام هيكل فارغ آمن');
+            return { panels: [] };
+        }
+
+        // حماية 2: فلترة البنلات غير الصالحة (بدون اسم نصي صالح أو
+        // اسم أطول من حد Discord البالغ 100 حرف) لمنع أي أعطال لاحقة
+        const valid = data.panels.filter(
+            p =>
+                p &&
+                typeof p === 'object' &&
+                typeof p.name === 'string' &&
+                p.name.trim() &&
+                p.name.length <= 100
+        );
+        if (valid.length !== data.panels.length) {
+            console.warn(`[panelsDB] تم تجاهل ${data.panels.length - valid.length} بنل غير صالح من الملف`);
+        }
+        data.panels = valid;
+
+        return data;
     } catch (err) {
         console.error('[panelsDB] خطأ في قراءة ملف قاعدة البيانات، سيتم استخدام هيكل فارغ:', err);
         return { panels: [] };

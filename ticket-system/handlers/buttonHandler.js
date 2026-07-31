@@ -305,7 +305,7 @@ async function handleTicketButton(interaction) {
         console.error('[buttonHandler] حدث خطأ أثناء معالجة الزر:', error);
 
         const errorPayload = {
-            content: '❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الإجراء.',
+            content: `❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الإجراء.\n\`\`\`${error.message}\`\`\``,
             ephemeral: true,
         };
 

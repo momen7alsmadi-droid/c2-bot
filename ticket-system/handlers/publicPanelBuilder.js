@@ -24,6 +24,7 @@ const {
     resolveColor,
 } = require('discord.js');
 const { applyMessageVariables } = require('../utils/messageVariables');
+const { safeEmoji } = require('../utils/emoji');
 
 /**
  * لون آمن: يقبل أي صيغة لون صالحة (Hex/اسم/رقم) ويعيد
@@ -68,7 +69,7 @@ function buildPublicPanelMessage(panel, context = {}) {
         .setColor(safeColor(custom.color))
         .setTitle(
             applyMessageVariables(
-                custom.title || `${panel.emoji || '🎫'} ${panel.name}`,
+                custom.title || `${safeEmoji(panel.emoji)} ${panel.name}`,
                 context
             )
         )
@@ -92,14 +93,14 @@ function buildPublicPanelMessage(panel, context = {}) {
             .addOptions({
                 label: `فتح تذكرة - ${panel.name}`,
                 value: 'open',
-                emoji: panel.emoji || '🎫',
+                emoji: safeEmoji(panel.emoji),
             });
         row = new ActionRowBuilder().addComponents(select);
     } else {
         const button = new ButtonBuilder()
             .setCustomId(`ticket_open:${panel.name}`)
             .setLabel(`فتح تذكرة`)
-            .setEmoji(panel.emoji || '🎫')
+            .setEmoji(safeEmoji(panel.emoji))
             .setStyle(ButtonStyle.Primary);
         row = new ActionRowBuilder().addComponents(button);
     }

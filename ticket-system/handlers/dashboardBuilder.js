@@ -28,6 +28,7 @@ const {
 } = require('discord.js');
 
 const { getAllPanels } = require('../database/panelsDB');
+const { safeEmoji } = require('../utils/emoji');
 const { version } = require('../../package.json');
 
 // ألوان موحدة مع باقي لوحات البوت (نفس لوحة الإيمبد)
@@ -108,10 +109,10 @@ function buildSubPanel(type) {
     } else {
         selectMenu.addOptions(
             panels.map(panel => ({
-                label: panel.name,
-                description: panel.description?.slice(0, 100) || 'لا يوجد وصف',
-                value: panel.name,
-                emoji: panel.emoji || '🎫',
+                label: panel.name.slice(0, 100),
+                description: (panel.description ? String(panel.description).slice(0, 100) : undefined) || 'لا يوجد وصف',
+                value: panel.name.slice(0, 100),
+                emoji: safeEmoji(panel.emoji),
             }))
         );
     }
