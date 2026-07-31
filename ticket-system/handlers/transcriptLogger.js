@@ -17,6 +17,7 @@
  */
 
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { reportError } = require('../../src/utils/errorLogger');
 const { getSession, deleteSession } = require('./ticketStore');
 
 const MAX_MESSAGES_TO_FETCH = 1000; // سقف احترازي لتجنب حلقة جلب لا نهائية في تذاكر ضخمة جداً
@@ -219,9 +220,10 @@ async function finalizeTicketDeletion(channel, panel) {
     if (panel.logChannelId) {
         const logChannel = await guild.channels.fetch(panel.logChannelId).catch(() => null);
         if (logChannel) {
-            await logChannel.send({ embeds: [logEmbed], files: [transcriptFile] }).catch(err =>
-                console.error('[transcriptLogger] فشل إرسال اللوق:', err)
-            );
+            await logChannel.send({ embeds: [logEmbed], files: [transcriptFile] }).catch(err => {
+                console.error('[transcriptLogger] فشل إرسال اللوق:', err);
+                reportError('TICKET_LOG_SEND', 'transcript', err);
+            });
         } else {
             console.warn(`[transcriptLogger] روم اللوق المحدد للبنل "${panel.name}" لم يعد موجوداً.`);
         }
@@ -233,7 +235,10 @@ async function finalizeTicketDeletion(channel, panel) {
     // 5) حذف القناة فعلياً ومسح الجلسة من الذاكرة
     // ---------------------------------------------------
     deleteSession(channel.id);
-    await channel.delete().catch(err => console.error('[transcriptLogger] فشل حذف القناة:', err));
+    await channel.delete().catch(err => {
+        console.error('[transcriptLogger] فشل حذف القناة:', err);
+        reportError('TICKET_CHANNEL_DELETE', channel.id, err);
+    });
 }
 
 module.exports = { finalizeTicketDeletion };

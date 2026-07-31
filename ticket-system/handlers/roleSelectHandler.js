@@ -17,6 +17,7 @@
  */
 
 const { buildPanelSettings } = require('./panelSettingsBuilder');
+const { reportError } = require('../../src/utils/errorLogger');
 const { updatePanel } = require('../database/panelsDB');
 const { resolveSession } = require('../utils/panelResolver');
 
@@ -63,6 +64,7 @@ async function handleRoleSelectMenu(interaction) {
         await interaction.editReply(result);
     } catch (error) {
         console.error('[roleSelectHandler] حدث خطأ أثناء معالجة قائمة الرتب:', error);
+        reportError('TICKET_ROLE_SELECT', interaction.customId || '?', error);
         await interaction
             .followUp({ content: '❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الإجراء.', ephemeral: true })
             .catch(() => {});

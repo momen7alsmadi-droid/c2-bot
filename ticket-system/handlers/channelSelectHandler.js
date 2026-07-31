@@ -17,6 +17,7 @@
  */
 
 const { buildPanelSettings } = require('./panelSettingsBuilder');
+const { reportError } = require('../../src/utils/errorLogger');
 const { updatePanel, getPanelByName } = require('../database/panelsDB');
 const { resolveSession } = require('../utils/panelResolver');
 const { buildPublicPanelMessage } = require('./publicPanelBuilder');
@@ -65,6 +66,7 @@ async function handleChannelSelectMenu(interaction) {
             });
         } catch (error) {
             console.error('[channelSelectHandler] خطأ أثناء نشر البنل العام:', error);
+            reportError('TICKET_PUBLISH', 'publish-panel', error);
             await interaction
                 .update({ content: '❌ حدث خطأ أثناء محاولة نشر البنل. تأكد أن للبوت صلاحية الإرسال في هذا الروم.', components: [] })
                 .catch(() => {});
@@ -101,6 +103,7 @@ async function handleChannelSelectMenu(interaction) {
         await interaction.editReply(result);
     } catch (error) {
         console.error('[channelSelectHandler] حدث خطأ أثناء معالجة قائمة الرومات:', error);
+        reportError('TICKET_CHANNEL_SELECT', interaction.customId || '?', error);
         await interaction
             .followUp({ content: '❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الإجراء.', ephemeral: true })
             .catch(() => {});

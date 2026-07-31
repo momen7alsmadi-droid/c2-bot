@@ -13,6 +13,7 @@
  */
 
 const { PermissionFlagsBits, ActionRowBuilder, UserSelectMenuBuilder } = require('discord.js');
+const { reportError } = require('../../src/utils/errorLogger');
 const { getPanelByName } = require('../database/panelsDB');
 const { getSession, updateSession, addAuditLog } = require('./ticketStore');
 const { canUseRestrictedControls } = require('./permissionUtils');
@@ -181,6 +182,7 @@ async function handleTicketStaffMenu(interaction) {
         }
     } catch (error) {
         console.error('[ticketStaffMenuHandler] حدث خطأ:', error);
+        reportError('TICKET_STAFF_MENU', interaction.customId || '?', error);
         const payload = { content: '❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الإجراء.', ephemeral: true };
         if (interaction.deferred || interaction.replied) {
             await interaction.followUp(payload).catch(() => {});

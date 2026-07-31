@@ -26,6 +26,7 @@ const {
 } = require('discord.js');
 
 const { getPanelByName } = require('../database/panelsDB');
+const { reportError } = require('../../src/utils/errorLogger');
 const { getSession, updateSession } = require('./ticketStore');
 const { canUseRestrictedControls } = require('./permissionUtils');
 const { applyUnlockPermissions } = require('./ticketPermissionHelpers');
@@ -210,6 +211,7 @@ async function handleTicketCloseButton(interaction) {
         }
     } catch (error) {
         console.error('[ticketCloseHandler] حدث خطأ:', error);
+        reportError('TICKET_CLOSE', interaction.customId || '?', error);
         const payload = { content: '❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الإجراء.', ephemeral: true };
         if (interaction.deferred || interaction.replied) {
             await interaction.followUp(payload).catch(() => {});

@@ -31,6 +31,7 @@ const {
     ButtonStyle,
 } = require('discord.js');
 const { buildPanelSettings } = require('./panelSettingsBuilder');
+const { reportError } = require('../../src/utils/errorLogger');
 const { getPanelByName, updatePanel } = require('../database/panelsDB');
 const { setSession, getSession } = require('./sessionStore');
 const { buildPublicPanelMessage } = require('./publicPanelBuilder');
@@ -340,6 +341,7 @@ async function handleTicketSelectMenu(interaction) {
         }
     } catch (error) {
         console.error('[selectMenuHandler] حدث خطأ أثناء معالجة القائمة المنسدلة:', error);
+        reportError('TICKET_SELECT', interaction.customId || '?', error);
 
         const errorPayload = {
             content: `❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الإجراء.\n\`\`\`${error.message}\`\`\``,

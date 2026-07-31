@@ -8,6 +8,7 @@
  */
 
 const { getPanelByName } = require('../database/panelsDB');
+const { reportError } = require('../../src/utils/errorLogger');
 const { getSession, updateSession, addAuditLog } = require('./ticketStore');
 const { canUseRestrictedControls } = require('./permissionUtils');
 const { buildTicketControlRows } = require('./ticketControlBuilder');
@@ -142,6 +143,7 @@ async function handleUserSelectMenu(interaction) {
         }
     } catch (error) {
         console.error('[userSelectHandler] حدث خطأ:', error);
+        reportError('TICKET_USER_SELECT', interaction.customId || '?', error);
         await interaction.update({ content: '❌ حدث خطأ غير متوقع.', components: [] }).catch(() => {});
     }
 }

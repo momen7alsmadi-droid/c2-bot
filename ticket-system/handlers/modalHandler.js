@@ -23,6 +23,7 @@
  */
 
 const { createPanel, updatePanel, renamePanel, getPanelByName } = require('../database/panelsDB');
+const { reportError } = require('../../src/utils/errorLogger');
 const { buildPanelSettings } = require('./panelSettingsBuilder');
 const { setSession, getSession } = require('./sessionStore');
 const { getSession: getTicketSession, addAuditLog } = require('./ticketStore');
@@ -381,6 +382,7 @@ async function handleTicketModal(interaction) {
         }
     } catch (error) {
         console.error('[modalHandler] حدث خطأ أثناء معالجة الـ Modal:', error);
+        reportError('TICKET_MODAL', interaction.customId || '?', error);
 
         const errorPayload = { content: '❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الإجراء.', ephemeral: true };
         if (interaction.deferred || interaction.replied) {

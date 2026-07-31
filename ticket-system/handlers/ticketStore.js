@@ -30,6 +30,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { reportError } = require('../../src/utils/errorLogger');
 
 const SESSIONS_PATH = path.join(__dirname, '..', 'data', 'ticket-sessions.json');
 
@@ -69,6 +70,7 @@ function writeSessionsNow() {
         fs.writeFileSync(SESSIONS_PATH, JSON.stringify(data, null, 2), 'utf-8');
     } catch (err) {
         console.error('[ticketStore] فشل حفظ الجلسات على القرص:', err.message);
+        reportError('TICKET_STORE_SAVE', 'ticket-sessions', err);
     }
 }
 
@@ -131,6 +133,7 @@ function initTicketStore() {
         }
     } catch (err) {
         console.error('[ticketStore] تعذّر استعادة الجلسات (سيبدأ من جديد):', err.message);
+        reportError('TICKET_STORE_LOAD', 'ticket-sessions', err);
     }
 }
 

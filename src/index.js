@@ -11,6 +11,7 @@ const {
   handleLeaveCommand, handleLeaveModalSubmit, handleLeaveButton,
   handleLeaveSettings, checkExpiredLeaves, CHECK_INTERVAL_MS
 } = require('./handlers/leave');
+const { setErrorClient, logError } = require('./utils/errorLogger');
 const { handleDaleelCommand, handleDaleelSettings } = require('./handlers/daleel');
 const { handleReportCommand, handleReportButton, handleReportSettings } = require('./handlers/report');
 const { handleResign, handleResignButton, handleDevSettings } = require('./handlers/resign');
@@ -212,35 +213,7 @@ async function sendDbStatus(client) {
 /**
  * إرسال خطأ إلى روم الأخطاء التلقائي
  */
-async function sendErrorToChannel(client, type, id, err) {
-  // تجاهل أخطاء التوقيت العابرة (DiscordAPIError 10062, 40060)
-  if (err && (err.code === 10062 || err.code === 40060)) return;
-
-  const cfg = safeGetConfig();
-  if (!cfg.errorLogChannelId) return;
-
-  try {
-    const channel = await client.channels.fetch(cfg.errorLogChannelId).catch(() => null);
-    if (!channel) return;
-
-    const errMsg = (err.message || 'خطأ غير معروف').slice(0, 1000);
-    const stackPreview = (err.stack || errMsg).split('\n').slice(0, 5).join('\n').slice(0, 1000);
-
-    const embed = new EmbedBuilder()
-      .setTitle(`🚨 خطأ: ${type}`)
-      .setColor(0xE74C3C)
-      .setDescription(`🆔 **${id || '?'}** | 🕐 <t:${Math.floor(Date.now() / 1000)}:F>`)
-      .addFields(
-        { name: '📝 رسالة الخطأ', value: errMsg, inline: false },
-        { name: '📋 المكدس (Stack)', value: stackPreview, inline: false },
-      )
-      .setTimestamp();
-
-    await channel.send({ content: '<@1387331972094890036>', embeds: [embed] });
-  } catch (e) {
-    console.error('❌ فشل إرسال الخطأ إلى الروم:', e.message);
-  }
-}
+// أصبحت في src/utils/errorLogger.js (sendErrorToChannel)
 
 // ---------- الاتصال بقاعدة البيانات ----------
 async function initialize() {
@@ -412,33 +385,6 @@ ID: ${guild.id}
 }
 
 initialize();
-
-// ========== نظام تسجيل الأخطاء (Error Log) مع إرسال لروم الأخطاء ==========
-const ERROR_LOG_PATH = path.join(__dirname, '..', 'data', 'error-log.json');
-const MAX_LOG = 50;
-
-function logError(type, id, err) {
-  // تجاهل أخطاء التوقيت العابرة ولا تسجلها إطلاقاً
-  if (err && (err.code === 10062 || err.code === 40060)) return;
-  try {
-    const entry = { ts: Date.now(), type, id, msg: err.message, stack: (err.stack || '').split('\n').slice(0, 5).join('\n') };
-    let log = [];
-    try {
-      if (fs.existsSync(ERROR_LOG_PATH)) {
-        log = JSON.parse(fs.readFileSync(ERROR_LOG_PATH, 'utf8'));
-        if (!Array.isArray(log)) log = [];
-      }
-    } catch { log = []; }
-    log.unshift(entry);
-    if (log.length > MAX_LOG) log = log.slice(0, MAX_LOG);
-    fs.writeFileSync(ERROR_LOG_PATH, JSON.stringify(log, null, 2), 'utf8');
-
-    // إرسال إلى روم الأخطاء إن وجد
-    if (client && client.isReady()) {
-      sendErrorToChannel(client, type, id, err);
-    }
-  } catch { /* ignore */ }
-}
 
 // ========== معالج الأخطاء العام (Unhandled Rejections / Exceptions) ==========
 process.on('unhandledRejection', (reason, promise) => {
@@ -735,3 +681,6 @@ client.on('messageReactionAdd', async (reaction, user) => {
 });
 
 client.login(process.env.BOT_TOKEN);
+
+// ربط الـ client بنظام الأخطاء (لإرسال الأخطاء لروم الأخطاء)
+setErrorClient(client);

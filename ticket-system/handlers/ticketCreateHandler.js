@@ -24,6 +24,7 @@
  */
 
 const { PermissionFlagsBits, ChannelType } = require('discord.js');
+const { reportError } = require('../../src/utils/errorLogger');
 const { getPanelByName } = require('../database/panelsDB');
 const { canOpenTicket } = require('./permissionUtils');
 const { createSession, updateSession, addAuditLog } = require('./ticketStore');
@@ -175,6 +176,7 @@ async function handleTicketCreate(interaction) {
         await interaction.editReply({ content: `✅ تم فتح تذكرتك: <#${ticketChannel.id}>` });
     } catch (error) {
         console.error('[ticketCreateHandler] حدث خطأ أثناء إنشاء التذكرة:', error);
+        reportError('TICKET_CREATE', interaction.customId || '?', error);
         const payload = { content: '❌ حدث خطأ غير متوقع أثناء فتح التذكرة.', ephemeral: true };
         if (interaction.deferred || interaction.replied) {
             await interaction.editReply(payload).catch(() => {});

@@ -31,6 +31,7 @@
  */
 
 const { EmbedBuilder } = require('discord.js');
+const { reportError } = require('../../src/utils/errorLogger');
 const { applyMessageVariables } = require('./messageVariables');
 
 // ===== الجمل الافتراضية لكل إجراء =====
@@ -174,6 +175,7 @@ async function sendActionMessage(channel, panel, actionKey, context = {}) {
         await channel.send({ content, embeds: [embed] });
     } catch (err) {
         console.error(`[actionMessages] فشل إرسال رسالة إجراء ${actionKey}:`, err.message);
+        reportError('TICKET_ACTION_MESSAGE', actionKey, err);
     }
 }
 

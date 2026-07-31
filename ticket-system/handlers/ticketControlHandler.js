@@ -16,6 +16,7 @@
  */
 
 const { getPanelByName } = require('../database/panelsDB');
+const { reportError } = require('../../src/utils/errorLogger');
 const { getSession, updateSession, addAuditLog } = require('./ticketStore');
 const { isStaff, canUseRestrictedControls } = require('./permissionUtils');
 const { buildTicketControlRows } = require('./ticketControlBuilder');
@@ -156,6 +157,7 @@ async function handleTicketControlButton(interaction) {
         }
     } catch (error) {
         console.error('[ticketControlHandler] حدث خطأ:', error);
+        reportError('TICKET_CONTROL', interaction.customId || '?', error);
         const payload = { content: '❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الإجراء.', ephemeral: true };
         if (interaction.deferred || interaction.replied) {
             await interaction.followUp(payload).catch(() => {});

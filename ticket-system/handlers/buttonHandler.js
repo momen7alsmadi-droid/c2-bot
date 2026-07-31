@@ -30,6 +30,7 @@
  */
 
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+const { reportError } = require('../../src/utils/errorLogger');
 const { buildMainDashboard, buildSubPanel } = require('./dashboardBuilder');
 const { buildPanelSettings } = require('./panelSettingsBuilder');
 const {
@@ -391,6 +392,7 @@ async function handleTicketButton(interaction) {
         }
     } catch (error) {
         console.error('[buttonHandler] حدث خطأ أثناء معالجة الزر:', error);
+        reportError('TICKET_BUTTON', interaction.customId || '?', error);
 
         const errorPayload = {
             content: `❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الإجراء.\n\`\`\`${error.message}\`\`\``,
