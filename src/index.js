@@ -453,7 +453,7 @@ client.on('interactionCreate', async (interaction) => {
       } catch (acErr) {
         console.error('❌ Autocomplete error:', acErr.message);
       }
-    } else if (interaction.isStringSelectMenu() || interaction.isRoleSelectMenu() || interaction.isChannelSelectMenu()) {
+    } else if (interaction.isStringSelectMenu() || interaction.isRoleSelectMenu() || interaction.isChannelSelectMenu() || interaction.isUserSelectMenu()) {
       console.log('🔽 Select Menu:', interaction.customId, 'values:', interaction.values);
       if (interaction.customId.startsWith('emb_')) {
         await handleEmbedsInteraction(interaction);
