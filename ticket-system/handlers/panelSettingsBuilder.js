@@ -31,6 +31,7 @@ const {
 
 const { getPanelByName, getAllPanels } = require('../database/panelsDB');
 const { buildPublicPanelMessage } = require('./publicPanelBuilder');
+const { buildTicketEmbed } = require('./ticketEmbedBuilder');
 const { SUPPORTED_VARIABLES } = require('../utils/messageVariables');
 const { safeEmoji } = require('../utils/emoji');
 
@@ -135,6 +136,7 @@ function buildSettingsEmbed(panel, page) {
     );
 
     // ===== الرسائل =====
+    const pm = panel.panelMessage || {};
     embed.addFields(
         {
             name: '💬 رسالة الترحيب',
@@ -146,13 +148,19 @@ function buildSettingsEmbed(panel, page) {
         {
             name: '📤 رسالة البنل العامة',
             value:
-                panel.panelMessage &&
-                (panel.panelMessage.title ||
-                    panel.panelMessage.description ||
-                    panel.panelMessage.footer ||
-                    panel.panelMessage.color)
+                pm.title || pm.description || pm.footer || pm.color || pm.image
                     ? '🟢 مخصصة (تظهر المعاينة الحية أسفل)'
                     : '🔴 افتراضية (يمكنك تخصيصها من واجهة الرسائل)',
+            inline: false,
+        },
+        {
+            name: '🖼️ إيمبد التكت (فوق الأزرار داخل التكت)',
+            value: (() => {
+                const te = panel.ticketEmbed || {};
+                return te.title || te.description || te.image || te.color
+                    ? '🟢 مخصصة (تظهر المعاينة في صفحة الرسائل)'
+                    : '🔴 افتراضية (اسم البنل + رسالة الترحيب)';
+            })(),
             inline: false,
         },
         {
@@ -323,8 +331,9 @@ function buildChannelsPage() {
 }
 
 /**
- * بناء واجهة "الرسائل" — زر تخصيص رسالة الترحيب داخل التكت
- * + زر تخصيص رسالة البنل العامة (الإيمبد المنشور مع زر/قائمة الفتح)
+ * بناء واجهة "الرسائل" — تخصيص رسالة الترحيب داخل التكت
+ * + تخصيص رسالة البنل العامة (الإيمبد المنشور مع زر/قائمة الفتح)
+ * + تخصيص إيمبد التكت (فوق الأزرار داخل التكت: كلام + صورة)
  */
 function buildMessagesPage() {
     const messagesRow = new ActionRowBuilder().addComponents(
@@ -338,7 +347,14 @@ function buildMessagesPage() {
             .setStyle(ButtonStyle.Secondary)
     );
 
-    return [messagesRow];
+    const ticketEmbedRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('settings_edit_ticket_embed')
+            .setLabel('🖼️ تخصيص إيمبد التكت')
+            .setStyle(ButtonStyle.Secondary)
+    );
+
+    return [messagesRow, ticketEmbedRow];
 }
 
 /**
@@ -361,6 +377,12 @@ function buildPanelSettings(panelName, page = 'general') {
 
     // معاينة حية لما سيراه الأعضاء (نفس فكرة معاينة لوحة الإيمبد)
     const previewEmbed = buildPublicPanelMessage(panel).embeds[0];
+    const embeds = [infoEmbed, previewEmbed];
+
+    // في صفحة الرسائل نضيف معاينة لإيمبد التكت (فوق الأزرار داخل التكت)
+    if (page === 'messages') {
+        embeds.push(buildTicketEmbed(panel));
+    }
 
     let rows = [];
     if (page === 'general') rows = buildGeneralPage(panel);
@@ -369,7 +391,7 @@ function buildPanelSettings(panelName, page = 'general') {
     else if (page === 'messages') rows = [...buildMessagesPage(), buildBackToGeneralRow()];
 
     return {
-        embeds: [infoEmbed, previewEmbed],
+        embeds,
         components: rows,
     };
 }

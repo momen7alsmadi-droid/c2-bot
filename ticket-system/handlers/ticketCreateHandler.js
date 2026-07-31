@@ -23,12 +23,12 @@
  * =========================================================
  */
 
-const { PermissionFlagsBits, ChannelType, EmbedBuilder } = require('discord.js');
+const { PermissionFlagsBits, ChannelType } = require('discord.js');
 const { getPanelByName } = require('../database/panelsDB');
 const { canOpenTicket } = require('./permissionUtils');
 const { createSession, updateSession, addAuditLog } = require('./ticketStore');
 const { buildTicketControlRows } = require('./ticketControlBuilder');
-const { applyMessageVariables } = require('../utils/messageVariables');
+const { buildTicketEmbed } = require('./ticketEmbedBuilder');
 
 /**
  * توليد اسم روم آمن (بدون رموز يرفضها ديسكورد) من اسم العضو
@@ -122,24 +122,21 @@ async function handleTicketCreate(interaction) {
         });
 
         // ---------------------------------------------------
-        // بناء رسالة الترحيب
+        // بناء رسالة الترحيب/التحكم (الإيمبد فوق الأزرار)
+        // قابل للتخصيص بالكامل عبر panel.ticketEmbed:
+        //   العنوان + الكلام + الصورة + اللون، وكل النصوص
+        //   تدعم المتغيرات. إن تُرك أي حقل فارغاً نستخدم
+        //   الافتراضي (الاسم + رسالة الترحيب المخصصة).
         // ---------------------------------------------------
-        const welcomeTemplate =
-            panel.welcomeMessage ||
-            'مرحباً [user]، شكراً لتواصلك مع [server]. سيقوم أحد أعضاء فريقنا بمساعدتك قريباً.';
-
-        const welcomeText = applyMessageVariables(welcomeTemplate, {
+        const welcomeEmbed = buildTicketEmbed(panel, {
             member: interaction.member,
             guild,
             channelName: ticketChannel.name,
+            channelId: ticketChannel.id,
             ticketNumber: category.children.cache.size,
+            staffRoles: panel.staffRoles,
+            pingRoles: panel.pingRoles,
         });
-
-        const welcomeEmbed = new EmbedBuilder()
-            .setColor(0x2b2d31)
-            .setTitle(`${panel.emoji || '🎫'} ${panel.name}`)
-            .setDescription(welcomeText)
-            .setTimestamp();
 
         // منشن صاحب التكت + رتب المنشن خارج الإيمبد كما هو مطلوب
         const pingMentions = [

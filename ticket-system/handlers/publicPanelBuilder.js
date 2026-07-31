@@ -85,6 +85,11 @@ function buildPublicPanelMessage(panel, context = {}) {
             text: applyMessageVariables(custom.footer || 'نظام التذاكر', context),
         });
 
+    // صورة مخصصة فوق الإيمبد (رابط مباشر أو رابط رسالة ديسكورد يُحل عند الحفظ)
+    if (custom.image) {
+        embed.setImage(custom.image);
+    }
+
     let row;
     if (panel.ticketSystemType === 'select') {
         const select = new StringSelectMenuBuilder()
@@ -108,4 +113,4 @@ function buildPublicPanelMessage(panel, context = {}) {
     return { embeds: [embed], components: [row] };
 }
 
-module.exports = { buildPublicPanelMessage };
+module.exports = { buildPublicPanelMessage, safeColor };

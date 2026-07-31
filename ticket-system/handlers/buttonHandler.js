@@ -37,6 +37,7 @@ const {
     buildEditNameDescModal,
     buildWelcomeMessageModal,
     buildPanelMessageModal,
+    buildTicketEmbedModal,
 } = require('./modalsBuilder');
 const { getPanelByName, updatePanel, deletePanel } = require('../database/panelsDB');
 const { getSession, setSession, clearSession } = require('./sessionStore');
@@ -70,6 +71,7 @@ async function handleTicketButton(interaction) {
         'settings_edit_name_desc',
         'settings_edit_welcome',
         'settings_edit_panel_message',
+        'settings_edit_ticket_embed',
         'settings_toggle_enabled',
         'settings_save',
         'ticket_log_back',
@@ -242,6 +244,21 @@ async function handleTicketButton(interaction) {
                 return;
             }
             await interaction.showModal(buildPanelMessageModal(panel));
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 7-ج) زر "تخصيص إيمبد التكت" -> فتح Modal (بدون defer)
+        //      الإيمبد فوق الأزرار داخل التكت: العنوان + الكلام
+        //      + الصورة + اللون (كل النصوص تدعم المتغيرات)
+        // ---------------------------------------------------
+        if (interaction.customId === 'settings_edit_ticket_embed') {
+            const panel = resolvePanel(interaction);
+            if (!panel) {
+                await interaction.reply({ content: '⚠️ لم يتم العثور على هذا البنل.', ephemeral: true });
+                return;
+            }
+            await interaction.showModal(buildTicketEmbedModal(panel));
             return;
         }
 

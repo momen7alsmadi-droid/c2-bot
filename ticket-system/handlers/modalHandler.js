@@ -29,7 +29,45 @@ const { getSession: getTicketSession, addAuditLog } = require('./ticketStore');
 const { safeEmoji } = require('../utils/emoji');
 const { resolveSession } = require('../utils/panelResolver');
 
-const RELEVANT_IDS = ['modal_create_panel', 'modal_edit_name_desc', 'modal_welcome_message', 'modal_panel_message', 'modal_rename_ticket'];
+const RELEVANT_IDS = ['modal_create_panel', 'modal_edit_name_desc', 'modal_welcome_message', 'modal_panel_message', 'modal_ticket_embed', 'modal_rename_ticket'];
+
+/**
+ * تحويل إدخال الصورة من الإداري إلى رابط صورة صالح:
+ *   1) رابط رسالة ديسكورد (discord.com/channels/...) -> نُحضر الصورة من الرسالة
+ *   2) رابط مباشر http/https -> يُقبل كما هو
+ *   3) فارغ -> null (بدون صورة)
+ *   4) أي شيء آخر -> يرمي خطأ برسالة واضحة
+ * @param {String} input
+ * @param {import('discord.js').BaseInteraction} interaction
+ * @returns {Promise<String|null>}
+ */
+async function resolveImageInput(input, interaction) {
+    const value = (input || '').trim();
+    if (!value) return null;
+
+    // رابط رسالة ديسكورد: نجلـب الصورة المرفقة مع الرسالة
+    const messageLink = value.match(/discord(?:app)?\.com\/channels\/\d+\/(\d+)\/(\d+)/);
+    if (messageLink) {
+        try {
+            const channel = await interaction.guild.channels.fetch(messageLink[1]).catch(() => null);
+            if (channel && channel.isTextBased && channel.isTextBased()) {
+                const msg = await channel.messages.fetch(messageLink[2]).catch(() => null);
+                const attachment = msg && msg.attachments && msg.attachments.first();
+                if (attachment && attachment.url) return attachment.url;
+            }
+        } catch {
+            /* نكمل للإبلاغ عن خطأ الجلب */
+        }
+        throw new Error(
+            'تعذّر جلب الصورة من رابط الرسالة. تأكد أن البوت يرى الروم وأن الرسالة تحتوي صورة.'
+        );
+    }
+
+    // رابط مباشر
+    if (/^https?:\/\//i.test(value)) return value;
+
+    throw new Error('رابط الصورة غير صالح. استخدم رابطاً يبدأ بـ https:// أو رابط رسالة ديسكورد تحتوي صورة.');
+}
 
 /**
  * تطبيع قيمة اللون المدخلة من الإداري:
@@ -178,6 +216,18 @@ async function handleTicketModal(interaction) {
             const footer = interaction.fields.getTextInputValue('panel_message_footer').trim();
             const color = normalizeColor(interaction.fields.getTextInputValue('panel_message_color'));
 
+            // الصورة: رابط مباشر أو رابط رسالة ديسكورد
+            let image = null;
+            try {
+                image = await resolveImageInput(
+                    interaction.fields.getTextInputValue('panel_message_image'),
+                    interaction
+                );
+            } catch (err) {
+                await interaction.reply({ content: `❌ ${err.message}`, ephemeral: true });
+                return;
+            }
+
             const current = (getPanelByName(session.panelName) || {}).panelMessage || {};
             const panelMessage = {
                 ...current,
@@ -185,9 +235,52 @@ async function handleTicketModal(interaction) {
                 description: description || null,
                 footer: footer || null,
                 color,
+                image,
             };
 
             updatePanel(session.panelName, { panelMessage });
+
+            const result = buildPanelSettings(session.panelName, 'messages');
+            await interaction.update(result);
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 3-ج) حفظ تخصيص إيمبد التكت (الإيمبد فوق الأزرار داخل التكت)
+        //      العنوان + الكلام + الصورة + اللون (كل حقل فارغ = الافتراضي)
+        // ---------------------------------------------------
+        if (interaction.customId === 'modal_ticket_embed') {
+            const session = resolveSession(interaction);
+            if (!session.panelName) {
+                await interaction.reply({ content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء المحاولة مجدداً.', ephemeral: true });
+                return;
+            }
+
+            const title = interaction.fields.getTextInputValue('ticket_embed_title').trim();
+            const description = interaction.fields.getTextInputValue('ticket_embed_description').trim();
+            const color = normalizeColor(interaction.fields.getTextInputValue('ticket_embed_color'));
+
+            let image = null;
+            try {
+                image = await resolveImageInput(
+                    interaction.fields.getTextInputValue('ticket_embed_image'),
+                    interaction
+                );
+            } catch (err) {
+                await interaction.reply({ content: `❌ ${err.message}`, ephemeral: true });
+                return;
+            }
+
+            const current = (getPanelByName(session.panelName) || {}).ticketEmbed || {};
+            const ticketEmbed = {
+                ...current,
+                title: title || null,
+                description: description || null,
+                color,
+                image,
+            };
+
+            updatePanel(session.panelName, { ticketEmbed });
 
             const result = buildPanelSettings(session.panelName, 'messages');
             await interaction.update(result);

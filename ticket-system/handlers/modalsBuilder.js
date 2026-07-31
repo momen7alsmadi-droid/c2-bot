@@ -170,10 +170,81 @@ function buildPanelMessageModal(panel) {
         .setMaxLength(20)
         .setRequired(false);
 
+    const imageInput = new TextInputBuilder()
+        .setCustomId('panel_message_image')
+        .setLabel('🖼️ صورة الإيمبد (رابط مباشر أو رابط رسالة)')
+        .setStyle(TextInputStyle.Short)
+        .setValue(custom.image || '')
+        .setPlaceholder('ارفع الصورة في أي روم ثم انسخ رابط الرسالة أو استخدم رابط مباشر https://')
+        .setMaxLength(500)
+        .setRequired(false);
+
     modal.addComponents(
         new ActionRowBuilder().addComponents(titleInput),
         new ActionRowBuilder().addComponents(descInput),
         new ActionRowBuilder().addComponents(footerInput),
+        new ActionRowBuilder().addComponents(colorInput),
+        new ActionRowBuilder().addComponents(imageInput)
+    );
+
+    return modal;
+}
+
+/**
+ * Modal تخصيص إيمبد التكت (الإيمبد فوق الأزرار داخل التكت)
+ * العنوان + الوصف + الصورة + اللون.
+ * - العنوان فارغ = اسم البنل مع الإيموجي
+ * - الوصف فارغ = رسالة الترحيب المخصصة
+ * - كل النصوص تدعم المتغيرات
+ * @param {Object} panel
+ */
+function buildTicketEmbedModal(panel) {
+    const custom = panel.ticketEmbed || {};
+
+    const modal = new ModalBuilder()
+        .setCustomId('modal_ticket_embed')
+        .setTitle('🖼️ تخصيص إيمبد التكت');
+
+    const titleInput = new TextInputBuilder()
+        .setCustomId('ticket_embed_title')
+        .setLabel('العنوان (فارغ = اسم البنل + الإيموجي)')
+        .setStyle(TextInputStyle.Short)
+        .setValue(custom.title || '')
+        .setPlaceholder('مثال: مركز الدعم الفني')
+        .setMaxLength(256)
+        .setRequired(false);
+
+    const descInput = new TextInputBuilder()
+        .setCustomId('ticket_embed_description')
+        .setLabel('الكلام داخل الإيمبد (يدعم المتغيرات)')
+        .setStyle(TextInputStyle.Paragraph)
+        .setValue(custom.description || '')
+        .setPlaceholder('فارغ = رسالة الترحيب. مثال: مرحباً [user]، سيساعدك [staff] قريباً.')
+        .setMaxLength(1000)
+        .setRequired(false);
+
+    const imageInput = new TextInputBuilder()
+        .setCustomId('ticket_embed_image')
+        .setLabel('🖼️ صورة الإيمبد (رابط مباشر أو رابط رسالة)')
+        .setStyle(TextInputStyle.Short)
+        .setValue(custom.image || '')
+        .setPlaceholder('ارفع الصورة في أي روم ثم انسخ رابط الرسالة أو استخدم رابط مباشر https://')
+        .setMaxLength(500)
+        .setRequired(false);
+
+    const colorInput = new TextInputBuilder()
+        .setCustomId('ticket_embed_color')
+        .setLabel('اللون (Hex مثل #5865F2 أو اسم مثل green)')
+        .setStyle(TextInputStyle.Short)
+        .setValue(custom.color || '')
+        .setPlaceholder('#2b2d31')
+        .setMaxLength(20)
+        .setRequired(false);
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(titleInput),
+        new ActionRowBuilder().addComponents(descInput),
+        new ActionRowBuilder().addComponents(imageInput),
         new ActionRowBuilder().addComponents(colorInput)
     );
 
@@ -206,5 +277,6 @@ module.exports = {
     buildEditNameDescModal,
     buildWelcomeMessageModal,
     buildPanelMessageModal,
+    buildTicketEmbedModal,
     buildRenameTicketModal,
 };
