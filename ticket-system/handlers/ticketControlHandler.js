@@ -57,6 +57,12 @@ async function handleTicketControlButton(interaction) {
             return;
         }
 
+        const panel = getPanelByName(session.panelName);
+        if (!panel) {
+            await interaction.reply({ content: '⚠️ لم يتم العثور على إعدادات البنل الخاص بهذه التذكرة.', ephemeral: true });
+            return;
+        }
+
         // ---------------------------------------------------
         // زر الاستلام / إلغاء الاستلام
         // ---------------------------------------------------
