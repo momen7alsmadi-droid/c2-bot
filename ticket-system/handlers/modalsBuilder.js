@@ -20,11 +20,11 @@ const {
 function buildCreatePanelModal() {
     const modal = new ModalBuilder()
         .setCustomId('modal_create_panel')
-        .setTitle('إنشاء بنل تذاكر جديد');
+        .setTitle('➕ إنشاء تكت جديد');
 
     const nameInput = new TextInputBuilder()
         .setCustomId('panel_name')
-        .setLabel('اسم البنل')
+        .setLabel('اسم التكت')
         .setStyle(TextInputStyle.Short)
         .setPlaceholder('مثال: الدعم الفني')
         .setMaxLength(45)
@@ -32,7 +32,7 @@ function buildCreatePanelModal() {
 
     const descInput = new TextInputBuilder()
         .setCustomId('panel_description')
-        .setLabel('وصف البنل')
+        .setLabel('وصف التكت')
         .setStyle(TextInputStyle.Paragraph)
         .setPlaceholder('وصف مختصر يظهر للأعضاء عند فتح التكت')
         .setMaxLength(300)
@@ -40,7 +40,7 @@ function buildCreatePanelModal() {
 
     const emojiInput = new TextInputBuilder()
         .setCustomId('panel_emoji')
-        .setLabel('إيموجي البنل')
+        .setLabel('إيموجي التكت')
         .setStyle(TextInputStyle.Short)
         .setPlaceholder('🎫')
         .setMaxLength(10)
@@ -67,7 +67,7 @@ function buildEditNameDescModal(panel) {
 
     const nameInput = new TextInputBuilder()
         .setCustomId('panel_name')
-        .setLabel('اسم البنل')
+        .setLabel('اسم التكت')
         .setStyle(TextInputStyle.Short)
         .setValue(panel.name)
         .setMaxLength(45)
@@ -75,7 +75,7 @@ function buildEditNameDescModal(panel) {
 
     const descInput = new TextInputBuilder()
         .setCustomId('panel_description')
-        .setLabel('وصف البنل')
+        .setLabel('وصف التكت')
         .setStyle(TextInputStyle.Paragraph)
         .setValue(panel.description || '')
         .setMaxLength(300)
@@ -83,7 +83,7 @@ function buildEditNameDescModal(panel) {
 
     const emojiInput = new TextInputBuilder()
         .setCustomId('panel_emoji')
-        .setLabel('إيموجي البنل')
+        .setLabel('إيموجي التكت')
         .setStyle(TextInputStyle.Short)
         .setValue(panel.emoji || '')
         .setMaxLength(10)

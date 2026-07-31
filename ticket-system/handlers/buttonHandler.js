@@ -29,6 +29,7 @@
  * =========================================================
  */
 
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const { buildMainDashboard, buildSubPanel } = require('./dashboardBuilder');
 const { buildPanelSettings } = require('./panelSettingsBuilder');
 const {
@@ -36,7 +37,7 @@ const {
     buildEditNameDescModal,
     buildWelcomeMessageModal,
 } = require('./modalsBuilder');
-const { getPanelByName, updatePanel } = require('../database/panelsDB');
+const { getPanelByName, updatePanel, deletePanel } = require('../database/panelsDB');
 const { getSession, setSession, clearSession } = require('./sessionStore');
 
 // خريطة تربط كل customId (الجزء الأول) بنوع اللوحة الفرعية المطلوب بناؤها
@@ -67,10 +68,12 @@ async function handleTicketButton(interaction) {
         'settings_edit_name_desc',
         'settings_edit_welcome',
         'settings_toggle_enabled',
+        'ticket_log_back',
+        'ticket_delete_no',
         ...Object.keys(SUB_PANEL_MAP),
         ...SETTINGS_PAGE_IDS,
     ];
-    if (!relevantIds.includes(interaction.customId)) return;
+    if (!relevantIds.includes(interaction.customId) && !interaction.customId.startsWith('ticket_delete_yes:')) return;
 
     try {
         // ---------------------------------------------------
@@ -106,12 +109,60 @@ async function handleTicketButton(interaction) {
 
         // ---------------------------------------------------
         // 4) الأزرار الأربعة من الجزء الأول (تعديل/سجل/حذف/إرسال)
+        //    نمرر النتيجة كاملة (content + embeds + components)
         // ---------------------------------------------------
         if (SUB_PANEL_MAP[interaction.customId]) {
             await interaction.deferUpdate().catch(() => {});
             const type = SUB_PANEL_MAP[interaction.customId];
-            const { embeds, components } = buildSubPanel(type);
-            await interaction.editReply({ embeds, components });
+            const result = buildSubPanel(type);
+            await interaction.editReply(result);
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 4.5) زر رجوع من عرض "سجل التكت" -> لقائمة السجل
+        // ---------------------------------------------------
+        if (interaction.customId === 'ticket_log_back') {
+            await interaction.deferUpdate().catch(() => {});
+            const result = buildSubPanel('log');
+            await interaction.editReply(result);
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 4.6) زر [❌ لا، تراجع] بعد تأكيد الحذف -> لقائمة الحذف
+        // ---------------------------------------------------
+        if (interaction.customId === 'ticket_delete_no') {
+            await interaction.deferUpdate().catch(() => {});
+            const result = buildSubPanel('delete');
+            await interaction.editReply(result);
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 4.7) زر [✅ نعم، احذف] -> تنفيذ الحذف (نفس شكل لوحة الإيمبد)
+        // ---------------------------------------------------
+        if (interaction.customId.startsWith('ticket_delete_yes:')) {
+            const name = interaction.customId.split(':')[1];
+            await interaction.deferUpdate().catch(() => {});
+
+            const success = deletePanel(name);
+            if (success) {
+                await interaction.editReply({
+                    content: `✅ تم حذف التكت **${name}** بنجاح.`,
+                    embeds: [],
+                    components: [
+                        new ActionRowBuilder().addComponents(
+                            new ButtonBuilder()
+                                .setCustomId('ticket_back')
+                                .setLabel('🔙 رجوع للرئيسية')
+                                .setStyle(ButtonStyle.Secondary)
+                        ),
+                    ],
+                });
+            } else {
+                await interaction.followUp({ content: '❌ فشل حذف التكت.', ephemeral: true }).catch(() => {});
+            }
             return;
         }
 

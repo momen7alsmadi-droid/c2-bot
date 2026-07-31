@@ -24,9 +24,16 @@
  * =========================================================
  */
 
+const {
+    EmbedBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+} = require('discord.js');
 const { buildPanelSettings } = require('./panelSettingsBuilder');
-const { updatePanel } = require('../database/panelsDB');
+const { getPanelByName, updatePanel } = require('../database/panelsDB');
 const { setSession, getSession } = require('./sessionStore');
+const { buildPublicPanelMessage } = require('./publicPanelBuilder');
 
 async function handleTicketSelectMenu(interaction) {
     const { customId } = interaction;
@@ -100,9 +107,10 @@ async function handleTicketSelectMenu(interaction) {
         }
 
         // ---------------------------------------------------
-        // قوائم "سجل" / "حذف" -> لا تزالان خارج نطاق النظام الحالي
+        // قائمة "سجل" -> عرض معلومات البنل + معاينة حية
+        // (نفس شكل لوحة الإيمبد: إيمبد أخضر + معاينة)
         // ---------------------------------------------------
-        if (['ticket_select_log', 'ticket_select_delete'].includes(customId)) {
+        if (customId === 'ticket_select_log') {
             const selectedValue = interaction.values[0];
 
             if (selectedValue === 'none') {
@@ -113,10 +121,120 @@ async function handleTicketSelectMenu(interaction) {
                 return;
             }
 
-            await interaction.reply({
-                content: `🚧 تم اختيار اللوحة **${selectedValue}**، لكن هذه الميزة ليست ضمن نطاق هذا النظام حالياً.`,
-                ephemeral: true,
-            });
+            const panel = getPanelByName(selectedValue);
+            if (!panel) {
+                await interaction.reply({
+                    content: '⚠️ لم يتم العثور على هذا البنل، ربما تم حذفه.',
+                    ephemeral: true,
+                });
+                return;
+            }
+
+            await interaction.deferUpdate().catch(() => {});
+
+            const infoEmbed = new EmbedBuilder()
+                .setColor(0x2ECC71)
+                .setTitle('ℹ️ معلومات البنل')
+                .addFields(
+                    { name: '🏷️ الاسم', value: `${panel.emoji || '🎫'} ${panel.name}`, inline: true },
+                    { name: '📨 الحالة', value: panel.enabled ? '🟢 مفعّل' : '🔴 معطّل', inline: true },
+                    { name: '🔘 نظام الفتح', value: panel.ticketSystemType === 'select' ? 'قائمة منسدلة' : 'أزرار', inline: true },
+                    {
+                        name: '📅 تاريخ الإنشاء',
+                        value: panel.createdAt ? `<t:${Math.floor(panel.createdAt / 1000)}:F>` : 'غير معروف',
+                        inline: false,
+                    },
+                    {
+                        name: '🎭 رتب الستاف',
+                        value: panel.staffRoles?.length
+                            ? panel.staffRoles.map(id => `<@&${id}>`).join(', ')
+                            : 'لا يوجد',
+                        inline: false,
+                    },
+                    {
+                        name: '📁 الكاتيجوري',
+                        value: panel.categoryId ? `<#${panel.categoryId}>` : 'لم يُحدد بعد',
+                        inline: true,
+                    },
+                    {
+                        name: '📜 روم اللوق',
+                        value: panel.logChannelId ? `<#${panel.logChannelId}>` : 'لم يُحدد بعد',
+                        inline: true,
+                    },
+                )
+                .setFooter({ text: `البنل: ${panel.name}` })
+                .setTimestamp();
+
+            // معاينة حية لما سيراه الأعضاء (نفس فكرة معاينة لوحة الإيمبد)
+            const preview = buildPublicPanelMessage(panel).embeds[0];
+
+            const backRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('ticket_log_back')
+                    .setLabel('🔙 لقائمة السجل')
+                    .setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId('ticket_back')
+                    .setLabel('🔙 رجوع للرئيسية')
+                    .setStyle(ButtonStyle.Secondary),
+            );
+
+            await interaction.editReply({ embeds: [infoEmbed, preview], components: [backRow] });
+            return;
+        }
+
+        // ---------------------------------------------------
+        // قائمة "حذف" -> تأكيد الحذف بنفس شكل لوحة الإيمبد
+        // (إيمبد أحمر + زر نعم/لا)
+        // ---------------------------------------------------
+        if (customId === 'ticket_select_delete') {
+            const selectedValue = interaction.values[0];
+
+            if (selectedValue === 'none') {
+                await interaction.reply({
+                    content: 'ℹ️ لا توجد أي لوحات تذاكر محفوظة بعد.',
+                    ephemeral: true,
+                });
+                return;
+            }
+
+            const panel = getPanelByName(selectedValue);
+            if (!panel) {
+                await interaction.reply({
+                    content: '⚠️ لم يتم العثور على هذا البنل، ربما تم حذفه.',
+                    ephemeral: true,
+                });
+                return;
+            }
+
+            await interaction.deferUpdate().catch(() => {});
+
+            const confirmEmbed = new EmbedBuilder()
+                .setTitle('🗑️ تأكيد الحذف')
+                .setColor(0xFF0000)
+                .setDescription(`هل أنت متأكد من حذف التكت **${selectedValue}**؟`)
+                .addFields(
+                    { name: '📨 الحالة', value: panel.enabled ? '🟢 مفعّل' : '🔴 معطّل', inline: true },
+                    {
+                        name: '📅 تاريخ الإنشاء',
+                        value: panel.createdAt ? `<t:${Math.floor(panel.createdAt / 1000)}:F>` : 'غير معروف',
+                        inline: true,
+                    },
+                )
+                .setTimestamp();
+
+            const confirmRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`ticket_delete_yes:${selectedValue}`)
+                    .setLabel('✅ نعم، احذف')
+                    .setStyle(ButtonStyle.Danger),
+                new ButtonBuilder()
+                    .setCustomId('ticket_delete_no')
+                    .setLabel('❌ لا، تراجع')
+                    .setStyle(ButtonStyle.Secondary),
+            );
+
+            await interaction.editReply({ embeds: [confirmEmbed], components: [confirmRow] });
             return;
         }
 

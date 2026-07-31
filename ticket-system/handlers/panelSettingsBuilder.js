@@ -27,8 +27,9 @@ const {
 } = require('discord.js');
 
 const { getPanelByName, getAllPanels } = require('../database/panelsDB');
+const { buildPublicPanelMessage } = require('./publicPanelBuilder');
 
-const COLOR = 0x2b2d31;
+const INFO_COLOR = 0x2ECC71; // أخضر مثل إيمبد "معلومات الإيمبد" في لوحة الإيمبد
 
 // أسماء الصفحات وعناوينها لعرضها في الإيمبد وأزرار التنقل
 const PAGES = {
@@ -60,9 +61,8 @@ function buildNavRow(activePage) {
     row.addComponents(
         new ButtonBuilder()
             .setCustomId('settings_page_back')
-            .setLabel('رجوع للوحة الرئيسية')
-            .setEmoji('🔙')
-            .setStyle(ButtonStyle.Danger)
+            .setLabel('🔙 رجوع للرئيسية')
+            .setStyle(ButtonStyle.Secondary)
     );
 
     return row;
@@ -84,35 +84,35 @@ function channelToText(channelId) {
 }
 
 /**
- * بناء الإيمبد المشترك لكل صفحات الإعدادات (يعرض ملخص عام دائماً + تفاصيل حسب الصفحة)
+ * بناء الإيمبد المشترك لكل صفحات الإعدادات - بنفس شكل لوحة الإيمبد:
+ * إيمبد أخضر "معلومات" يعرض ملخصاً حسب الصفحة الحالية.
  * @param {Object} panel
  * @param {String} page
  * @returns {EmbedBuilder}
  */
 function buildSettingsEmbed(panel, page) {
     const embed = new EmbedBuilder()
-        .setColor(COLOR)
-        .setTitle(`${panel.emoji || '🎫'} إعدادات البنل: ${panel.name}`)
+        .setColor(INFO_COLOR)
+        .setTitle('ℹ️ معلومات البنل')
         .setFooter({ text: `الصفحة الحالية: ${PAGES[page].label}` })
         .setTimestamp();
 
-    // شريط حالة علوي يظهر في كل الصفحات
-    embed.addFields({
-        name: 'الحالة',
-        value: panel.enabled ? '🟢 مفعّل' : '🔴 معطّل',
-        inline: true,
-    });
+    // شريط حالة علوي يظهر في كل الصفحات (نفس فكرة حقل الحالة في لوحة الإيمبد)
+    embed.addFields(
+        { name: '🏷️ الاسم', value: `${panel.emoji || '🎫'} ${panel.name}`, inline: true },
+        { name: '📨 الحالة', value: panel.enabled ? '🟢 مفعّل' : '🔴 معطّل', inline: true },
+    );
 
     if (page === 'general') {
         embed.setDescription(panel.description || 'لا يوجد وصف');
         embed.addFields(
             {
-                name: 'نظام فتح التكت',
+                name: '🔘 نظام فتح التكت',
                 value: panel.ticketSystemType === 'select' ? 'قائمة منسدلة' : 'أزرار',
                 inline: true,
             },
             {
-                name: 'البنل المرتبط',
+                name: '🔗 البنل المرتبط',
                 value: panel.linkedPanel ? panel.linkedPanel : 'لا يوجد',
                 inline: true,
             }
@@ -121,12 +121,12 @@ function buildSettingsEmbed(panel, page) {
 
     if (page === 'roles') {
         embed.addFields(
-            { name: 'الستاف (Staff)', value: rolesToText(panel.staffRoles) },
-            { name: 'رتب المنشن (Ping)', value: rolesToText(panel.pingRoles) },
-            { name: 'الرتب المسموحة', value: rolesToText(panel.allowedRoles) },
-            { name: 'الرتب الممنوعة', value: rolesToText(panel.deniedRoles) },
+            { name: '🎭 الستاف (Staff)', value: rolesToText(panel.staffRoles) },
+            { name: '🔔 رتب المنشن (Ping)', value: rolesToText(panel.pingRoles) },
+            { name: '✅ الرتب المسموحة', value: rolesToText(panel.allowedRoles) },
+            { name: '🚫 الرتب الممنوعة', value: rolesToText(panel.deniedRoles) },
             {
-                name: 'ملاحظة',
+                name: '📝 ملاحظة',
                 value: 'أي رتبة تملك صلاحية Administrator لها كامل الصلاحيات تلقائياً في كل الحالات.',
             }
         );
@@ -134,20 +134,20 @@ function buildSettingsEmbed(panel, page) {
 
     if (page === 'channels') {
         embed.addFields(
-            { name: 'الكاتيجوري', value: channelToText(panel.categoryId), inline: true },
-            { name: 'روم اللوق', value: channelToText(panel.logChannelId), inline: true }
+            { name: '📁 الكاتيجوري', value: channelToText(panel.categoryId), inline: true },
+            { name: '📜 روم اللوق', value: channelToText(panel.logChannelId), inline: true }
         );
     }
 
     if (page === 'messages') {
         embed.addFields({
-            name: 'رسالة الترحيب الحالية',
+            name: '💬 رسالة الترحيب الحالية',
             value: panel.welcomeMessage
                 ? panel.welcomeMessage.slice(0, 1000)
                 : 'لم يتم تخصيص رسالة بعد (سيتم استخدام رسالة افتراضية)',
         });
         embed.addFields({
-            name: 'المتغيرات المدعومة',
+            name: '🔤 المتغيرات المدعومة',
             value: '`[user]` منشن العضو • `[server]` اسم السيرفر • `[ticket_name]` اسم التكت • `[time]` الوقت',
         });
     }
@@ -297,6 +297,7 @@ function buildMessagesPage() {
 
 /**
  * الدالة الرئيسية المصدَّرة: تبني لوحة إعدادات البنل كاملة لصفحة معينة
+ * بنفس شكل لوحة الإيمبد: إيمبد أخضر للمعلومات + معاينة حية + أزرار التحكم
  * @param {String} panelName
  * @param {'general'|'roles'|'channels'|'messages'} page
  * @returns {{ embeds: EmbedBuilder[], components: ActionRowBuilder[] } | null} null إذا لم يوجد البنل
@@ -305,7 +306,11 @@ function buildPanelSettings(panelName, page = 'general') {
     const panel = getPanelByName(panelName);
     if (!panel) return null;
 
-    const embed = buildSettingsEmbed(panel, page);
+    const infoEmbed = buildSettingsEmbed(panel, page);
+
+    // معاينة حية لما سيراه الأعضاء (نفس فكرة معاينة لوحة الإيمبد)
+    const previewEmbed = buildPublicPanelMessage(panel).embeds[0];
+
     const navRow = buildNavRow(page);
 
     let pageRows = [];
@@ -315,7 +320,7 @@ function buildPanelSettings(panelName, page = 'general') {
     else if (page === 'messages') pageRows = buildMessagesPage(panel);
 
     return {
-        embeds: [embed],
+        embeds: [infoEmbed, previewEmbed],
         components: [navRow, ...pageRows],
     };
 }

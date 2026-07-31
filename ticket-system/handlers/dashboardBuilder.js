@@ -1,6 +1,6 @@
 /**
  * =========================================================
- *  dashboardBuilder.js
+ *  handlers/dashboardBuilder.js
  * =========================================================
  * ملف مشترك (Shared Utility) مسؤول فقط عن "بناء" الإيمبدات
  * والأزرار والقوائم، بدون أي منطق تفاعل (Interaction Logic).
@@ -10,6 +10,12 @@
  *   1. عند تشغيل الأمر لأول مرة (/ticket-setup) -> Reply
  *   2. عند الضغط على زر [رجوع] -> Update
  * فبدل تكرار كود بناء الإيمبد مرتين، نضعه هنا مرة واحدة.
+ *
+ * 🎨 تم توحيد التصميم مع باقي لوحات البوت (لوحة الإيمبد):
+ *    - اللون الرئيسي: أزرق Discord 0x5865F2
+ *    - صف الأزرار: إنشاء (Success) + عرض/تعديل/إرسال (Primary) + حذف (Danger)
+ *    - الإيموجي داخل نص الزر (وليس كـ emoji منفصل)
+ *    - الفوتر يعرض الإصدار مثل باقي اللوحات
  * =========================================================
  */
 
@@ -22,54 +28,47 @@ const {
 } = require('discord.js');
 
 const { getAllPanels } = require('../database/panelsDB');
+const { version } = require('../../package.json');
 
-// ألوان موحدة للوحة حتى تبقى الهوية البصرية ثابتة
+// ألوان موحدة مع باقي لوحات البوت (نفس لوحة الإيمبد)
 const COLORS = {
     main: 0x5865f2,   // أزرق Discord
     sub: 0x2b2d31,    // رمادي داكن للوحات الفرعية
 };
 
 /**
- * بناء "الواجهة الرئيسية" للوحة التحكم
+ * بناء "الواجهة الرئيسية" للوحة التحكم - بنفس شكل لوحة الإيمبد
  * @returns {{ embeds: EmbedBuilder[], components: ActionRowBuilder[] }}
  */
 function buildMainDashboard() {
     const embed = new EmbedBuilder()
         .setColor(COLORS.main)
         .setTitle('🎫 لوحة تحكم نظام التذاكر')
-        .setDescription(
-            'مرحباً بك في لوحة إدارة نظام التذاكر.\n' +
-            'الرجاء اختيار أحد الخيارات أدناه لإدارة النظام:'
-        )
-        .setFooter({ text: 'نظام التذاكر - لوحة الإدارة' })
+        .setDescription('اختر أحد الخيارات أدناه:')
+        .setFooter({ text: `الإصدار: ${version}` })
         .setTimestamp();
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('ticket_add')
-            .setLabel('إضافة تكت')
-            .setStyle(ButtonStyle.Success)
-            .setEmoji('➕'),
+            .setLabel('➕ إضافة تكت')
+            .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
             .setCustomId('ticket_edit')
-            .setLabel('تعديل تكت')
-            .setStyle(ButtonStyle.Secondary)
-            .setEmoji('✏️'),
+            .setLabel('✏️ تعديل تكت')
+            .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
             .setCustomId('ticket_log')
-            .setLabel('سجل')
-            .setStyle(ButtonStyle.Secondary)
-            .setEmoji('📜'),
+            .setLabel('📜 سجل التكتات')
+            .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
             .setCustomId('ticket_delete')
-            .setLabel('حذف')
-            .setStyle(ButtonStyle.Danger)
-            .setEmoji('🗑️'),
+            .setLabel('🗑️ حذف تكت')
+            .setStyle(ButtonStyle.Danger),
         new ButtonBuilder()
             .setCustomId('ticket_send')
-            .setLabel('إرسال')
-            .setStyle(ButtonStyle.Primary)
-            .setEmoji('📤'),
+            .setLabel('📤 إرسال تكت')
+            .setStyle(ButtonStyle.Primary),
     );
 
     return { embeds: [embed], components: [row] };
@@ -77,38 +76,25 @@ function buildMainDashboard() {
 
 /**
  * بناء "اللوحة الفرعية" (Sub-panel) لأي من: تعديل / سجل / حذف / إرسال
- * جميعها تشترك بنفس الهيكل: إيمبد + قائمة منسدلة بأسماء اللوحات + زر رجوع
+ * بنفس شكل لوحات الإيمبد: رسالة نصية + قائمة منسدلة + زر رجوع
  *
  * @param {'edit'|'log'|'delete'|'send'} type - نوع اللوحة الفرعية
- * @returns {{ embeds: EmbedBuilder[], components: ActionRowBuilder[] }}
+ * @returns {{ content: String, embeds: EmbedBuilder[], components: ActionRowBuilder[] }}
  */
 function buildSubPanel(type) {
-    const titles = {
-        edit: '✏️ تعديل التذاكر',
-        log: '📜 سجل التذاكر',
-        delete: '🗑️ حذف التذاكر',
-        send: '📤 إرسال لوحة التذاكر',
+    const content = {
+        edit: '✏️ اختر التكت الذي تريد تعديله:',
+        log: '📜 اختر التكت الذي تريد عرض سجله:',
+        delete: '🗑️ اختر التكت الذي تريد حذفه:',
+        send: '📤 اختر التكت الذي تريد إرساله:',
     };
-
-    const descriptions = {
-        edit: 'اختر لوحة التذاكر التي تريد تعديل إعداداتها من القائمة أدناه.',
-        log: 'اختر لوحة التذاكر التي تريد عرض سجل التذاكر الخاص بها.',
-        delete: 'اختر لوحة التذاكر التي تريد حذفها نهائياً.',
-        send: 'اختر لوحة التذاكر التي تريد إرسالها في روم معيّن.',
-    };
-
-    const embed = new EmbedBuilder()
-        .setColor(COLORS.sub)
-        .setTitle(titles[type])
-        .setDescription(descriptions[type])
-        .setFooter({ text: 'اضغط على زر رجوع للعودة للوحة الرئيسية' });
 
     // جلب اللوحات المحفوظة من قاعدة البيانات
     const panels = getAllPanels();
 
     const selectMenu = new StringSelectMenuBuilder()
         .setCustomId(`ticket_select_${type}`)
-        .setPlaceholder('اختر لوحة تذاكر...');
+        .setPlaceholder('🎫 اختر تكت...');
 
     if (panels.length === 0) {
         // ⚠️ ديسكورد يرفض القوائم المنسدلة الفارغة تماماً (تسبب خطأ عند الإرسال)
@@ -135,12 +121,15 @@ function buildSubPanel(type) {
     const backRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('ticket_back')
-            .setLabel('رجوع')
+            .setLabel('🔙 رجوع')
             .setStyle(ButtonStyle.Secondary)
-            .setEmoji('🔙')
     );
 
-    return { embeds: [embed], components: [selectRow, backRow] };
+    return {
+        content: content[type],
+        embeds: [],
+        components: [selectRow, backRow],
+    };
 }
 
 module.exports = {
