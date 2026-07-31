@@ -27,7 +27,27 @@ const { buildPanelSettings } = require('./panelSettingsBuilder');
 const { setSession, getSession } = require('./sessionStore');
 const { getSession: getTicketSession, addAuditLog } = require('./ticketStore');
 
-const RELEVANT_IDS = ['modal_create_panel', 'modal_edit_name_desc', 'modal_welcome_message', 'modal_rename_ticket'];
+const RELEVANT_IDS = ['modal_create_panel', 'modal_edit_name_desc', 'modal_welcome_message', 'modal_panel_message', 'modal_rename_ticket'];
+
+/**
+ * تطبيع قيمة اللون المدخلة من الإداري:
+ *  - يقبل Hex بدون # (يُضاف تلقائياً) أو باسم (green) أو برقم
+ *  - يعيد null عند الإدخال الفارغ أو اللون غير الصالح (يُستخدم الافتراضي)
+ * @param {String} input
+ * @returns {String|null}
+ */
+function normalizeColor(input) {
+    if (!input) return null;
+    let value = input.trim();
+    if (/^[0-9a-fA-F]{6}$/.test(value)) value = '#' + value;
+    try {
+        const { resolveColor } = require('discord.js');
+        resolveColor(value);
+        return value;
+    } catch {
+        return null;
+    }
+}
 
 /**
  * @param {import('discord.js').ModalSubmitInteraction} interaction
@@ -115,6 +135,39 @@ async function handleTicketModal(interaction) {
 
             const welcomeMessage = interaction.fields.getTextInputValue('welcome_message').trim();
             updatePanel(session.panelName, { welcomeMessage });
+
+            const result = buildPanelSettings(session.panelName, 'messages');
+            await interaction.update(result);
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 3-ب) حفظ تخصيص رسالة البنل العامة (الإيمبد المنشور)
+        //      العنوان + الوصف + التذييل + اللون
+        //      (كل حقل فارغ = القيمة الافتراضية عند العرض)
+        // ---------------------------------------------------
+        if (interaction.customId === 'modal_panel_message') {
+            const session = getSession(interaction.isFromMessage() ? interaction.message.id : null);
+            if (!session.panelName) {
+                await interaction.reply({ content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء المحاولة مجدداً.', ephemeral: true });
+                return;
+            }
+
+            const title = interaction.fields.getTextInputValue('panel_message_title').trim();
+            const description = interaction.fields.getTextInputValue('panel_message_description').trim();
+            const footer = interaction.fields.getTextInputValue('panel_message_footer').trim();
+            const color = normalizeColor(interaction.fields.getTextInputValue('panel_message_color'));
+
+            const current = (getPanelByName(session.panelName) || {}).panelMessage || {};
+            const panelMessage = {
+                ...current,
+                title: title || null,
+                description: description || null,
+                footer: footer || null,
+                color,
+            };
+
+            updatePanel(session.panelName, { panelMessage });
 
             const result = buildPanelSettings(session.panelName, 'messages');
             await interaction.update(result);

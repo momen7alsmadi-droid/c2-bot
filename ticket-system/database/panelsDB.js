@@ -54,7 +54,12 @@ const DB_PATH = path.join(__dirname, '..', 'data', 'panels.json');
  *
  *   // --- الرسائل (Messages) ---
  *   welcomeMessage: String | null    -> رسالة الترحيب داخل التكت، تدعم:
- *                                        [user] [server] [ticket_name] [time]
+ *                                        [user] [username] [id] [server] [server_id]
+ *                                        [ticket_name] [ticket_number] [time]
+ *   panelMessage: Object | null      -> تخصيص رسالة البنل العامة (الإيمبد المنشور):
+ *                                        { title, description, footer, color }
+ *                                        أي حقل فارغ = القيمة الافتراضية، وتدعم
+ *                                        النصوص نفس المتغيرات المذكورة أعلاه
  * }
  */
 
@@ -71,6 +76,7 @@ const DEFAULT_PANEL_FIELDS = {
     categoryId: null,
     logChannelId: null,
     welcomeMessage: null,
+    panelMessage: null,
 };
 
 // التأكد من وجود الملف عند تشغيل البوت لأول مرة

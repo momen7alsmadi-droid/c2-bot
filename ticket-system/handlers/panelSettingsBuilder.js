@@ -31,6 +31,7 @@ const {
 
 const { getPanelByName, getAllPanels } = require('../database/panelsDB');
 const { buildPublicPanelMessage } = require('./publicPanelBuilder');
+const { SUPPORTED_VARIABLES } = require('../utils/messageVariables');
 
 const INFO_COLOR = 0x2ECC71; // أخضر مثل إيمبد "معلومات الإيمبد" في لوحة الإيمبد
 
@@ -142,8 +143,20 @@ function buildSettingsEmbed(panel, page) {
             inline: false,
         },
         {
+            name: '📤 رسالة البنل العامة',
+            value:
+                panel.panelMessage &&
+                (panel.panelMessage.title ||
+                    panel.panelMessage.description ||
+                    panel.panelMessage.footer ||
+                    panel.panelMessage.color)
+                    ? '🟢 مخصصة (تظهر المعاينة الحية أسفل)'
+                    : '🔴 افتراضية (يمكنك تخصيصها من واجهة الرسائل)',
+            inline: false,
+        },
+        {
             name: '🔤 المتغيرات المدعومة',
-            value: '`[user]` منشن العضو • `[server]` اسم السيرفر • `[ticket_name]` اسم التكت • `[time]` الوقت',
+            value: SUPPORTED_VARIABLES,
             inline: false,
         },
     );
@@ -241,7 +254,8 @@ function buildGeneralPage(panel) {
             .setStyle(ButtonStyle.Secondary)
     );
 
-    return [editButtonRow, ticketSystemRow, linkRow, subNavRow, saveRow];
+    // ترتيب الواجهة: القائمتان المنسدلتان فوق زرّي الحفظ والرجوع مباشرة
+    return [editButtonRow, subNavRow, ticketSystemRow, linkRow, saveRow];
 }
 
 /**
@@ -308,17 +322,22 @@ function buildChannelsPage() {
 }
 
 /**
- * بناء صفحة "الرسائل"
+ * بناء واجهة "الرسائل" — زر تخصيص رسالة الترحيب داخل التكت
+ * + زر تخصيص رسالة البنل العامة (الإيمبد المنشور مع زر/قائمة الفتح)
  */
 function buildMessagesPage() {
-    const welcomeRow = new ActionRowBuilder().addComponents(
+    const messagesRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('settings_edit_welcome')
             .setLabel('💬 تخصيص رسالة الترحيب')
+            .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+            .setCustomId('settings_edit_panel_message')
+            .setLabel('📤 تخصيص رسالة البنل العامة')
             .setStyle(ButtonStyle.Secondary)
     );
 
-    return [welcomeRow];
+    return [messagesRow];
 }
 
 /**

@@ -28,18 +28,7 @@ const { getPanelByName } = require('../database/panelsDB');
 const { canOpenTicket } = require('./permissionUtils');
 const { createSession, updateSession, addAuditLog } = require('./ticketStore');
 const { buildTicketControlRows } = require('./ticketControlBuilder');
-
-/**
- * استبدال المتغيرات المدعومة داخل رسالة الترحيب
- * [user] [server] [ticket_name] [time]
- */
-function applyMessageVariables(template, { member, guild, channelName }) {
-    return template
-        .replaceAll('[user]', `<@${member.id}>`)
-        .replaceAll('[server]', guild.name)
-        .replaceAll('[ticket_name]', channelName)
-        .replaceAll('[time]', `<t:${Math.floor(Date.now() / 1000)}:F>`);
-}
+const { applyMessageVariables } = require('../utils/messageVariables');
 
 /**
  * توليد اسم روم آمن (بدون رموز يرفضها ديسكورد) من اسم العضو
@@ -143,6 +132,7 @@ async function handleTicketCreate(interaction) {
             member: interaction.member,
             guild,
             channelName: ticketChannel.name,
+            ticketNumber: category.children.cache.size,
         });
 
         const welcomeEmbed = new EmbedBuilder()

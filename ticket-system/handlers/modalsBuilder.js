@@ -122,6 +122,65 @@ function buildWelcomeMessageModal(panel) {
 }
 
 /**
+ * Modal تخصيص رسالة البنل العامة (الإيمبد المنشور مع زر/قائمة
+ * فتح التكت). أي حقل يُترك فارغاً يعود للقيمة الافتراضية،
+ * والنصوص تدعم المتغيرات مثل [server] [server_id] [time].
+ * @param {Object} panel
+ */
+function buildPanelMessageModal(panel) {
+    const custom = panel.panelMessage || {};
+
+    const modal = new ModalBuilder()
+        .setCustomId('modal_panel_message')
+        .setTitle('📤 تخصيص رسالة البنل العامة');
+
+    const titleInput = new TextInputBuilder()
+        .setCustomId('panel_message_title')
+        .setLabel('العنوان (فارغ = الافتراضي)')
+        .setStyle(TextInputStyle.Short)
+        .setValue(custom.title || '')
+        .setPlaceholder('مثال: [server] - مركز الدعم')
+        .setMaxLength(256)
+        .setRequired(false);
+
+    const descInput = new TextInputBuilder()
+        .setCustomId('panel_message_description')
+        .setLabel('الوصف (يدعم المتغيرات)')
+        .setStyle(TextInputStyle.Paragraph)
+        .setValue(custom.description || '')
+        .setPlaceholder('اضغط الزر/القائمة أدناه لفتح تذكرة جديدة.')
+        .setMaxLength(1000)
+        .setRequired(false);
+
+    const footerInput = new TextInputBuilder()
+        .setCustomId('panel_message_footer')
+        .setLabel('التذييل (فارغ = نظام التذاكر)')
+        .setStyle(TextInputStyle.Short)
+        .setValue(custom.footer || '')
+        .setPlaceholder('نظام التذاكر')
+        .setMaxLength(100)
+        .setRequired(false);
+
+    const colorInput = new TextInputBuilder()
+        .setCustomId('panel_message_color')
+        .setLabel('اللون (Hex مثل #5865F2 أو اسم مثل green)')
+        .setStyle(TextInputStyle.Short)
+        .setValue(custom.color || '')
+        .setPlaceholder('#5865F2')
+        .setMaxLength(20)
+        .setRequired(false);
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(titleInput),
+        new ActionRowBuilder().addComponents(descInput),
+        new ActionRowBuilder().addComponents(footerInput),
+        new ActionRowBuilder().addComponents(colorInput)
+    );
+
+    return modal;
+}
+
+/**
  * Modal تغيير اسم التذكرة (من قائمة تحكم الستاف داخل التكت)
  * @param {String} currentName
  */
@@ -146,5 +205,6 @@ module.exports = {
     buildCreatePanelModal,
     buildEditNameDescModal,
     buildWelcomeMessageModal,
+    buildPanelMessageModal,
     buildRenameTicketModal,
 };

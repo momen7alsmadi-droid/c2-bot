@@ -44,7 +44,9 @@ async function handleChannelSelectMenu(interaction) {
             }
 
             const targetChannel = interaction.channels.first();
-            const { embeds, components } = buildPublicPanelMessage(panel);
+            const { embeds, components } = buildPublicPanelMessage(panel, {
+                guild: interaction.guild,
+            });
             await targetChannel.send({ embeds, components });
 
             await interaction.update({

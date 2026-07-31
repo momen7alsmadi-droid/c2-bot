@@ -36,6 +36,7 @@ const {
     buildCreatePanelModal,
     buildEditNameDescModal,
     buildWelcomeMessageModal,
+    buildPanelMessageModal,
 } = require('./modalsBuilder');
 const { getPanelByName, updatePanel, deletePanel } = require('../database/panelsDB');
 const { getSession, setSession, clearSession } = require('./sessionStore');
@@ -67,6 +68,7 @@ async function handleTicketButton(interaction) {
         'settings_page_back',
         'settings_edit_name_desc',
         'settings_edit_welcome',
+        'settings_edit_panel_message',
         'settings_toggle_enabled',
         'settings_save',
         'ticket_log_back',
@@ -225,6 +227,22 @@ async function handleTicketButton(interaction) {
                 return;
             }
             await interaction.showModal(buildWelcomeMessageModal(panel));
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 7-ب) زر "تخصيص رسالة البنل العامة" -> فتح Modal (بدون defer)
+        //      الإيمبد المنشور مع زر/قائمة فتح التكت أصبح قابلاً
+        //      للتخصيص: العنوان + الوصف + التذييل + اللون
+        // ---------------------------------------------------
+        if (interaction.customId === 'settings_edit_panel_message') {
+            const session = getSession(interaction.message.id);
+            const panel = session.panelName ? getPanelByName(session.panelName) : null;
+            if (!panel) {
+                await interaction.reply({ content: '⚠️ لم يتم العثور على هذا البنل.', ephemeral: true });
+                return;
+            }
+            await interaction.showModal(buildPanelMessageModal(panel));
             return;
         }
 
