@@ -46,6 +46,11 @@ const { handleTicketModal } = require('../ticket-system/handlers/modalHandler');
 const { initStarboardModels, ensureStarboardLoaded } = require('./utils/starboardStorage');
 const { initAutoReplyModel, syncJsonToMongo: syncAr } = require('./utils/autoReplyStorage');
 const { initReactModel, syncJsonToMongo: syncRr } = require('./utils/reactionReplyStorage');
+const {
+    initPanelsModel,
+    syncPanelsToMongo: syncPanels,
+    loadPanelsFromMongo: loadPanels,
+} = require('../ticket-system/database/panelsDB');
 
 const client = new Client({
   intents: [
@@ -244,6 +249,7 @@ async function initialize() {
   const rrReady = initReactModel();
   const sbReady = initStarboardModels();
   const admReady = initAdminModel();
+  const panelsReady = initPanelsModel();
 
   // تأكيد حالة التخزين
   console.log('\n═══════════════════════════════════════');
@@ -254,9 +260,14 @@ async function initialize() {
   console.log(`   ${rrReady ? '✅' : '⚠️'} Reaction Storage`);
   console.log(`   ${sbReady ? '✅' : '⚠️'} Starboard Storage`);
   console.log(`   ${admReady ? '✅' : '⚠️'} Admin Storage`);
+  console.log(`   ${panelsReady ? '✅' : '⚠️'} Ticket Panels Storage`);
   console.log('═══════════════════════════════════════\n');
 
   if (dbConnected) {
+    // استعادة البنلات من MongoDB أولاً (حماية من مسح القرص)،
+    // ثم مزامنة أي بنلات جديدة من JSON إلى MongoDB
+    await loadPanels();
+    await syncPanels();
     await ensureConfigLoaded();
     console.log('📦 تم تحميل الإعدادات من MongoDB');
     await ensureReportsLoaded();
@@ -282,11 +293,14 @@ async function initialize() {
         initEmbedModel();
         initAutoReplyModel();
         initReactModel();
+        initPanelsModel();
         await ensureConfigLoaded();
         const { syncJsonToMongo: syncEmbeds } = require('./utils/embedStorage');
         await syncEmbeds();
         await syncAr();
         await syncRr();
+        await loadPanels();
+        await syncPanels();
       } else {
         try {
           const { connectDatabase } = require('./utils/database');

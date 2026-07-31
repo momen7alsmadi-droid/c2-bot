@@ -137,9 +137,14 @@ async function deployCommands(clientId) {
     return;
   }
 
-  // ====== 1) مسح جميع الأوامر القديمة (Global) ======
+  const guildId = process.env.GUILD_ID;
+
+  // ====== 1) مسح الأوامر القديمة (Global) دائماً ======
+  // ⚠️ هام جداً: بدون هذا المسح يبقى نسختان من كل أمر (Global + Guild)
+  // وتظهر الأوامر مكررة في السيرفر. التسجيل يكون Guild فقط عندما
+  // يتوفر GUILD_ID (تحديث فوري)، و Global فقط كاحتياط عند غيابه.
   try {
-    console.log('⏳ جاري مسح الأوامر القديمة...');
+    console.log('⏳ جاري مسح الأوامر القديمة (Global)...');
     await rest.put(Routes.applicationCommands(id), { body: [] });
     console.log('✅ تم مسح الأوامر القديمة (Global).');
   } catch (err) {
@@ -147,7 +152,6 @@ async function deployCommands(clientId) {
   }
 
   // ====== 2) تسجيل كـ Guild Commands للتحديث الفوري ======
-  const guildId = process.env.GUILD_ID || process.env.DEV_GUILD_ID;
   if (guildId) {
     try {
       console.log(`⏳ جاري تسجيل الأوامر كـ Guild Commands (Guild: ${guildId})...`);
@@ -158,17 +162,15 @@ async function deployCommands(clientId) {
       if (err.stack) console.error(err.stack);
     }
   } else {
-    console.log('⚠️ DEV_GUILD_ID غير موجود — سيتم التسجيل كـ Global فقط.');
-  }
-
-  // ====== 3) تسجيل كـ Global Commands (احتياط) ======
-  try {
-    console.log(`⏳ جاري تسجيل Global Commands (${commands.length} أمر)...`);
-    await rest.put(Routes.applicationCommands(id), { body: commands });
-    console.log(`✅ تم تسجيل ${commands.length} أمر كـ Global.`);
-  } catch (err) {
-    console.error('❌ فشل تسجيل Global Commands:', err.message);
-    if (err.stack) console.error(err.stack);
+    // ====== 3) احتياط: بدون GUILD_ID نسجّل Global فقط (لا ازدواج) ======
+    try {
+      console.log(`⏳ جاري تسجيل Global Commands (${commands.length} أمر)...`);
+      await rest.put(Routes.applicationCommands(id), { body: commands });
+      console.log(`✅ تم تسجيل ${commands.length} أمر كـ Global (احتياط).`);
+    } catch (err) {
+      console.error('❌ فشل تسجيل Global Commands:', err.message);
+      if (err.stack) console.error(err.stack);
+    }
   }
 
   console.log('📋 تمت مزامنة جميع الأوامر مع Discord API.');

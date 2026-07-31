@@ -4,67 +4,61 @@
  * =========================================================
  * طبقة قاعدة البيانات الخاصة بـ "إعدادات لوحات التذاكر" (Panels).
  *
- * ⚠️ تنبيه مهم:
- * هذا الملف يخزّن فقط "القوالب/الإعدادات" التي تنشئها الإدارة
- * (اسم اللوحة - الوصف - الإيموجي - الرتب المسموحة... إلخ).
- * لا علاقة له إطلاقاً بالتذاكر التي يفتحها الأعضاء أو محتواها
- * (Transcripts) — هذا سيُبنى لاحقاً في الجزء الثالث.
+ * 🆕 تخزين مزدوج (MongoDB + JSON) — مثل بقية أنظمة البوت:
+ *   - JSON هو مصدر القراءة الفوري (متزامن/سريع، بلا await)
+ *   - كل كتابة تُنسخ تلقائياً إلى MongoDB (خلف الكواليس)
+ *   - عند التشغيل: نستعيد من MongoDB أي بنلات فُقدت من JSON
+ *     (حماية من مسح قرص السيرفر المؤقت على المنصات المجانية)
  *
- * تم اختيار JSON بدلاً من MongoDB في هذه المرحلة لأن:
- *  1. البيانات المطلوبة الآن بسيطة (إعدادات/قوالب فقط).
- *  2. لا حاجة لخادم خارجي أو اتصال شبكي إضافي.
- *  3. سهولة القراءة والتعديل والنسخ الاحتياطي.
- * يمكن لاحقاً استبدال هذه الطبقة بـ Mongoose بسهولة لأن
- * كل الدوال هنا معزولة (Abstraction Layer) ولا يتم التعامل
- * مع الملف مباشرة من أي مكان آخر في المشروع.
+ * ملاحظة: هذا الملف يخزّن فقط "القوالب/الإعدادات" التي تنشئها
+ * الإدارة. لا علاقة له بالتذاكر المفتوحة أو محتواها.
+ *
+ * تم اختيار هذا التصميم لأن كل دوال القراءة تبقى متزامنة
+ * (Synchronous) كما كانت، فلا يتغير أي شيء على المتصلين بها.
  * =========================================================
  */
 
 const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose');
 
-// مسار ملف قاعدة البيانات
+// مسار ملف قاعدة البيانات (المصدر المتزامن)
 const DB_PATH = path.join(__dirname, '..', 'data', 'panels.json');
 
 /**
- * هيكل الـ Schema الخاص بكل لوحة تذاكر (Panel) - محدّث في الجزء الثاني:
+ * هيكل الـ Schema الخاص بكل لوحة تذاكر (Panel):
  * {
- *   // --- عام (الجزء الأول) ---
+ *   // --- عام ---
  *   name: String                    -> اسم اللوحة (فريد/Unique) - يُستخدم كمعرف
- *   description: String             -> وصف اللوحة يظهر داخل الإيمبد عند فتح تكت
+ *   description: String             -> وصف اللوحة
  *   emoji: String                    -> إيموجي مرتبط بالزر/القائمة
  *   createdBy: String                -> آيدي الإداري الذي أنشأ اللوحة
  *   createdAt: Number                -> Timestamp لوقت الإنشاء
  *   updatedAt: Number                -> Timestamp لآخر تعديل
  *
  *   // --- إعدادات عامة (General) ---
- *   enabled: Boolean                 -> هل البنل مفعّل أم لا
- *   ticketSystemType: String         -> 'buttons' | 'select' (طريقة فتح التكت من قبل الأعضاء)
- *   linkedPanel: String | null       -> اسم بنل آخر مرتبط بهذا البنل (نظام ربط كـ ProBot)
+ *   enabled: Boolean                 -> هل البنل مفعّل
+ *   ticketSystemType: String         -> 'buttons' | 'select'
+ *   linkedPanel: String | null       -> بنل آخر مرتبط
  *
  *   // --- الرتب (Roles) ---
- *   staffRoles: Array<String>        -> رتب تستطيع رؤية/استلام التكت
- *   pingRoles: Array<String>         -> رتب تُمنشن فور فتح التكت (حتى 10)
- *   allowedRoles: Array<String>      -> رتب مسموح لها بفتح التكت (فارغة = الجميع مسموح)
- *   deniedRoles: Array<String>       -> رتب ممنوعة من فتح التكت
+ *   staffRoles: Array<String>
+ *   pingRoles: Array<String>
+ *   allowedRoles: Array<String>
+ *   deniedRoles: Array<String>
  *
  *   // --- الرومات (Channels) ---
- *   categoryId: String | null        -> آيدي الكاتيجوري التي تُفتح بها التذاكر
- *   logChannelId: String | null      -> آيدي روم اللوق/الترانسكربت
+ *   categoryId: String | null
+ *   logChannelId: String | null
  *
  *   // --- الرسائل (Messages) ---
- *   welcomeMessage: String | null    -> رسالة الترحيب داخل التكت، تدعم:
- *                                        [user] [username] [id] [server] [server_id]
- *                                        [ticket_name] [ticket_number] [time]
- *   panelMessage: Object | null      -> تخصيص رسالة البنل العامة (الإيمبد المنشور):
+ *   welcomeMessage: String | null    -> رسالة الترحيب (تدعم المتغيرات)
+ *   panelMessage: Object | null      -> تخصيص رسالة البنل العامة:
  *                                        { title, description, footer, color }
- *                                        أي حقل فارغ = القيمة الافتراضية، وتدعم
- *                                        النصوص نفس المتغيرات المذكورة أعلاه
  * }
  */
 
-// القيم الافتراضية لأي بنل جديد - تُستخدم في createPanel لضمان
-// أن كل الحقول موجودة دائماً حتى لو لم تُملأ بعد من الإداري
+// القيم الافتراضية لأي بنل جديد
 const DEFAULT_PANEL_FIELDS = {
     enabled: true,
     ticketSystemType: 'buttons',
@@ -79,7 +73,34 @@ const DEFAULT_PANEL_FIELDS = {
     panelMessage: null,
 };
 
-// التأكد من وجود الملف عند تشغيل البوت لأول مرة
+// ---------- MongoDB Schema ----------
+const panelSchema = new mongoose.Schema(
+    {
+        _id: String, // = name
+        name: { type: String, required: true },
+        description: { type: String, default: '' },
+        emoji: { type: String, default: '🎫' },
+        createdBy: { type: String, default: '' },
+        createdAt: { type: Number, default: Date.now },
+        updatedAt: { type: Number, default: Date.now },
+        enabled: { type: Boolean, default: true },
+        ticketSystemType: { type: String, default: 'buttons' },
+        linkedPanel: { type: String, default: null },
+        staffRoles: { type: [String], default: [] },
+        pingRoles: { type: [String], default: [] },
+        allowedRoles: { type: [String], default: [] },
+        deniedRoles: { type: [String], default: [] },
+        categoryId: { type: String, default: null },
+        logChannelId: { type: String, default: null },
+        welcomeMessage: { type: String, default: null },
+        panelMessage: { type: mongoose.Schema.Types.Mixed, default: null },
+    },
+    { collection: 'ticketpanels', versionKey: false }
+);
+
+let PanelModel;
+
+// ---------- JSON helpers ----------
 function ensureDBFile() {
     const dir = path.dirname(DB_PATH);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -88,62 +109,136 @@ function ensureDBFile() {
     }
 }
 
-// قراءة قاعدة البيانات بالكامل
 function readDB() {
     ensureDBFile();
     const raw = fs.readFileSync(DB_PATH, 'utf-8');
     try {
         return JSON.parse(raw);
     } catch (err) {
-        // في حال تلف الملف لأي سبب، نعيد هيكل فارغ آمن بدل تحطيم البوت
         console.error('[panelsDB] خطأ في قراءة ملف قاعدة البيانات، سيتم استخدام هيكل فارغ:', err);
         return { panels: [] };
     }
 }
 
-// كتابة قاعدة البيانات بالكامل (Overwrite)
 function writeDB(data) {
     fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf-8');
 }
 
-/**
- * دمج الحقول الافتراضية مع أي بنل - لضمان توافق البنلات القديمة
- * (المُنشأة في الجزء الأول قبل إضافة حقول الجزء الثاني) دون كراش
- * @param {Object} panel
- * @returns {Object}
- */
 function withDefaults(panel) {
     return { ...DEFAULT_PANEL_FIELDS, ...panel };
 }
 
+// ---------- MongoDB helpers (غير متزامنة - تُستدعى بلا انتظار) ----------
+function isMongoReady() {
+    if (mongoose.connection.readyState !== 1) return false;
+    if (PanelModel) return true;
+    try {
+        PanelModel = mongoose.models.TicketPanel || mongoose.model('TicketPanel', panelSchema);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/** تهيئة النموذج (تُستدعى عند التشغيل) */
+function initPanelsModel() {
+    if (isMongoReady()) {
+        console.log('📦 ticketPanels → ✅ MongoDB');
+        return true;
+    }
+    console.log('📦 ticketPanels → ⚠️ JSON فقط');
+    return false;
+}
+
+/** كتابة بنل واحد إلى MongoDB (Upsert) */
+async function writePanelToMongo(panel) {
+    if (!isMongoReady()) return;
+    try {
+        const { _id, ...safeData } = panel || {};
+        await PanelModel.findByIdAndUpdate(
+            panel.name,
+            { $set: { ...safeData, _id: panel.name } },
+            { upsert: true }
+        );
+    } catch (e) {
+        console.error(`❌ panels MongoDB write (${panel?.name}):`, e.message);
+    }
+}
+
+/** حذف بنل من MongoDB */
+async function deletePanelFromMongo(name) {
+    if (!isMongoReady()) return;
+    try {
+        await PanelModel.findByIdAndDelete(name);
+    } catch (e) {
+        console.error(`❌ panels MongoDB delete (${name}):`, e.message);
+    }
+}
+
 /**
- * جلب كل اللوحات المحفوظة
- * @returns {Array<Object>}
+ * استعادة البنلات من MongoDB إلى JSON (حماية من مسح القرص):
+ * يُضاف أي بنل موجود في MongoDB ولا يوجد في JSON (المصدر المتزامن).
+ * @returns {Number} عدد البنلات المستعادة
  */
+async function loadPanelsFromMongo() {
+    if (!isMongoReady()) return 0;
+    try {
+        const mongoPanels = await PanelModel.find().lean();
+        if (!mongoPanels || mongoPanels.length === 0) return 0;
+
+        const db = readDB();
+        const jsonNames = new Set(db.panels.map(p => p.name));
+        const restored = [];
+
+        for (const doc of mongoPanels) {
+            if (jsonNames.has(doc.name)) continue;
+            const { _id, ...rest } = doc;
+            db.panels.push(withDefaults(rest));
+            jsonNames.add(doc.name);
+            restored.push(doc.name);
+        }
+
+        if (restored.length > 0) {
+            writeDB(db);
+            console.log(`🔄 panels: تمت استعادة ${restored.length} بنل من MongoDB → ${restored.join(', ')}`);
+        }
+        return restored.length;
+    } catch (e) {
+        console.error('❌ panels load MongoDB:', e.message);
+        return 0;
+    }
+}
+
+/** مزامنة كل البنلات من JSON إلى MongoDB (تُستدعى عند التشغيل) */
+async function syncPanelsToMongo() {
+    if (!isMongoReady()) return;
+    try {
+        const panels = getAllPanels();
+        if (panels.length === 0) return;
+        for (const p of panels) {
+            await writePanelToMongo(p);
+        }
+        console.log(`✅ panels: تمت مزامنة ${panels.length} بنل إلى MongoDB`);
+    } catch (e) {
+        console.error('❌ panels sync MongoDB:', e.message);
+    }
+}
+
+// ========== API العامة (متزامنة - كما كانت) ==========
+
 function getAllPanels() {
     return readDB().panels.map(withDefaults);
 }
 
-/**
- * جلب لوحة واحدة عبر اسمها
- * @param {String} name
- * @returns {Object|null}
- */
 function getPanelByName(name) {
     const db = readDB();
     const panel = db.panels.find(p => p.name === name);
     return panel ? withDefaults(panel) : null;
 }
 
-/**
- * إنشاء لوحة جديدة
- * @param {Object} panelData
- * @returns {Object} اللوحة بعد الإنشاء
- */
 function createPanel(panelData) {
     const db = readDB();
 
-    // منع تكرار الاسم لأنه يُستخدم كمعرف فريد
     const exists = db.panels.some(p => p.name === panelData.name);
     if (exists) {
         throw new Error(`يوجد بالفعل لوحة تذاكر بنفس الاسم: ${panelData.name}`);
@@ -161,15 +256,13 @@ function createPanel(panelData) {
 
     db.panels.push(newPanel);
     writeDB(db);
+
+    // نسخ احتياطي إلى MongoDB (بلا انتظار)
+    writePanelToMongo(newPanel);
+
     return newPanel;
 }
 
-/**
- * تعديل لوحة موجودة
- * @param {String} name
- * @param {Object} updates
- * @returns {Object|null} اللوحة بعد التعديل أو null إذا لم توجد
- */
 function updatePanel(name, updates) {
     const db = readDB();
     const index = db.panels.findIndex(p => p.name === name);
@@ -182,18 +275,13 @@ function updatePanel(name, updates) {
     };
 
     writeDB(db);
+
+    // نسخ احتياطي إلى MongoDB
+    writePanelToMongo(withDefaults(db.panels[index]));
+
     return db.panels[index];
 }
 
-/**
- * إعادة تسمية لوحة (تغيير اسمها الفريد).
- * بما أن الاسم يُستخدم كمعرف أساسي، نتعامل مع هذه الحالة بشكل
- * خاص: نتحقق من عدم تكرار الاسم الجديد، ثم نحدّث أي بنل آخر
- * كان مرتبطاً (linkedPanel) بالاسم القديم ليشير للاسم الجديد.
- * @param {String} oldName
- * @param {String} newName
- * @returns {Object|null} اللوحة بعد إعادة التسمية أو null إذا لم توجد
- */
 function renamePanel(oldName, newName) {
     if (oldName === newName) return getPanelByName(oldName);
 
@@ -209,25 +297,27 @@ function renamePanel(oldName, newName) {
     db.panels[index].name = newName;
     db.panels[index].updatedAt = Date.now();
 
-    // تحديث أي بنل كان مرتبطاً بالاسم القديم ليشير للاسم الجديد
     db.panels.forEach(p => {
         if (p.linkedPanel === oldName) p.linkedPanel = newName;
     });
 
     writeDB(db);
+
+    // في MongoDB: حذف الوثيقة القديمة + كتابة الجديدة
+    deletePanelFromMongo(oldName);
+    writePanelToMongo(withDefaults(db.panels[index]));
+
     return withDefaults(db.panels[index]);
 }
 
-/**
- * حذف لوحة عبر اسمها
- * @param {String} name
- * @returns {Boolean} true إذا تم الحذف
- */
 function deletePanel(name) {
     const db = readDB();
     const before = db.panels.length;
     db.panels = db.panels.filter(p => p.name !== name);
     writeDB(db);
+
+    deletePanelFromMongo(name);
+
     return db.panels.length < before;
 }
 
@@ -238,4 +328,8 @@ module.exports = {
     updatePanel,
     renamePanel,
     deletePanel,
+    // أدوات التخزين المزدوج (تُستدعى من ملف التشغيل الرئيسي)
+    initPanelsModel,
+    syncPanelsToMongo,
+    loadPanelsFromMongo,
 };
