@@ -45,6 +45,7 @@ const { handleTicketCloseButton } = require('../ticket-system/handlers/ticketClo
 const { handleRoleSelectMenu } = require('../ticket-system/handlers/roleSelectHandler');
 const { handleChannelSelectMenu } = require('../ticket-system/handlers/channelSelectHandler');
 const { handleTicketModal } = require('../ticket-system/handlers/modalHandler');
+const { handleTicketBoardTrigger } = require('../ticket-system/handlers/ticketBoardTrigger');
 
 const { initStarboardModels, ensureStarboardLoaded } = require('./utils/starboardStorage');
 const { initAutoReplyModel, syncJsonToMongo: syncAr } = require('./utils/autoReplyStorage');
@@ -376,6 +377,7 @@ ID: ${guild.id}
     try {
       console.log('📨 رسالة جديدة:', message.id, 'channel:', message.channel?.id, 'author:', message.author?.tag);
       await handleMessage(message);
+      await handleTicketBoardTrigger(message);
       await handleReactMessage(message);
       await handleStarboardMessage(message);
     } catch (e) {

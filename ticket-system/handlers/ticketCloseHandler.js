@@ -27,7 +27,7 @@ const {
 
 const { getPanelByName } = require('../database/panelsDB');
 const { reportError } = require('../../src/utils/errorLogger');
-const { getSession, updateSession } = require('./ticketStore');
+const { getSession, updateSession, addAuditLog } = require('./ticketStore');
 const { canUseRestrictedControls } = require('./permissionUtils');
 const { applyUnlockPermissions } = require('./ticketPermissionHelpers');
 const { buildTicketControlRows } = require('./ticketControlBuilder');
@@ -154,6 +154,10 @@ async function handleTicketCloseButton(interaction) {
         if (interaction.customId === 'ticket_delete_confirm') {
             await interaction.deferUpdate().catch(() => {});
 
+            // تسجيل من طلب الحذف (يظهر في لوق الأرشيف) + سجل الأحداث
+            updateSession(interaction.channel.id, { deletedBy: interaction.member.id });
+            addAuditLog(interaction.channel.id, `<@${interaction.member.id}> قام بحذف التذكرة`);
+
             let secondsLeft = DELETE_COUNTDOWN_SECONDS;
             const message = interaction.message; // مرجع الرسالة لتعديلها كل ثانية
 
@@ -204,7 +208,7 @@ async function handleTicketCloseButton(interaction) {
             await interaction.deferUpdate().catch(() => {});
 
             if (session.deleteTimer) clearInterval(session.deleteTimer);
-            updateSession(interaction.channel.id, { deleteTimer: null, deleteCountdown: 0 });
+            updateSession(interaction.channel.id, { deleteTimer: null, deleteCountdown: 0, deletedBy: null });
 
             await interaction.message.edit(buildClosedStateView()).catch(() => {});
             return;

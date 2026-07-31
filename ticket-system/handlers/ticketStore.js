@@ -50,6 +50,7 @@ const SERIALIZABLE_KEYS = [
     'controlMessageId',
     'closeMessageId',
     'deleteCountdown',
+    'deletedBy',
     'auditLog',
 ];
 
@@ -107,6 +108,7 @@ function sanitizeLoadedSession(raw) {
         closeMessageId: typeof raw.closeMessageId === 'string' ? raw.closeMessageId : null,
         deleteTimer: null,
         deleteCountdown: 0,
+        deletedBy: typeof raw.deletedBy === 'string' ? raw.deletedBy : null,
         auditLog: Array.isArray(raw.auditLog) ? raw.auditLog : [],
     };
 }
@@ -157,6 +159,7 @@ function createSession(channelId, data) {
         closeMessageId: null,
         deleteTimer: null,
         deleteCountdown: 0,
+        deletedBy: null,
         auditLog: [],
         ...data,
         channelId, // نحفظ المفتاح داخل الجلسة لاستعادته من القرص

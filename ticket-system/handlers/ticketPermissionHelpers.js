@@ -47,18 +47,39 @@ async function revertClaimPermissions(channel, panel, previousClaimerId, openerI
 }
 
 /**
- * عند القفل: منع الجميع (عدا الإدارة العليا) من إرسال الرسائل.
+ * عند القفل: منع الجميع من الكتابة عدا الإدارة العليا فقط.
+ * نمنع: @everyone + صاحب التكت + الستاف + المستلم + الأعضاء المضافين،
+ * ونسمح صراحةً لرتب الإدارة العليا (upperManagementRoles) بالكتابة
+ * (أي رتبة Administrator تتجاوز كل شيء تلقائياً بحكم ديسكورد).
  * @param {import('discord.js').TextChannel} channel
  * @param {Object} panel
  * @param {Object} session
  */
 async function applyLockPermissions(channel, panel, session) {
+    // 1) @everyone -> منع الكتابة (يغطي أي شخص آخر لديه وصول)
+    await channel.permissionOverwrites
+        .edit(channel.guild.id, { SendMessages: false })
+        .catch(() => {});
+
+    // 2) صاحب التكت + الستاف + المستلم + الأعضاء المضافين -> منع الكتابة
     await channel.permissionOverwrites.edit(session.openerId, { SendMessages: false }).catch(() => {});
     for (const roleId of panel.staffRoles) {
         await channel.permissionOverwrites.edit(roleId, { SendMessages: false }).catch(() => {});
     }
     if (session.claimedBy) {
         await channel.permissionOverwrites.edit(session.claimedBy, { SendMessages: false }).catch(() => {});
+    }
+    if (Array.isArray(session.addedMembers)) {
+        for (const memberId of session.addedMembers) {
+            await channel.permissionOverwrites.edit(memberId, { SendMessages: false }).catch(() => {});
+        }
+    }
+
+    // 3) رتب الإدارة العليا المختارة -> تبقى قادرة على الكتابة
+    if (Array.isArray(panel.upperManagementRoles)) {
+        for (const roleId of panel.upperManagementRoles) {
+            await channel.permissionOverwrites.edit(roleId, { SendMessages: true }).catch(() => {});
+        }
     }
 }
 
@@ -69,12 +90,27 @@ async function applyLockPermissions(channel, panel, session) {
  * @param {Object} session
  */
 async function applyUnlockPermissions(channel, panel, session) {
+    // إعادة @everyone للكتابة
+    await channel.permissionOverwrites
+        .edit(channel.guild.id, { SendMessages: true })
+        .catch(() => {});
+
     await channel.permissionOverwrites.edit(session.openerId, { SendMessages: true }).catch(() => {});
     for (const roleId of panel.staffRoles) {
         await channel.permissionOverwrites.edit(roleId, { SendMessages: true }).catch(() => {});
     }
     if (session.claimedBy) {
         await channel.permissionOverwrites.edit(session.claimedBy, { SendMessages: true }).catch(() => {});
+    }
+    if (Array.isArray(session.addedMembers)) {
+        for (const memberId of session.addedMembers) {
+            await channel.permissionOverwrites.edit(memberId, { SendMessages: true }).catch(() => {});
+        }
+    }
+    if (Array.isArray(panel.upperManagementRoles)) {
+        for (const roleId of panel.upperManagementRoles) {
+            await channel.permissionOverwrites.edit(roleId, { SendMessages: true }).catch(() => {});
+        }
     }
 }
 

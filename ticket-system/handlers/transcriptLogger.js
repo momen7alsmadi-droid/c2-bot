@@ -208,6 +208,10 @@ async function finalizeTicketDeletion(channel, panel) {
                 name: 'آخر مستلم',
                 value: session?.claimedBy ? `<@${session.claimedBy}>` : 'لم تُستلم',
             },
+            {
+                name: '🗑️ حذف بواسطة',
+                value: session?.deletedBy ? `<@${session.deletedBy}>` : 'غير معروف',
+            },
             { name: '📋 سجل الأحداث', value: formatAuditLogField(session?.auditLog) },
             { name: '💬 إحصائيات الرسائل', value: formatMessageStatsField(stats) }
         )
