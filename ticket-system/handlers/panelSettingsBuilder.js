@@ -2,16 +2,19 @@
  * =========================================================
  *  handlers/panelSettingsBuilder.js
  * =========================================================
- * مسؤول عن بناء "لوحة إعدادات البنل" بكل صفحاتها:
- *   general  -> إعدادات عامة
- *   roles    -> إعدادات الرتب
- *   channels -> إعدادات الرومات
- *   messages -> إعدادات الرسائل
+ * مسؤول عن بناء "لوحة إعدادات البنل" بنظام الواجهات المتعددة:
+ *   general  -> الواجهة الرئيسية (تعديل الاسم/الحالة/النظام/الربط + أزرار الدخول للواجهات)
+ *   roles    -> واجهة فرعية (قوائم الرتب) + زر رجوع
+ *   channels -> واجهة فرعية (قوائم الرومات) + زر رجوع
+ *   messages -> واجهة فرعية (رسالة الترحيب) + زر رجوع
  *
- * كل صفحة = Row تنقل ثابت (5 أزرار) + Rows خاصة بالصفحة.
+ * الميكانيكة مطابقة للوحات الإضافة (الإيمبد/الردود التلقائية):
+ *   الضغط على أي زر يبدّل الواجهة التي أمامك بالكامل، وكل
+ *   واجهة فرعية تحمل زر رجوع يعيدك للواجهة السابقة — لا يوجد
+ *   صف تنقل ثابت بلون للزر النشط.
  * الحد الأقصى لعدد الـ ActionRows في أي رسالة هو 5، لذلك تم
- * توزيع الإعدادات بحيث لا تتجاوز أي صفحة هذا الحد أبداً
- * (أقصى استخدام هو في صفحة الرتب: 1 تنقل + 4 قوائم رتب = 5).
+ * توزيع الإعدادات بحيث لا تتجاوز أي واجهة هذا الحد أبداً
+ * (أقصى استخدام هو في واجهة الرتب: 4 قوائم رتب + رجوع = 5).
  * =========================================================
  */
 
@@ -40,32 +43,17 @@ const PAGES = {
 };
 
 /**
- * بناء صف التنقل الثابت بين الصفحات (يظهر دائماً في Row الأول)
- * الزر الخاص بالصفحة الحالية يظهر بلون مختلف (Primary) لتمييزه
- * @param {String} activePage
+ * بناء صف "رجوع للإعدادات العامة" — الزر الوحيد للخروج من أي
+ * واجهة فرعية، يعيدك للواجهة السابقة (نفس ميكانيكة لوحات الإضافة).
  * @returns {ActionRowBuilder}
  */
-function buildNavRow(activePage) {
-    const row = new ActionRowBuilder();
-
-    // الإيموجي داخل نص الزر (نفس أسلوب لوحة الإيمبد) بدل .setEmoji() منفصل
-    for (const [key, meta] of Object.entries(PAGES)) {
-        row.addComponents(
-            new ButtonBuilder()
-                .setCustomId(`settings_page_${key}`)
-                .setLabel(`${meta.emoji} ${meta.label}`)
-                .setStyle(key === activePage ? ButtonStyle.Primary : ButtonStyle.Secondary)
-        );
-    }
-
-    row.addComponents(
+function buildBackToGeneralRow() {
+    return new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-            .setCustomId('settings_page_back')
-            .setLabel('🔙 رجوع للرئيسية')
+            .setCustomId('settings_page_general')
+            .setLabel('🔙 رجوع للإعدادات العامة')
             .setStyle(ButtonStyle.Secondary)
     );
-
-    return row;
 }
 
 /**
@@ -164,10 +152,11 @@ function buildSettingsEmbed(panel, page) {
 }
 
 /**
- * بناء صفحة "إعدادات عامة" — بنفس تصميم لوحة تحكم الإيمبد:
- *  - زر تعديل (Secondary) + زر تبديل الحالة بنمط 🟢/🔴 (Success/Danger)
- *  - قوائم منسدلة للخيارات
- *  - زر حفظ (Success)
+ * بناء الواجهة الرئيسية "إعدادات عامة" — بنفس تصميم لوحة تحكم الإيمبد:
+ *  - صف أول: زر تعديل (Secondary) + زر تبديل الحالة بنمط 🟢/🔴 (Success/Danger)
+ *  - صفا قوائم منسدلة للخيارات (نظام الفتح + البنل المرتبط)
+ *  - صف أزرار الدخول للواجهات الفرعية (الرتب/الرومات/الرسائل)
+ *  - صف الحفظ + الرجوع للرئيسية
  */
 function buildGeneralPage(panel) {
     const editButtonRow = new ActionRowBuilder().addComponents(
@@ -179,6 +168,23 @@ function buildGeneralPage(panel) {
             .setCustomId('settings_toggle_enabled')
             .setLabel(panel.enabled ? '🟢 البنل مفعّل' : '🔴 البنل معطّل')
             .setStyle(panel.enabled ? ButtonStyle.Success : ButtonStyle.Danger)
+    );
+
+    // ===== أزرار الدخول للواجهات الفرعية =====
+    // الضغط على أي منها يبدّل الواجهة كاملة (نفس ميكانيكة لوحات الإضافة)
+    const subNavRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('settings_page_roles')
+            .setLabel('🎭 إعدادات الرتب')
+            .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+            .setCustomId('settings_page_channels')
+            .setLabel('📁 إعدادات الرومات')
+            .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+            .setCustomId('settings_page_messages')
+            .setLabel('💬 الرسائل')
+            .setStyle(ButtonStyle.Primary)
     );
 
     const ticketSystemSelect = new StringSelectMenuBuilder()
@@ -223,15 +229,19 @@ function buildGeneralPage(panel) {
     }
     const linkRow = new ActionRowBuilder().addComponents(linkSelect);
 
-    // صف الحفظ — نفس فكرة زر 💾 حفظ في لوحة الإيمبد
+    // صف الحفظ + الرجوع للرئيسية — نفس فكرة صف الحفظ في لوحة الإيمبد
     const saveRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('settings_save')
             .setLabel('💾 حفظ')
-            .setStyle(ButtonStyle.Success)
+            .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+            .setCustomId('settings_page_back')
+            .setLabel('🔙 رجوع للرئيسية')
+            .setStyle(ButtonStyle.Secondary)
     );
 
-    return [editButtonRow, ticketSystemRow, linkRow, saveRow];
+    return [editButtonRow, ticketSystemRow, linkRow, subNavRow, saveRow];
 }
 
 /**
@@ -312,8 +322,13 @@ function buildMessagesPage() {
 }
 
 /**
- * الدالة الرئيسية المصدَّرة: تبني لوحة إعدادات البنل كاملة لصفحة معينة
- * بنفس شكل لوحة الإيمبد: إيمبد أخضر للمعلومات + معاينة حية + أزرار التحكم
+ * الدالة الرئيسية المصدَّرة: تبني لوحة إعدادات البنل كاملة لواجهة معينة
+ * بنفس شكل لوحة الإيمبد: إيمبد أخضر للمعلومات + معاينة حية + أزرار التحكم.
+ *
+ * ميكانيكة الواجهات (مثل لوحات الإضافة):
+ *  - general  : الواجهة الرئيسية تحوي أزرار الدخول للواجهات الفرعية
+ *  - roles/channels/messages : واجهات فرعية بصف رجوع للإعدادات العامة
+ *
  * @param {String} panelName
  * @param {'general'|'roles'|'channels'|'messages'} page
  * @returns {{ embeds: EmbedBuilder[], components: ActionRowBuilder[] } | null} null إذا لم يوجد البنل
@@ -327,17 +342,15 @@ function buildPanelSettings(panelName, page = 'general') {
     // معاينة حية لما سيراه الأعضاء (نفس فكرة معاينة لوحة الإيمبد)
     const previewEmbed = buildPublicPanelMessage(panel).embeds[0];
 
-    const navRow = buildNavRow(page);
-
-    let pageRows = [];
-    if (page === 'general') pageRows = buildGeneralPage(panel);
-    else if (page === 'roles') pageRows = buildRolesPage(panel);
-    else if (page === 'channels') pageRows = buildChannelsPage(panel);
-    else if (page === 'messages') pageRows = buildMessagesPage(panel);
+    let rows = [];
+    if (page === 'general') rows = buildGeneralPage(panel);
+    else if (page === 'roles') rows = [...buildRolesPage(panel), buildBackToGeneralRow()];
+    else if (page === 'channels') rows = [...buildChannelsPage(), buildBackToGeneralRow()];
+    else if (page === 'messages') rows = [...buildMessagesPage(), buildBackToGeneralRow()];
 
     return {
         embeds: [infoEmbed, previewEmbed],
-        components: [navRow, ...pageRows],
+        components: rows,
     };
 }
 
