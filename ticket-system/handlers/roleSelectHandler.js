@@ -18,7 +18,7 @@
 
 const { buildPanelSettings } = require('./panelSettingsBuilder');
 const { updatePanel } = require('../database/panelsDB');
-const { getSession } = require('./sessionStore');
+const { resolveSession } = require('../utils/panelResolver');
 
 // تربط كل customId بالحقل المطابق له في قاعدة البيانات
 const FIELD_MAP = {
@@ -38,7 +38,7 @@ async function handleRoleSelectMenu(interaction) {
     try {
         await interaction.deferUpdate().catch(() => {});
 
-        const session = getSession(interaction.message.id);
+        const session = resolveSession(interaction);
         if (!session.panelName) {
             await interaction.followUp({
                 content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء الرجوع للوحة الرئيسية والمحاولة مجدداً.',

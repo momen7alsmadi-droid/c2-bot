@@ -18,7 +18,7 @@
 
 const { buildPanelSettings } = require('./panelSettingsBuilder');
 const { updatePanel, getPanelByName } = require('../database/panelsDB');
-const { getSession } = require('./sessionStore');
+const { resolveSession } = require('../utils/panelResolver');
 const { buildPublicPanelMessage } = require('./publicPanelBuilder');
 
 const FIELD_MAP = {
@@ -68,7 +68,7 @@ async function handleChannelSelectMenu(interaction) {
     try {
         await interaction.deferUpdate().catch(() => {});
 
-        const session = getSession(interaction.message.id);
+        const session = resolveSession(interaction);
         if (!session.panelName) {
             await interaction.followUp({
                 content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء الرجوع للوحة الرئيسية والمحاولة مجدداً.',

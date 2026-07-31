@@ -45,7 +45,7 @@ function buildMainDashboard() {
     const embed = new EmbedBuilder()
         .setColor(COLORS.main)
         .setTitle('🎫 لوحة تحكم نظام التذاكر')
-        .setDescription('اختر أحد الخيارات أدناه:')
+        .setDescription('🔒 هذه اللوحة خاصة بك أنت فقط — لا يراها أحد غيرك.\n\nاختر أحد الخيارات أدناه:')
         .setFooter({ text: `الإصدار: ${version}` })
         .setTimestamp();
 
