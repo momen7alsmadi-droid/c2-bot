@@ -50,7 +50,7 @@ function extractPageFromFooter(interaction) {
 /**
  * استرجاع الجلسة الفعالة (مع احتياط التذييل)
  * @param {import('discord.js').BaseInteraction} interaction
- * @returns {{ panelName: String, page: String, actionKey: String|undefined }}
+ * @returns {{ panelName: String, page: String, actionKey: String|undefined, roleBtnId: String|undefined, roleOptId: String|undefined }}
  */
 function resolveSession(interaction) {
     const messageId = interaction.message?.id;
@@ -62,6 +62,8 @@ function resolveSession(interaction) {
             panelName: session.panelName,
             page: session.page || 'general',
             actionKey: session.actionKey,
+            roleBtnId: session.roleBtnId,
+            roleOptId: session.roleOptId,
         };
     }
 
@@ -74,6 +76,8 @@ function resolveSession(interaction) {
             page: page || 'general',
             // قد تكون الجلسة تحوي إجراءً محدداً حتى لو فُقد الاسم (نمرره مع الاحتياط)
             actionKey: session.actionKey,
+            roleBtnId: session.roleBtnId,
+            roleOptId: session.roleOptId,
         };
     }
 
