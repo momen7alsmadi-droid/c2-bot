@@ -15,7 +15,7 @@ const { setErrorClient, logError } = require('./utils/errorLogger');
 const { handleDaleelCommand, handleDaleelSettings } = require('./handlers/daleel');
 const { handleReportCommand, handleReportButton, handleReportSettings } = require('./handlers/report');
 const { handleResign, handleResignButton, handleDevSettings } = require('./handlers/resign');
-const { handleMasterPanel, handleDevRefresh, handleDevRefreshPanel, handleDevDisable, handleDevEnable, handleDevToggle, handleDevCheckDb, handleDevChannelSelect, showControlPage, showRoomsPage, showStatusPage, handleDevSetupStore } = require('./handlers/master-panel');
+const { handleMasterPanel, handleDevRefresh, handleDevRefreshPanel, handleDevDisable, handleDevEnable, handleDevToggle, handleDevCheckDb, handleDevChannelSelect, showControlPage, showRoomsPage, showStatusPage, handleDevSetupStore, confirmDevSetupStore } = require('./handlers/master-panel');
 const { handleHelp } = require('./handlers/help');
 const { handleBroadcast } = require('./handlers/broadcast');
 const { handleColorsCommand } = require('./handlers/colors');
@@ -319,7 +319,7 @@ ID: ${guild.id}
   client.once('ready', async () => {
     console.log(`✅ البوت شغّال باسم ${client.user.tag}`);
 
-    // تسجيل الأوامر (Global + كل سيرفرات البوت غير المعطّلة)
+    // تسجيل الأوامر (Guild-only في كل سيرفرات البوت غير المعطّلة)
     await deployCommands(client);
     console.log('📋 تمت مزامنة جميع الأوامر مع Discord API');
 
@@ -328,6 +328,16 @@ ID: ${guild.id}
       const added = await rebuildImageLibrary(client);
       if (added > 0) console.log(`🖼️ أُعيد بناء مكتبة الصور: +${added} صورة`);
     }, 3000);
+
+    // تسجيل الأوامر فوراً عند دخول سيرفر جديد (بدون انتظار إعادة تشغيل)
+    client.on('guildCreate', async (guild) => {
+      try {
+        await deployCommands(client);
+        console.log(`✅ تم تسجيل الأوامر للسيرفر الجديد ${guild.id}`);
+      } catch (e) {
+        console.error('❌ فشل تسجيل الأوامر عند دخول سيرفر جديد:', e.message);
+      }
+    });
     
     // إرسال أول رسالة بقاء (كل 30 دقيقة)
     setTimeout(() => sendPingMessage(), 5000);
@@ -673,6 +683,10 @@ async function handleButton(interaction) {
     // أزرار التحكم
     if (id === 'dev_check_db') return handleDevCheckDb(interaction);
     if (id === 'dev_setup_store') return handleDevSetupStore(interaction);
+    if (id === 'dev_store_confirm') return confirmDevSetupStore(interaction);
+    if (id === 'dev_store_cancel') {
+      return interaction.reply({ content: '❌ تم إلغاء إعداد المتجر. لم يُحذف أي شيء.', ephemeral: true });
+    }
     if (action === 'refresh') return handleDevRefresh(interaction);
     if (action === 'disable' && parts.length === 2) return handleDevDisable(interaction);
     if (action === 'enable' && parts.length === 2) return handleDevEnable(interaction);

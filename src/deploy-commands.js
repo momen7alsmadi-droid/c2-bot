@@ -174,20 +174,19 @@ async function deployCommands(clientOrId) {
   const extraGuildIds = (process.env.GUILD_IDS || '')
     .split(',').map(s => s.trim()).filter(Boolean);
 
-  // ====== 1) تسجيل الأوامر كـ Global (تظهر في كل السيرفرات) ======
-  // الأوامر العامة تُظهر في أي سيرفر يدخل البوت إليه (خلال دقائق حتى ساعة)
+  // ====== 0) مسح الأوامر العالمية القديمة (Global) ======
+  // التسجيل Guild-only في كل سيرفرات البوت: يضمن ظهور الأوامر فوراً
+  // في كل سيرفر بدون أي ازدواج (Global + Guild لاحقاً لن يحدث).
   try {
-    console.log(`⏳ جاري تسجيل Global Commands (${commands.length} أمر)...`);
-    await rest.put(Routes.applicationCommands(id), { body: commands });
-    console.log('✅ تم تسجيل الأوامر كـ Global — ستظهر في كل السيرفرات.');
+    await rest.put(Routes.applicationCommands(id), { body: [] });
+    console.log('🧹 تم مسح الأوامر العالمية القديمة (Global) لمنع الازدواج.');
   } catch (err) {
-    console.error('❌ فشل تسجيل Global Commands:', err.message);
-    if (err.stack) console.error(err.stack);
+    console.error('❌ فشل مسح Global Commands:', err.message);
   }
 
-  // ====== 2) تسجيل Guild Commands في كل سيرفر موجود فيه البوت (تحديث فوري) ======
-  // السيرفرات المعطّلة من لوحة المطور تُستثنى. نفس أسماء الأوامر في السيرفر
-  // تُغطي النسخة العالمية (لا ازدواج)، والتحديث يظهر فوراً هناك.
+  // ====== 1) تسجيل Guild Commands في كل سيرفر موجود فيه البوت ======
+  // السيرفرات المعطّلة من لوحة المطور تُستثنى. التسجيل Guild-only
+  // يعني: ظهور فوري + بدون ازدواج إطلاقاً.
   const allGuildIds = new Set([
     ...(guildId ? [guildId] : []),
     ...extraGuildIds,
@@ -205,6 +204,11 @@ async function deployCommands(clientOrId) {
       if (Array.isArray(cfg.disabledGuilds)) disabledGuilds = cfg.disabledGuilds;
     }
   } catch (e) { /* تجاهل أي خطأ في قراءة الإعدادات */ }
+
+  if (allGuildIds.size === 0) {
+    console.warn('⚠️ لا يوجد سيرفرات لتسجيل الأوامر فيها.');
+    return;
+  }
 
   for (const gid of allGuildIds) {
     if (disabledGuilds.includes(gid)) {

@@ -538,46 +538,123 @@ async function handleDevSetupStore(interaction) {
     });
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  // ---- 2) خطوة تأكيد قبل أي عملية حذف (حماية نهائية) ------------
+  // الضغطة الأولى لا تحذف شيئاً إطلاقاً — تعرض تحذيراً وأزرار تأكيد.
+  await interaction.reply({
+    embeds: [
+      new EmbedBuilder()
+        .setTitle('🛒 إعداد المتجر — تأكيد مطلوب')
+        .setColor(0xE74C3C)
+        .setDescription(
+          '⚠️ **تحذير**: سيتم حذف **جميع الرومات** في هذا السيرفر ثم إنشاء الرتب والكاتوجريز الجديدة.\n\n' +
+          `📌 **روم الأمر الحالي** (<#${interaction.channel.id}>) **لن يُحذف**.\n` +
+          '\nهل أنت متأكد من المتابعة؟'
+        )
+        .setFooter({ text: `الإصدار: ${version}` })
+        .setTimestamp(),
+    ],
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('dev_store_confirm')
+          .setLabel('✅ تأكيد والإعداد')
+          .setStyle(ButtonStyle.Danger),
+        new ButtonBuilder()
+          .setCustomId('dev_store_cancel')
+          .setLabel('❌ إلغاء')
+          .setStyle(ButtonStyle.Secondary),
+      ),
+    ],
+    ephemeral: true,
+  });
+}
+
+/**
+ * حذف روم مع إعادة محاولة تلقائية عند حدود السرعة (429)
+ * يحترم مدة الانتظار التي يحددها ديسكورد نفسه.
+ */
+async function safeDeleteChannel(ch, reason) {
+  try {
+    await ch.delete(reason);
+    return true;
+  } catch (err) {
+    if (err && (err.status === 429 || err.code === 429)) {
+      const retryAfter = (err.retryAfter || 5) * 1000;
+      await sleep(Math.min(retryAfter, 30000));
+      try {
+        await ch.delete(reason);
+        return true;
+      } catch (e2) { return false; }
+    }
+    return false;
+  }
+}
+
+/** إنشاء روم/رتبة مع إعادة محاولة عند 429 */
+async function safeCreate(fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err && (err.status === 429 || err.code === 429)) {
+      const retryAfter = (err.retryAfter || 5) * 1000;
+      await sleep(Math.min(retryAfter, 30000));
+      try {
+        return await fn();
+      } catch (e2) { return null; }
+    }
+    return null;
+  }
+}
+
+async function confirmDevSetupStore(interaction) {
+  if (interaction.user.id !== DEV_BOT_ID) return;
+  if (interaction.guild.id !== STORE_GUILD_ID) {
+    return interaction.reply({ content: '⛔ سيرفر غير معتمد.', ephemeral: true });
+  }
+
+  await interaction.deferUpdate();
   const guild = interaction.guild;
+  // الروم الذي نُفّذ منه الأمر — لن يُحذف أبداً
+  const safeChannelId = interaction.channel.id;
 
   try {
-    // ---- 2) مسح جميع الرومات -----------------------------------
-    await interaction.editReply({ content: '🧹 جارٍ مسح جميع الرومات...' });
+    // ---- 1) مسح جميع الرومات (مع استثناء روم الأمر الحالي) ----
+    await interaction.editReply({ content: '🧹 جارٍ مسح جميع الرومات (روم الأمر محفوظ)...' });
     const allChannels = [...guild.channels.cache.values()];
     let deleted = 0;
     for (const ch of allChannels) {
-      try { await ch.delete('🛒 إعداد المتجر'); deleted += 1; } catch { /* نتجاوز الروم الذي لا يمكن حذفه */ }
+      if (ch.id === safeChannelId) continue; // ❗ لا نحذف روم الأمر
+      if (await safeDeleteChannel(ch, '🛒 إعداد المتجر')) deleted += 1;
       await sleep(STORE_RATE_DELAY_MS);
     }
     await interaction.editReply({
-      content: `✅ تم مسح **${deleted}** روم.\n🎭 جارٍ إنشاء الرتب...`,
+      content: `✅ تم مسح **${deleted}** روم (بدون روم الأمر الحالي).\n🎭 جارٍ إنشاء الرتب...`,
     });
 
-    // ---- 3) إنشاء الرتب ----------------------------------------
+    // ---- 2) إنشاء الرتب ----------------------------------------
     let rolesCreated = 0;
     for (const roleName of STORE_ROLES) {
-      try {
-        await guild.roles.create({ name: `${PS}〔${roleName}〕`, reason: '🛒 إعداد المتجر' });
-        rolesCreated += 1;
-      } catch { /* نتجاوز الرتبة الفاشلة */ }
+      const role = await safeCreate(() =>
+        guild.roles.create({ name: `${PS}〔${roleName}〕`, reason: '🛒 إعداد المتجر' })
+      );
+      if (role) rolesCreated += 1;
       await sleep(STORE_RATE_DELAY_MS);
     }
     await interaction.editReply({
       content: `✅ تم إنشاء **${rolesCreated}** رتبة.\n📁 جارٍ إنشاء الكاتوجريز والرومات...`,
     });
 
-    // ---- 4) إنشاء الكاتوجريز وروماتها بالترتيب ------------------
+    // ---- 3) إنشاء الكاتوجريز وروماتها بالترتيب ------------------
     let createdChannels = 0;
     let progress = 0;
     for (const cat of STORE_CATEGORIES) {
-      const category = await guild.channels
-        .create({
+      const category = await safeCreate(() =>
+        guild.channels.create({
           name: `―｜${SUP_P}〔${cat.name}〕${SUP_S}｜―`,
           type: ChannelType.GuildCategory,
           reason: '🛒 إعداد المتجر',
         })
-        .catch(() => null);
+      );
       await sleep(STORE_RATE_DELAY_MS);
       if (!category) continue;
       createdChannels += 1;
@@ -585,15 +662,15 @@ async function handleDevSetupStore(interaction) {
       for (const [chName, kind] of cat.channels) {
         const isVoice = kind === 'voice';
         const fullName = isVoice ? `🔊 ${PS}〔${chName}〕` : `${PS}〔${chName}〕`;
-        await guild.channels
-          .create({
+        const created = await safeCreate(() =>
+          guild.channels.create({
             name: fullName,
             type: isVoice ? ChannelType.GuildVoice : ChannelType.GuildText,
             parent: category.id,
             reason: '🛒 إعداد المتجر',
           })
-          .catch(() => {});
-        createdChannels += 1;
+        );
+        if (created) createdChannels += 1;
         await sleep(STORE_RATE_DELAY_MS);
 
         // تحديث تدريجي كل 10 رومات حتى يرى المطور تقدماً
@@ -609,7 +686,7 @@ async function handleDevSetupStore(interaction) {
     await interaction.editReply({
       content:
         `✅ **تم إعداد المتجر بالكامل!**\n` +
-        `🧹 رومات محذوفة: **${deleted}**\n` +
+        `🧹 رومات محذوفة: **${deleted}** (استثنينا روم الأمر)<#${safeChannelId}>\n` +
         `🎭 رتب مُنشأة: **${rolesCreated}**\n` +
         `📁 كاتوجريز ورومات مُنشأة: **${createdChannels}**`,
     });
@@ -624,6 +701,6 @@ module.exports = {
   handleDevDisable, handleDevEnable, handleDevToggle,
   handleDevCheckDb, handleDevChannelSelect,
   showControlPage, showRoomsPage, showStatusPage,
-  handleDevSetupStore,
+  handleDevSetupStore, confirmDevSetupStore,
   DEV_BOT_ID
 };
