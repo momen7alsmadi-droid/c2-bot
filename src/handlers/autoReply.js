@@ -88,9 +88,9 @@ const {
 // ---------- دالة مساعدة ----------
 async function respondOrUpdate(interaction, payload) {
   // ===== إضافة الزر الشكلي 'إعادة تعيين' في نهاية الرسائل التي تحتوي قوائم منسدلة =====
-  const { appendDecorativeReset } = require('../utils/decorativeReset');
+  const { appendDecorativeOption } = require('../utils/decorativeReset');
   if (payload && Array.isArray(payload.components) && payload.components.length > 0) {
-    payload.components = appendDecorativeReset(payload.components);
+    payload.components = appendDecorativeOption(payload.components);
   }
 
   if (interaction.deferred) {

@@ -2,26 +2,28 @@
  * =========================================================
  *  utils/decorativeReset.js
  * =========================================================
- * زر شكلي فقط "🔄 إعادة تعيين" يُضاف في نهاية أي رسالة تحتوي
- * قائمة منسدلة (Select Menu) في كل أنحاء البوت — بدون أي وظيفة
- * (لا يجعل له أي إجراء؛ الضغط عليه يعيد فقط تأكيداً إخفائياً).
+ * خيار شكلي فقط "🔄 إعادة تعيين" يُضاف كـ **آخر خيار داخل** كل
+ * قائمة منسدلة نصية (StringSelectMenu) في أنحاء البوت — بدون أي
+ * وظيفة (اختياره يعيد فقط تأكيداً إخفائياً ولا ينفذ شيئاً).
  *
- * قواعد الإضافة الآمنة (دون كسر حدود ديسكورد):
- *   1) يُضاف فقط إذا كانت الرسالة تحتوي فعلاً قائمة منسدلة
- *   2) إذا كان الصف الأخير صف أزرار وبه مكان -> يُدمج فيه
- *   3) وإلا يُضاف صف جديد (طالما أن عدد الصفوف < 5)
+ * قواعد آمنة:
+ *   1) يُضاف فقط لقوائم النصوص (type 3) — ديسكورد يرفض إضافة
+ *      خيارات مخصصة لقوائم الرتب/الرومات/الأعضاء/المنشن
+ *   2) فقط للقوائم أحادية الاختيار (maxValues <= 1)
+ *   3) لا يتجاوز حد 25 خياراً
+ *   4) لا يتكرر أبداً
+ *   5) مستثنى: قائمة تحكم الستاف في التكت (تملك أصلاً خيار
+ *      "♻️ إعادة تعيين القائمة" كآخر خيار يعمل فعلياً)
  * =========================================================
  */
 
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-
-const DECO_CUSTOM_ID = 'ui_deco_reset';
+const DECO_VALUE = '__deco_reset__';
 const DECO_LABEL = '🔄 إعادة تعيين';
+const DECO_EMOJI = '♻️';
+const SELECT_TEXT_TYPE = 3;
 
-// أنواع المكونات: 2=زر, 3=قائمة نصية, 5=قائمة أعضاء, 6=قائمة رتب,
-// 7=قائمة منشن, 8=قائمة رومات
-const SELECT_TYPES = [3, 5, 6, 7, 8];
-const BUTTON_TYPE = 2;
+// قوائم مستثناة (تملك أصلاً خيار إعادة تعيين فعلي كآخر خيار)
+const EXCLUDED_CUSTOM_IDS = new Set(['ticket_staff_menu']);
 
 /** استخراج نوع المكوّن بأمان (يدعم الـ Builders والكائنات الخام) */
 function componentType(comp) {
@@ -45,58 +47,42 @@ function componentCustomId(comp) {
     return null;
 }
 
-/** بناء الزر الشكلي */
-function buildDecoButton() {
-    return new ButtonBuilder()
-        .setCustomId(DECO_CUSTOM_ID)
-        .setLabel(DECO_LABEL)
-        .setStyle(ButtonStyle.Secondary);
-}
-
 /**
- * إضافة الزر الشكلي في نهاية صفوف المكونات إن وُجدت قائمة منسدلة
+ * إضافة خيار "🔄 إعادة تعيين" كآخر خيار داخل كل قائمة منسدلة نصية
  * @param {Array} rows - مصفوفة ActionRowBuilder (تُعدَّل وتُعاد كما هي)
  * @returns {Array}
  */
-function appendDecorativeReset(rows) {
-    if (!Array.isArray(rows) || rows.length === 0) return rows;
+function appendDecorativeOption(rows) {
+    if (!Array.isArray(rows)) return rows;
 
-    // منع الإضافة المزدوجة (لو أُعيد استخدام نفس الرسالة أكثر من مرة)
-    const alreadyHas = rows.some(row =>
-        row && Array.isArray(row.components) &&
-        row.components.some(c => componentType(c) === BUTTON_TYPE && componentCustomId(c) === DECO_CUSTOM_ID)
-    );
-    if (alreadyHas) return rows;
+    for (const row of rows) {
+        if (!row || !Array.isArray(row.components)) continue;
 
-    // هل توجد قائمة منسدلة فعلاً؟
-    const hasSelect = rows.some(row =>
-        row &&
-        Array.isArray(row.components) &&
-        row.components.some(c => SELECT_TYPES.includes(componentType(c)))
-    );
-    if (!hasSelect) return rows;
+        for (const comp of row.components) {
+            // فقط قوائم النصوص (StringSelectMenu) أحادية الاختيار
+            if (componentType(comp) !== SELECT_TEXT_TYPE) continue;
+            if (EXCLUDED_CUSTOM_IDS.has(componentCustomId(comp))) continue;
 
-    // 1) إن كان الصف الأخير صف أزرار وفيه مكان -> دمج الزر فيه
-    const last = rows[rows.length - 1];
-    const comps = last && Array.isArray(last.components) ? last.components : [];
-    if (
-        comps.length > 0 &&
-        comps.every(c => componentType(c) === BUTTON_TYPE) &&
-        comps.length < 5
-    ) {
-        try {
-            last.addComponents(buildDecoButton());
-            return rows;
-        } catch {
-            /* نكمل لصف جديد */
+            const data = comp.data || {};
+            const maxV = data.max_values;
+            if (typeof maxV === 'number' && maxV > 1) continue; // متعدد الاختيار
+
+            // خيارات القائمة: discord.js v14 تخزنها في builder.options
+            // (data.options فارغة حتى toJSON) — ندعم الحالتين
+            const opts = Array.isArray(comp.options)
+                ? comp.options
+                : Array.isArray(data.options) ? data.options : [];
+            if (opts.length >= 25) continue; // حد ديسكورد
+            if (opts.some(o => o && (o.value === DECO_VALUE || (o.data && o.data.value === DECO_VALUE)))) continue; // لا تكرار
+
+            try {
+                comp.addOptions({ label: DECO_LABEL, value: DECO_VALUE, emoji: DECO_EMOJI });
+            } catch {
+                /* مكوّن خام أو غير قابل للتعديل — نتجاهل بأمان */
+            }
         }
-    }
-
-    // 2) وإلا صف جديد (ضمن حد 5 صفوف)
-    if (rows.length < 5) {
-        rows.push(new ActionRowBuilder().addComponents(buildDecoButton()));
     }
     return rows;
 }
 
-module.exports = { appendDecorativeReset, buildDecoButton, DECO_CUSTOM_ID, DECO_LABEL };
+module.exports = { appendDecorativeOption, DECO_VALUE, DECO_LABEL };

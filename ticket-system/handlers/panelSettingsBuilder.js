@@ -37,7 +37,7 @@ const { SUPPORTED_VARIABLES } = require('../utils/messageVariables');
 const { safeEmoji } = require('../utils/emoji');
 const { ACTION_KEYS, DEFAULT_ACTION_MESSAGES, getActionMessage, isActionEnabled } = require('../utils/actionMessages');
 const { getAllImages } = require('../utils/imageLibrary');
-const { appendDecorativeReset } = require('../../src/utils/decorativeReset');
+const { appendDecorativeOption } = require('../../src/utils/decorativeReset');
 
 /**
  * تحويل رابط صورة مُحفوظ في البنل إلى اسمها في المكتبة
@@ -538,7 +538,8 @@ function buildMessagesPage() {
  */
 function buildImagesPage(panel) {
     const { getAllImages } = require('../utils/imageLibrary');
-    const images = getAllImages().slice(0, 25);
+    // حد ديسكورد 25 خياراً: "بدون صورة" + "🔄 إعادة تعيين" + الصور <= 25 => 23 صورة كحد أقصى
+    const images = getAllImages().slice(0, 23);
 
     const panelImageSelect = new StringSelectMenuBuilder()
         .setCustomId('settings_select_panel_image')
@@ -833,7 +834,7 @@ function buildPanelSettings(panelName, page = 'general', actionKey, btnId, optId
     else if (page === 'roleButtons') rows = buildRoleButtonsPage(panel, btnId, optId);
 
     // الزر الشكلي "🔄 إعادة تعيين" في نهاية الصفحات التي تحتوي قوائم منسدلة
-    rows = appendDecorativeReset(rows);
+    rows = appendDecorativeOption(rows);
 
     return {
         embeds,

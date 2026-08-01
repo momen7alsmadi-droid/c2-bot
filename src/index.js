@@ -464,6 +464,10 @@ client.on('interactionCreate', async (interaction) => {
       }
     } else if (interaction.isStringSelectMenu() || interaction.isRoleSelectMenu() || interaction.isChannelSelectMenu() || interaction.isUserSelectMenu()) {
       console.log('🔽 Select Menu:', interaction.customId, 'values:', interaction.values);
+      // الخيار الشكلي "🔄 إعادة تعيين" (آخر خيار في كل قائمة): لا ينفذ شيئاً
+      if (interaction.values.length === 1 && interaction.values[0] === '__deco_reset__') {
+        return interaction.reply({ content: '🔄', ephemeral: true }).catch(() => {});
+      }
       if (interaction.customId.startsWith('emb_')) {
         await handleEmbedsInteraction(interaction);
       } else if (interaction.customId.startsWith('ar_') || interaction.customId.startsWith('rr_')) {
