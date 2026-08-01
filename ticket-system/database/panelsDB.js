@@ -191,7 +191,7 @@ function withDefaults(panel) {
             options: Array.isArray(b.options)
                 ? b.options
                       .filter(o => o && typeof o === 'object' && typeof o.id === 'string' && o.id.trim())
-                      .slice(0, 25)
+                      .slice(0, 22) // حد 22: 22 + إضافة + حذف + إعادة تعيين = 25 (حد ديسكورد)
                       .map(o => ({
                           id: o.id,
                           label: String(o.label || 'خيار').slice(0, 100),

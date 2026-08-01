@@ -480,7 +480,16 @@ async function handleTicketSelectMenu(interaction) {
             }
 
             if (val === '__add_option__') {
-                await interaction.showModal(buildRoleButtonOptionModal(session.roleBtnId));
+                try {
+                    await interaction.showModal(buildRoleButtonOptionModal(session.roleBtnId));
+                } catch (e) {
+                    // إذا فشل فتح النافذة (تفاعل مستهلك مثلاً) نوجه المستخدم بدلاً من خطأ غامض
+                    console.error('[selectMenuHandler] فشل فتح نافذة إضافة الخيار:', e.message);
+                    await interaction.reply({
+                        content: '⚠️ تعذر فتح نافذة الإضافة. اختر الزر من القائمة مرة أخرى ثم أعد المحاولة.',
+                        ephemeral: true,
+                    }).catch(() => {});
+                }
                 return;
             }
 

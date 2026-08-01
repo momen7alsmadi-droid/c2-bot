@@ -335,20 +335,26 @@ async function handleTicketModal(interaction) {
 
             const btnId = interaction.customId.split(':')[1] || null;
             const label = interaction.fields.getTextInputValue('role_btn_name').trim() || '🎖️ زر رتبة';
+            let savedBtnId = btnId;
 
             if (btnId) {
                 // تعديل زر موجود
                 updatePanel(session.panelName, {
-                    customRoleButtons: (getPanelByName(session.panelName).customRoleButtons || []).map(b =>
+                    customRoleButtons: (getPanelByName(session.panelName)?.customRoleButtons || []).map(b =>
                         b.id === btnId ? { ...b, label: label.slice(0, 80) } : b
                     ),
                 });
             } else {
-                // إنشاء زر جديد
-                addRoleButton(session.panelName, label);
+                // إنشاء زر جديد (نأخذ معرفه ليبقى محدداً بعد البناء)
+                const created = addRoleButton(session.panelName, label);
+                if (created) savedBtnId = created.id;
             }
 
-            const result = buildPanelSettings(session.panelName, 'roleButtons', null, session.roleBtnId, session.roleOptId);
+            const result = buildPanelSettings(session.panelName, 'roleButtons', null, savedBtnId, null);
+            if (!result) {
+                await interaction.reply({ content: '⚠️ لم يتم العثور على هذا البنل.', ephemeral: true }).catch(() => {});
+                return;
+            }
             await interaction.update(result);
             return;
         }
@@ -370,11 +376,12 @@ async function handleTicketModal(interaction) {
             const label = interaction.fields.getTextInputValue('role_opt_name').trim();
             const description = interaction.fields.getTextInputValue('role_opt_desc').trim();
 
+            let addedOk = true;
             if (btnId) {
                 if (optId) {
                     // تعديل خيار موجود
                     updatePanel(session.panelName, {
-                        customRoleButtons: (getPanelByName(session.panelName).customRoleButtons || []).map(b =>
+                        customRoleButtons: (getPanelByName(session.panelName)?.customRoleButtons || []).map(b =>
                             b.id === btnId
                                 ? {
                                       ...b,
@@ -388,12 +395,26 @@ async function handleTicketModal(interaction) {
                         ),
                     });
                 } else {
-                    addRoleOption(session.panelName, btnId, label, description);
+                    // إضافة خيار جديد (قد يفشل إذا بلغنا حد 22 خياراً)
+                    addedOk = !!addRoleOption(session.panelName, btnId, label, description);
                 }
             }
 
-            // نعيد البناء مع إبقاء الزر المحدد (والخيار المحدد) كما هما
-            const result = buildPanelSettings(session.panelName, 'roleButtons', null, session.roleBtnId, session.roleOptId);
+            if (!addedOk) {
+                await interaction.update({
+                    content: '⚠️ لا يمكن إضافة المزيد من الخيارات: الحد الأقصى 22 خياراً لكل زر (حد ديسكورد 25).',
+                    embeds: [],
+                    components: [],
+                }).catch(() => {});
+                return;
+            }
+
+            // نعيد البناء مع إبقاء الزر المحدد (المعرف من customId — يعمل حتى لو ضاعت الجلسة)
+            const result = buildPanelSettings(session.panelName, 'roleButtons', null, btnId, optId);
+            if (!result) {
+                await interaction.reply({ content: '⚠️ لم يتم العثور على هذا البنل.', ephemeral: true }).catch(() => {});
+                return;
+            }
             await interaction.update(result);
             return;
         }

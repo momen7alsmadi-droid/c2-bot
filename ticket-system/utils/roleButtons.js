@@ -65,13 +65,17 @@ function addRoleButton(panelName, label) {
     return btn;
 }
 
-/** إضافة خيار لزر (يعيد الخيار أو null) */
+/**
+ * إضافة خيار لزر (يعيد الخيار أو null)
+ * لا يسمح بأكثر من 22 خياراً (حد ديسكورد 25 − إضافة − حذف − إعادة تعيين)
+ */
 function addRoleOption(panelName, btnId, label, description) {
     const opt = { id: genId(), label: String(label || 'خيار').slice(0, 100), description: String(description || '').slice(0, 100), roleId: null };
     let created = false;
     updateRoleButtons(panelName, list =>
         list.map(b => {
             if (b.id !== btnId) return b;
+            if ((b.options || []).length >= 22) return b; // لا نضيف بعد الحد الأقصى
             created = true;
             return { ...b, options: [...(b.options || []), opt] };
         })

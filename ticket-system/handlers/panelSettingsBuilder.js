@@ -644,7 +644,7 @@ function buildRoleButtonsPage(panel, btnId = null, optId = null) {
         // ديسكورد يرفض القوائم بلا خيارات (1-25) — خيار وهمي معطّل
         optSelect.addOptions({ label: 'اختر زراً أولاً من القائمة بالأعلى', value: 'none' });
     } else if (button) {
-        const options = button.options || [];
+        const options = (button.options || []).slice(0, 22); // 22 + إضافة + حذف + إعادة تعيين = 25 (حد ديسكورد)
         if (options.length === 0) {
             optSelect.addOptions({ label: 'لا توجد خيارات بعد — أضف واحداً', value: 'none' });
         } else {
