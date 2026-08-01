@@ -370,7 +370,7 @@ function buildGeneralPage(panel) {
         .setCustomId('settings_select_linked_panel')
         .setPlaceholder(`🔗 اختر البنلات المرتبطة (${currentLinked.length} مرتبط حالياً)...`)
         .setMinValues(0)
-        .setMaxValues(Math.min(otherPanels.length, 25));
+        .setMaxValues(Math.max(1, Math.min(otherPanels.length, 25)));
 
     if (otherPanels.length === 0) {
         linkSelect
