@@ -36,6 +36,19 @@ const { buildTicketEmbed } = require('./ticketEmbedBuilder');
 const { SUPPORTED_VARIABLES } = require('../utils/messageVariables');
 const { safeEmoji } = require('../utils/emoji');
 const { ACTION_KEYS, DEFAULT_ACTION_MESSAGES, getActionMessage, isActionEnabled } = require('../utils/actionMessages');
+const { getAllImages } = require('../utils/imageLibrary');
+
+/**
+ * تحويل رابط صورة مُحفوظ في البنل إلى اسمها في المكتبة
+ * (لعرضها في إيمبد المعلومات بطريقة مقروءة)
+ * @param {String|null} url
+ * @returns {String}
+ */
+function imageNameFromUrl(url) {
+    if (!url) return 'لا توجد';
+    const found = getAllImages().find(i => i.url === url);
+    return found ? `\`${found.name.slice(0, 60)}\` (من المكتبة)` : '[رابط مخصص/خارجي]';
+}
 
 const INFO_COLOR = 0x2ECC71; // أخضر مثل إيمبد "معلومات الإيمبد" في لوحة الإيمبد
 
@@ -46,6 +59,7 @@ const PAGES = {
     roles2: { label: 'الرتب 2/2', emoji: '🎭' },
     channels: { label: 'إعدادات الرومات', emoji: '📁' },
     messages: { label: 'الرسائل', emoji: '💬' },
+    images: { label: 'مكتبة الصور', emoji: '🖼️' },
     actions: { label: 'رسائل الأزرار', emoji: '🔔' },
 };
 
@@ -222,6 +236,16 @@ function buildSettingsEmbed(panel, page, actionKey) {
             value: panel.ticketNameTemplate
                 ? `\`${panel.ticketNameTemplate.slice(0, 100)}\``
                 : '\`ticket-[username]\` (الافتراضي)',
+            inline: false,
+        },
+        {
+            name: '🖼️ صورة البنل العام (من المكتبة)',
+            value: imageNameFromUrl((panel.panelMessage || {}).image),
+            inline: false,
+        },
+        {
+            name: '🖼️ صورة إيمبد التكت (من المكتبة)',
+            value: imageNameFromUrl((panel.ticketEmbed || {}).image),
             inline: false,
         },
         {
@@ -475,7 +499,68 @@ function buildMessagesPage() {
             .setStyle(ButtonStyle.Secondary)
     );
 
-    return [messagesRow, ticketEmbedRow, ticketNameRow];
+    // زر الدخول لمكتبة الصور (يختار الإداري صورة بالاسم) — رفع الصور
+    // يتم عبر أمر /رفع-صورة بدون تحديد بنل
+    const imageLibRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('settings_page_images')
+            .setLabel('🖼️ مكتبة الصور')
+            .setStyle(ButtonStyle.Primary)
+    );
+
+    return [messagesRow, ticketEmbedRow, ticketNameRow, imageLibRow];
+}
+
+/**
+ * بناء صفحة "مكتبة الصور": اختيار صورة (بالاسم) للبنل العام
+ * ولإيمبد التكت من الصور المرفوعة عبر /رفع-صورة.
+ * (القوائم تحوي كل صور المكتبة + خيار "بدون صورة")
+ * @param {Object} panel
+ */
+function buildImagesPage(panel) {
+    const { getAllImages } = require('../utils/imageLibrary');
+    const images = getAllImages().slice(0, 25);
+
+    const panelImageSelect = new StringSelectMenuBuilder()
+        .setCustomId('settings_select_panel_image')
+        .setPlaceholder('🖼️ اختر صورة البنل العام (اختياري)...')
+        .addOptions({ label: '🚫 بدون صورة', value: 'none', emoji: '🚫' });
+
+    const ticketImageSelect = new StringSelectMenuBuilder()
+        .setCustomId('settings_select_ticket_image')
+        .setPlaceholder('🖼️ اختر صورة إيمبد التكت (اختياري)...')
+        .addOptions({ label: '🚫 بدون صورة', value: 'none', emoji: '🚫' });
+
+    const pmImage = (panel.panelMessage || {}).image || null;
+    const teImage = (panel.ticketEmbed || {}).image || null;
+
+    if (images.length === 0) {
+        // لا توجد صور في المكتبة: نعطّل القائمتين مع تنبيه واضح
+        panelImageSelect.setDisabled(true);
+        ticketImageSelect.setDisabled(true);
+        panelImageSelect.addOptions({ label: 'لا توجد صور — ارفع أولاً عبر /رفع-صورة', value: 'empty', emoji: '❌' });
+        ticketImageSelect.addOptions({ label: 'لا توجد صور — ارفع أولاً عبر /رفع-صورة', value: 'empty', emoji: '❌' });
+    } else {
+        for (const img of images) {
+            panelImageSelect.addOptions({
+                label: img.name.slice(0, 100),
+                value: img.name,
+                emoji: '🖼️',
+                default: pmImage === img.url,
+            });
+            ticketImageSelect.addOptions({
+                label: img.name.slice(0, 100),
+                value: img.name,
+                emoji: '🖼️',
+                default: teImage === img.url,
+            });
+        }
+    }
+
+    return [
+        new ActionRowBuilder().addComponents(panelImageSelect),
+        new ActionRowBuilder().addComponents(ticketImageSelect),
+    ];
 }
 
 /**
@@ -601,6 +686,7 @@ function buildPanelSettings(panelName, page = 'general', actionKey) {
     else if (page === 'roles2') rows = [...buildRoles2Page(panel), buildBackToRolesRow()];
     else if (page === 'channels') rows = [...buildChannelsPage(), buildBackToGeneralRow()];
     else if (page === 'messages') rows = [...buildMessagesPage(), buildBackToGeneralRow()];
+    else if (page === 'images') rows = [...buildImagesPage(panel), buildBackToGeneralRow()];
     else if (page === 'actions') rows = [...buildActionsPage(panel, actionKey), buildBackToGeneralRow()];
 
     return {

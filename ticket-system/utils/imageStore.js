@@ -50,17 +50,21 @@ async function findOrCreateBank(guild) {
 }
 
 /**
- * تخزين صورة بشكل دائم عبر إعادة رفعها في روم بنك الصور
+ * تخزين صورة بشكل دائم عبر إعادة رفعها في روم بنك الصور.
+ * المحتوى (content) = اسم الصورة في المكتبة — يُستخدم لاحقاً
+ * لإعادة بناء المكتبة من رسائل البنك عند إقلاع البوت.
  * @param {import('discord.js').Guild} guild
  * @param {import('discord.js').Attachment} attachment - مرفق الصورة من الأمر
+ * @param {String} [content] - اسم الصورة (يُكتب كمحتوى الرسالة)
  * @returns {Promise<String>} رابط الصورة الدائم
  */
-async function storeImageInBank(guild, attachment) {
+async function storeImageInBank(guild, attachment, content = '') {
     try {
         const bank = await findOrCreateBank(guild);
         if (!bank) return attachment.url; // احتياط: الرابط الأصلي
 
         const msg = await bank.send({
+            content,
             files: [
                 {
                     attachment: attachment.url,

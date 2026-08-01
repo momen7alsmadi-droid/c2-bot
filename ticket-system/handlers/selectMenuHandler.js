@@ -39,6 +39,7 @@ const { setSession, getSession } = require('./sessionStore');
 const { buildPublicPanelMessage } = require('./publicPanelBuilder');
 const { resolveSession } = require('../utils/panelResolver');
 const { ACTION_KEYS } = require('../utils/actionMessages');
+const { getImageUrl } = require('../utils/imageLibrary');
 
 async function handleTicketSelectMenu(interaction) {
     const { customId } = interaction;
@@ -47,7 +48,9 @@ async function handleTicketSelectMenu(interaction) {
         customId.startsWith('ticket_select_') ||
         customId === 'settings_select_ticket_system' ||
         customId === 'settings_select_linked_panel' ||
-        customId === 'settings_select_action';
+        customId === 'settings_select_action' ||
+        customId === 'settings_select_panel_image' ||
+        customId === 'settings_select_ticket_image';
 
     if (!isRelevant) return;
 
@@ -351,6 +354,55 @@ async function handleTicketSelectMenu(interaction) {
             setSession(interaction.message.id, { actionKey });
 
             const result = buildPanelSettings(session.panelName, 'actions', actionKey);
+            await interaction.editReply(result);
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 6) اختيار صورة من مكتبة الصور (البنل العام / إيمبد التكت)
+        //    القيم: 'none' = إزالة الصورة | اسم صورة من المكتبة
+        // ---------------------------------------------------
+        if (customId === 'settings_select_panel_image' || customId === 'settings_select_ticket_image') {
+            if (!(await safeDeferUpdate(interaction))) return;
+
+            const session = resolveSession(interaction);
+            if (!session.panelName) {
+                await interaction.followUp({
+                    content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء الرجوع للوحة الرئيسية والمحاولة مجدداً.',
+                    ephemeral: true,
+                }).catch(() => {});
+                return;
+            }
+
+            const selected = interaction.values[0];
+            const field = customId === 'settings_select_panel_image' ? 'panelMessage' : 'ticketEmbed';
+
+            const panel = getPanelByName(session.panelName);
+            if (!panel) {
+                await interaction.followUp({
+                    content: '⚠️ لم يتم العثور على هذا البنل. أعد فتح اللوحة الرئيسية.',
+                    ephemeral: true,
+                }).catch(() => {});
+                return;
+            }
+
+            let image = null;
+            if (selected !== 'none') {
+                const url = getImageUrl(selected);
+                if (!url) {
+                    await interaction.followUp({
+                        content: `⚠️ لم يتم العثور على صورة باسم **${selected}** في المكتبة.`,
+                        ephemeral: true,
+                    }).catch(() => {});
+                    return;
+                }
+                image = url;
+            }
+
+            const current = panel[field] || {};
+            updatePanel(session.panelName, { [field]: { ...current, image } });
+
+            const result = buildPanelSettings(session.panelName, 'images');
             await interaction.editReply(result);
             return;
         }

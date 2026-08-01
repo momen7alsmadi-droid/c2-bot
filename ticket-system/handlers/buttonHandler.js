@@ -64,6 +64,7 @@ const SETTINGS_PAGE_IDS = [
     'settings_page_channels',
     'settings_page_messages',
     'settings_page_actions',
+    'settings_page_images',
 ];
 
 /**

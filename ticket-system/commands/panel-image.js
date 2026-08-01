@@ -2,70 +2,49 @@
  * =========================================================
  *  commands/panel-image.js
  * =========================================================
- * أمر /رفع-صورة — رفع صورة مباشرة (اختيار ملف) بدون أي روابط:
+ * أمر /رفع-صورة — رفع صورة إلى "مكتبة الصور" المسمّاة:
  *
- *   /رفع-صورة البنل: <اسم البنل> النوع: <إيمبد التكت | البنل العام> الصورة: <ملف>
+ *   /رفع-صورة الاسم: <اسم الصورة> الصورة: <ملف>
+ *
+ * (لا حاجة لتحديد بنل معيّن وقت الرفع)
  *
  * الميكانيكة:
  *   1) نستلم الملف المرفوع من ديسكورد (Attachment)
  *   2) نتحقق أنه صورة فعلية
  *   3) نعيد رفعه من البوت في روم سري "بنك الصور" (utils/imageStore)
- *      حتى يكون الرابط دائماً وملكاً للبوت لا يعتمد على رسالة العضو
- *   4) نحفظ الرابط في panel.panelMessage.image أو panel.ticketEmbed.image
- *   5) نعرض معاينة حية للمستخدم (إخفائي)
+ *      حتى يكون الرابط دائماً وملكاً للبوت، مع كتابة اسم الصورة
+ *      كمحتوى الرسالة (لإعادة بناء المكتبة عند الإقلاع)
+ *   4) نحفظ { الاسم -> الرابط } في مكتبة الصور (utils/imageLibrary)
+ *   5) يعرض معاينة حية للمستخدم (إخفائي)
  *
- * قائمة البنل تدعم الـ Autocomplete (اكتب جزءاً من الاسم وستظهر
- * الاقتراحات) — انظر handlers/panelImageAutocomplete.js
+ * لاحقاً: من إعدادات أي بنل ← "الرسائل" ← "🖼️ مكتبة الصور"
+ * يختار الإداري اسم الصورة ليُطبَّق على البنل العام أو إيمبد التكت.
  * =========================================================
  */
 
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-const { getPanelByName, updatePanel } = require('../database/panelsDB');
 const { storeImageInBank } = require('../utils/imageStore');
-const { buildPublicPanelMessage } = require('../handlers/publicPanelBuilder');
-const { buildTicketEmbed } = require('../handlers/ticketEmbedBuilder');
-const { safeEmoji } = require('../utils/emoji');
+const { addImage } = require('../utils/imageLibrary');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('رفع-صورة')
-        .setDescription('رفع صورة لإيمبد التكت أو البنل العام مباشرة (بدون روابط)')
+        .setDescription('رفع صورة إلى مكتبة الصور (بدون تحديد بنل) ثم اخترها من إعدادات البنل')
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
         .addStringOption(o =>
             o
-                .setName('البنل')
-                .setDescription('اختر البنل الذي تريد رفع الصورة له')
+                .setName('الاسم')
+                .setDescription('اسم الصورة — ستختارها بهذا الاسم من إعدادات البنل')
                 .setRequired(true)
-                .setAutocomplete(true)
-        )
-        .addStringOption(o =>
-            o
-                .setName('النوع')
-                .setDescription('أين تُحفظ الصورة؟')
-                .setRequired(true)
-                .addChoices(
-                    { name: '🖼️ إيمبد التكت (فوق الأزرار داخل التكت)', value: 'ticket' },
-                    { name: '📤 البنل العام (إيمبد فتح التكت)', value: 'panel' }
-                )
+                .setMaxLength(80)
         )
         .addAttachmentOption(o =>
             o.setName('الصورة').setDescription('الصورة التي تريد رفعها').setRequired(true)
         ),
 
     async execute(interaction) {
-        const panelName = interaction.options.getString('البنل').trim();
-        const type = interaction.options.getString('النوع'); // 'ticket' | 'panel'
+        const name = interaction.options.getString('الاسم').trim();
         const attachment = interaction.options.getAttachment('الصورة');
-
-        // التحقق من وجود البنل
-        const panel = getPanelByName(panelName);
-        if (!panel) {
-            await interaction.reply({
-                content: `⚠️ لم يتم العثور على بنل باسم **${panelName}**. تأكد من الاسم من قائمة الاقتراحات.`,
-                ephemeral: true,
-            });
-            return;
-        }
 
         // التحقق من أن الملف صورة فعلاً
         if (!attachment.contentType || !attachment.contentType.startsWith('image/')) {
@@ -80,27 +59,27 @@ module.exports = {
 
         try {
             // تخزين دائم: إعادة رفع الصورة من البوت في روم بنك الصور السري
-            const savedUrl = await storeImageInBank(interaction.guild, attachment);
+            // مع كتابة اسم الصورة كمحتوى الرسالة (لإعادة البناء عند الإقلاع)
+            const savedUrl = await storeImageInBank(interaction.guild, attachment, name);
 
-            // حفظ الرابط في المكان المطلوب (دون المساس بباقي الحقول)
-            const fresh = getPanelByName(panelName);
-            if (type === 'ticket') {
-                const current = fresh.ticketEmbed || {};
-                updatePanel(panelName, { ticketEmbed: { ...current, image: savedUrl } });
-            } else {
-                const current = fresh.panelMessage || {};
-                updatePanel(panelName, { panelMessage: { ...current, image: savedUrl } });
-            }
+            // حفظها في مكتبة الصور المسمّاة (تستبدل القديمة بنفس الاسم إن وُجدت)
+            const overwritten = !!require('../utils/imageLibrary').getImageUrl(name);
+            addImage(name, savedUrl, interaction.user.id);
 
-            // معاينة حية للنتيجة
-            const updated = getPanelByName(panelName);
-            const preview =
-                type === 'ticket'
-                    ? buildTicketEmbed(updated)
-                    : buildPublicPanelMessage(updated).embeds[0];
+            // معاينة حية
+            const { EmbedBuilder } = require('discord.js');
+            const preview = new EmbedBuilder()
+                .setColor(0x2b2d31)
+                .setTitle(`${overwritten ? '🔄' : '✅'} تم حفظ الصورة في المكتبة`)
+                .setDescription(
+                    `**الاسم:** \`${name}\`\n` +
+                    `**الحالة:** ${overwritten ? 'استُبدلت صورة قديمة بنفس الاسم' : 'أُضيفت كصورة جديدة'}\n\n` +
+                    `📌 الآن افتح إعدادات أي بنل ← **الرسائل** ← **🖼️ مكتبة الصور** واختر \`${name}\``
+                )
+                .setImage(savedUrl)
+                .setTimestamp();
 
             await interaction.editReply({
-                content: `✅ تم رفع الصورة وحفظها في **${type === 'ticket' ? '🖼️ إيمبد التكت' : '📤 البنل العام'}** للبنل **${safeEmoji(panel.emoji)} ${panel.name}**.`,
                 embeds: [preview],
             });
         } catch (error) {

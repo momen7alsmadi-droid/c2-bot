@@ -46,6 +46,7 @@ const { handleRoleSelectMenu } = require('../ticket-system/handlers/roleSelectHa
 const { handleChannelSelectMenu } = require('../ticket-system/handlers/channelSelectHandler');
 const { handleTicketModal } = require('../ticket-system/handlers/modalHandler');
 const { handleTicketBoardTrigger } = require('../ticket-system/handlers/ticketBoardTrigger');
+const { rebuildImageLibrary } = require('../ticket-system/utils/imageLibrary');
 
 const { initStarboardModels, ensureStarboardLoaded } = require('./utils/starboardStorage');
 const { initAutoReplyModel, syncJsonToMongo: syncAr } = require('./utils/autoReplyStorage');
@@ -320,6 +321,12 @@ ID: ${guild.id}
     // تسجيل الأوامر (مسح القديم + تسجيل الكل)
     await deployCommands(client.user.id);
     console.log('📋 تمت مزامنة جميع الأوامر مع Discord API');
+
+    // إعادة بناء مكتبة الصور من روم بنك الصور (استرجاع بعد مسح القرص)
+    setTimeout(async () => {
+      const added = await rebuildImageLibrary(client);
+      if (added > 0) console.log(`🖼️ أُعيد بناء مكتبة الصور: +${added} صورة`);
+    }, 3000);
     
     // إرسال أول رسالة بقاء (كل 30 دقيقة)
     setTimeout(() => sendPingMessage(), 5000);
@@ -476,7 +483,9 @@ client.on('interactionCreate', async (interaction) => {
       } else if (interaction.customId.startsWith('ticket_select_') || 
                  interaction.customId === 'settings_select_ticket_system' ||
                  interaction.customId === 'settings_select_linked_panel' ||
-                 interaction.customId === 'settings_select_action') {
+                 interaction.customId === 'settings_select_action' ||
+                 interaction.customId === 'settings_select_panel_image' ||
+                 interaction.customId === 'settings_select_ticket_image') {
         await handleTicketSelectMenu(interaction);
       } else if (interaction.isRoleSelectMenu()) {
         await handleRoleSelectMenu(interaction);
