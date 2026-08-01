@@ -151,10 +151,11 @@ function channelToText(channelId) {
  * @returns {EmbedBuilder}
  */
 function buildSettingsEmbed(panel, page, actionKey) {
+    const pageLabel = (PAGES[page] || { label: 'إعدادات' }).label;
     const embed = new EmbedBuilder()
         .setColor(INFO_COLOR)
         .setTitle('ℹ️ معلومات البنل')
-        .setFooter({ text: `بنل: ${panel.name} | الصفحة: ${PAGES[page].label}` })
+        .setFooter({ text: `بنل: ${panel.name} | الصفحة: ${pageLabel}` })
         .setTimestamp();
 
     // ===== الحقول الصغيرة (inline) =====
@@ -777,6 +778,11 @@ function buildActionPreview(panel, actionKey) {
 function buildPanelSettings(panelName, page = 'general', actionKey, btnId, optId) {
     const panel = getPanelByName(panelName);
     if (!panel) return null;
+
+    // توافق أسماء الصفحات: customId للزر هو settings_page_role_buttons
+    // (يُنقل كما هو بعد replace) بينما مفتاح PAGES هو roleButtons
+    const PAGE_ALIASES = { role_buttons: 'roleButtons' };
+    page = PAGE_ALIASES[page] || page;
 
     // تطبيع الصفحة: إذا جاء الاسم من تذييل الإيمبد (بعد إعادة التشغيل)
     // نبحث عن المفتاح المطابق لتسمية الصفحة (مثلاً "الرتب 2/2" -> roles2)
