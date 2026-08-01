@@ -319,7 +319,14 @@ async function handleTicketModal(interaction) {
         // ---------------------------------------------------
         // 3-د) إنشاء/تعديل زر رتبة مخصص (صفحة أزرار الرتب)
         // ---------------------------------------------------
-        if (interaction.customId === 'modal_custom_role_btn' || interaction.customId.startsWith('modal_custom_role_btn:')) {
+        // ---------------------------------------------------
+        // 3-د) إنشاء/تعديل زر رتبة مخصص (صفحة أزرار الرتب)
+        // ملاحظة: نستثني بصرياً نافذة الخيار (modal_custom_role_btn_option:)
+        // لأنها تبدأ بنفس البادئة — يجب فحصها قبل هذا الفرع
+        // ---------------------------------------------------
+        if (interaction.customId === 'modal_custom_role_btn' ||
+            (interaction.customId.startsWith('modal_custom_role_btn:') &&
+             !interaction.customId.startsWith('modal_custom_role_btn_option:'))) {
             const session = resolveSession(interaction);
             if (!session.panelName) {
                 await interaction.reply({ content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء المحاولة مجدداً.', ephemeral: true });
@@ -341,7 +348,7 @@ async function handleTicketModal(interaction) {
                 addRoleButton(session.panelName, label);
             }
 
-            const result = buildPanelSettings(session.panelName, 'roleButtons');
+            const result = buildPanelSettings(session.panelName, 'roleButtons', null, session.roleBtnId, session.roleOptId);
             await interaction.update(result);
             return;
         }
@@ -385,7 +392,8 @@ async function handleTicketModal(interaction) {
                 }
             }
 
-            const result = buildPanelSettings(session.panelName, 'roleButtons');
+            // نعيد البناء مع إبقاء الزر المحدد (والخيار المحدد) كما هما
+            const result = buildPanelSettings(session.panelName, 'roleButtons', null, session.roleBtnId, session.roleOptId);
             await interaction.update(result);
             return;
         }
