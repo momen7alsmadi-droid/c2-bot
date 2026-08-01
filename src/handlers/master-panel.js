@@ -519,13 +519,19 @@ async function handleDevChannelSelect(interaction) {
 
 // =================== 🛒 إعداد المتجر (Setup Store) ===================
 
+// قفل يمنع تشغيل أكثر من عملية إعداد متجر في نفس السيرفر في الوقت نفسه.
+// السبب: تشغيل عمليتين متوازيتين = إحداهما تحذف رومات الأخرى المنشأة
+// حديثاً (هذا ما كان يحدث — الرومات تُنشأ ثم تُحذف فلا يظهر شيء).
+const storeSetupInProgress = new Set();
+
 /**
  * زر "🛒 اعداد متجر" في لوحة المطور:
  *   1) يتحقق أن السيرفر هو السيرفر المعتمد (STORE_GUILD_ID) وإلا يتوقف
- *   2) يمسح جميع الرومات (كتابية/صوتية/كاتوجريز)
- *   3) ينشئ الرتب الـ 12 بالترتيب (ᵖˢ〔...〕)
- *   4) ينشئ الكاتوجريز وروماتها بالترتيب المطلوب
- * تأخير (Rate Limit Delay) بين كل عملية حذف/إنشاء لتجنب حظر البوت.
+ *   2) يمنع أي عملية إعداد متوازية أخرى في نفس السيرفر
+ *   3) يعرض خطوة تأكيد (لا يُحذف أي شيء قبل التأكيد)
+ * عند التأكيد: يمسح جميع الرومات ما عدا روم الأمر الحالي، ثم ينشئ
+ * الرتب الـ 12 والكاتوجريز وروماتها بالترتيب، مع تأخير (Rate Limit
+ * Delay) بين كل عملية وتقرير نهائي واضح بأي فشل.
  */
 async function handleDevSetupStore(interaction) {
   if (interaction.user.id !== DEV_BOT_ID) return;
@@ -534,6 +540,14 @@ async function handleDevSetupStore(interaction) {
   if (interaction.guild.id !== STORE_GUILD_ID) {
     return interaction.reply({
       content: '⛔ هذا السيرفر غير معتمد لإعداد المتجر. العملية أُلغيت.',
+      ephemeral: true,
+    });
+  }
+
+  // ---- 1ب) منع تشغيل عمليتين في نفس الوقت -----------------------
+  if (storeSetupInProgress.has(interaction.guild.id)) {
+    return interaction.reply({
+      content: '⏳ هناك عملية إعداد متجر جارية بالفعل في هذا السيرفر. انتظر حتى تكتمل قبل المحاولة مرة أخرى.',
       ephemeral: true,
     });
   }
@@ -547,7 +561,7 @@ async function handleDevSetupStore(interaction) {
         .setColor(0xE74C3C)
         .setDescription(
           '⚠️ **تحذير**: سيتم حذف **جميع الرومات** في هذا السيرفر ثم إنشاء الرتب والكاتوجريز الجديدة.\n\n' +
-          `📌 **روم الأمر الحالي** (<#${interaction.channel.id}>) **لن يُحذف**.\n` +
+          `📌 **روم الأمر الحالي** (<#${interaction.channel.id}>) **لن يُحذف أبداً**.\n` +
           '\nهل أنت متأكد من المتابعة؟'
         )
         .setFooter({ text: `الإصدار: ${version}` })
@@ -612,18 +626,34 @@ async function confirmDevSetupStore(interaction) {
     return interaction.reply({ content: '⛔ سيرفر غير معتمد.', ephemeral: true });
   }
 
-  await interaction.deferUpdate();
-  const guild = interaction.guild;
-  // الروم الذي نُفّذ منه الأمر — لن يُحذف أبداً
-  const safeChannelId = interaction.channel.id;
+  // قفل: لا يُسمح بعمليتين في نفس السيرفر في وقت واحد
+  // (عملية موازية = تحذف رومات العملية الأخرى المنشأة حديثاً)
+  if (storeSetupInProgress.has(interaction.guild.id)) {
+    return interaction.reply({
+      content: '⏳ هناك عملية إعداد متجر جارية بالفعل في هذا السيرفر. انتظر حتى تكتمل.',
+      ephemeral: true,
+    });
+  }
+  storeSetupInProgress.add(interaction.guild.id);
 
   try {
-    // ---- 1) مسح جميع الرومات (مع استثناء روم الأمر الحالي) ----
+    await interaction.deferUpdate();
+    const guild = interaction.guild;
+    // الروم الذي نُفّذ منه الأمر — لن يُحذف أبداً، وكذلك الكاتيجوري الذي
+    // يحتويه (حذف الكاتيجوري قد يُحذف روماته تلقائياً في بعض الحالات).
+    const safeChannelId = interaction.channel.id;
+    const safeIds = new Set([safeChannelId]);
+    if (interaction.channel.parent) safeIds.add(interaction.channel.parent.id);
+    const failedItems = []; // أسباب الفشل ليظهر للمطور بدل "لا يحدث شيء"
+
+    // ---- 1) مسح جميع الرومات (مع استثناء روم الأمر وكاتيجوريته) ----
     await interaction.editReply({ content: '🧹 جارٍ مسح جميع الرومات (روم الأمر محفوظ)...' });
+    // جلب كامل للرومات حتى لا يبقى أي روم غير مخزّن في الكاش
+    await guild.channels.fetch().catch(() => {});
     const allChannels = [...guild.channels.cache.values()];
     let deleted = 0;
     for (const ch of allChannels) {
-      if (ch.id === safeChannelId) continue; // ❗ لا نحذف روم الأمر
+      if (safeIds.has(ch.id)) continue; // ❗ لا نحذف روم الأمر ولا كاتيجوريته
       if (await safeDeleteChannel(ch, '🛒 إعداد المتجر')) deleted += 1;
       await sleep(STORE_RATE_DELAY_MS);
     }
@@ -638,6 +668,7 @@ async function confirmDevSetupStore(interaction) {
         guild.roles.create({ name: `${PS}〔${roleName}〕`, reason: '🛒 إعداد المتجر' })
       );
       if (role) rolesCreated += 1;
+      else failedItems.push(`رتبة ${roleName}`);
       await sleep(STORE_RATE_DELAY_MS);
     }
     await interaction.editReply({
@@ -656,7 +687,10 @@ async function confirmDevSetupStore(interaction) {
         })
       );
       await sleep(STORE_RATE_DELAY_MS);
-      if (!category) continue;
+      if (!category) {
+        failedItems.push(`كاتيجوري ${cat.name}`);
+        continue;
+      }
       createdChannels += 1;
 
       for (const [chName, kind] of cat.channels) {
@@ -671,6 +705,7 @@ async function confirmDevSetupStore(interaction) {
           })
         );
         if (created) createdChannels += 1;
+        else failedItems.push(fullName);
         await sleep(STORE_RATE_DELAY_MS);
 
         // تحديث تدريجي كل 10 رومات حتى يرى المطور تقدماً
@@ -683,16 +718,24 @@ async function confirmDevSetupStore(interaction) {
       }
     }
 
-    await interaction.editReply({
-      content:
-        `✅ **تم إعداد المتجر بالكامل!**\n` +
-        `🧹 رومات محذوفة: **${deleted}** (استثنينا روم الأمر)<#${safeChannelId}>\n` +
-        `🎭 رتب مُنشأة: **${rolesCreated}**\n` +
-        `📁 كاتوجريز ورومات مُنشأة: **${createdChannels}**`,
-    });
+    let summary =
+      `✅ **تم إعداد المتجر!**\n` +
+      `🧹 رومات محذوفة: **${deleted}** (روم الأمر <#${safeChannelId}> محفوظ)\n` +
+      `🎭 رتب مُنشأة: **${rolesCreated}**\n` +
+      `📁 كاتوجريز ورومات مُنشأة: **${createdChannels}**`;
+
+    if (failedItems.length > 0) {
+      summary += `\n\n⚠️ **فشل إنشاء ${failedItems.length} عنصر** (أول 5):\n` +
+        failedItems.slice(0, 5).map(x => `• ${x}`).join('\n');
+    }
+
+    await interaction.editReply({ content: summary });
   } catch (err) {
     console.error('[dev_setup_store] حدث خطأ أثناء إعداد المتجر:', err);
     await interaction.editReply({ content: `❌ حدث خطأ أثناء الإعداد: \`${err.message}\`` }).catch(() => {});
+  } finally {
+    // تحرير القفل دائماً حتى لو فشلت العملية
+    storeSetupInProgress.delete(interaction.guild.id);
   }
 }
 
