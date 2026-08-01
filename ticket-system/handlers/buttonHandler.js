@@ -49,7 +49,7 @@ const { resolvePanel, resolveSession } = require('../utils/panelResolver');
 const { getActionMessage } = require('../utils/actionMessages');
 const { getRoleButton, toggleRoleButtonEnabled, toggleRoleButtonExclusive } = require('../utils/roleButtons');
 const { canUseRoleButton, canUseExclusiveRoleButton } = require('./permissionUtils');
-const { getTicketSession } = require('./ticketStore');
+const { getSession: getTicketSession } = require('./ticketStore');
 const { appendDecorativeOption } = require('../../src/utils/decorativeReset');
 
 // خريطة تربط كل customId (الجزء الأول) بنوع اللوحة الفرعية المطلوب بناؤها

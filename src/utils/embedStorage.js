@@ -195,6 +195,36 @@ async function deleteEmbed(name) {
   return true;
 }
 
+/**
+ * زيادة عداد إرسال الإيمبد (يُستخدم بعد كل إرسال ناجح عبر /ايمبد)
+ * يحفظ في JSON دائماً، ويزيد MongoDB إن كان متاحاً (بلا كسر العملية
+ * عند أي خطأ — الإرسال نفسه لا يعتمد على هذا العداد).
+ * @param {String} name
+ * @returns {Promise<Number>} العداد الجديد
+ */
+async function incrementSendCount(name) {
+  if (!name) return 0;
+  let count = 0;
+  try {
+    const json = readJSON();
+    if (json && json[name]) {
+      json[name].sendCount = (parseInt(json[name].sendCount, 10) || 0) + 1;
+      count = json[name].sendCount;
+      objToJson(json);
+    }
+  } catch (e) { console.error('❌ incrementSendCount JSON:', e.message); }
+  if (isMongoReady()) {
+    try {
+      // collection.updateOne يتجاوز تحويلات Mongoose فلا يتأثر بالـ strict schema
+      await EmbedModel.collection.updateOne(
+        { _id: name },
+        { $inc: { sendCount: 1 }, $set: { updatedAt: new Date() } }
+      );
+    } catch (e) { console.error('❌ incrementSendCount Mongo:', e.message); }
+  }
+  return count;
+}
+
 async function getEmbedsList() {
   const all = await getAllEmbeds();
   if (!Array.isArray(all)) return [];
@@ -210,5 +240,6 @@ async function getEmbedsList() {
 module.exports = {
   initEmbedModel, syncJsonToMongo,
   getAllEmbeds, getEmbed, getEmbedsList,
-  createEmbed, updateEmbed, deleteEmbed
+  createEmbed, updateEmbed, deleteEmbed,
+  incrementSendCount
 };
