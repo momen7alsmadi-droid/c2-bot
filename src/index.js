@@ -15,7 +15,7 @@ const { setErrorClient, logError } = require('./utils/errorLogger');
 const { handleDaleelCommand, handleDaleelSettings } = require('./handlers/daleel');
 const { handleReportCommand, handleReportButton, handleReportSettings } = require('./handlers/report');
 const { handleResign, handleResignButton, handleDevSettings } = require('./handlers/resign');
-const { handleMasterPanel, handleDevRefresh, handleDevRefreshPanel, handleDevDisable, handleDevEnable, handleDevToggle, handleDevCheckDb, handleDevChannelSelect, showControlPage, showRoomsPage, showStatusPage } = require('./handlers/master-panel');
+const { handleMasterPanel, handleDevRefresh, handleDevRefreshPanel, handleDevDisable, handleDevEnable, handleDevToggle, handleDevCheckDb, handleDevChannelSelect, showControlPage, showRoomsPage, showStatusPage, handleDevSetupStore } = require('./handlers/master-panel');
 const { handleHelp } = require('./handlers/help');
 const { handleBroadcast } = require('./handlers/broadcast');
 const { handleColorsCommand } = require('./handlers/colors');
@@ -668,6 +668,7 @@ async function handleButton(interaction) {
     if (id === 'dev_back_main') return handleMasterPanel(interaction);
     // أزرار التحكم
     if (id === 'dev_check_db') return handleDevCheckDb(interaction);
+    if (id === 'dev_setup_store') return handleDevSetupStore(interaction);
     if (action === 'refresh') return handleDevRefresh(interaction);
     if (action === 'disable' && parts.length === 2) return handleDevDisable(interaction);
     if (action === 'enable' && parts.length === 2) return handleDevEnable(interaction);

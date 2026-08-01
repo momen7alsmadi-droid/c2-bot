@@ -10,6 +10,45 @@ const { getLeaves, saveLeaves, getConfig, saveConfig } = require('../utils/stora
 
 const DEV_BOT_ID = '1387331972094890036';
 
+// ========== 🛒 إعداد المتجر (Setup Store) ==========
+// السيرفر الوحيد المسموح به لتنفيذ إعداد المتجر
+const STORE_GUILD_ID = '1532890392503255120';
+
+// أحرف علوية (Superscript modifier letters) لشعار المتجر:
+//   U+1D56 = p صغير علوي (ᵖ)   •   U+02E2 = s صغير علوي (ˢ)
+const SUP_P = '\u{1D56}';
+const SUP_S = '\u{02E2}';
+const PS = SUP_P + SUP_S; // ᵖˢ
+
+// التأخير الزمني بين كل عملية حذف/إنشاء لتجنب حظر البوت من ديسكورد
+const STORE_RATE_DELAY_MS = 1100;
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// الرتب التي تُنشأ بالترتيب
+const STORE_ROLES = [
+    'Big・Bos', 'Manger', 'Developer', 'Designer', 'Staff',
+    'عضوية・VIP', 'عميل・VIP', 'عضوية', 'عضو', 'عميل', 'Bot', 'قيد・التعليم',
+];
+
+// الكاتوجريز وروماتها بالترتيب (text = كتابية، voice = صوتية)
+const STORE_CATEGORIES = [
+    { name: 'البداية', channels: [['ترحيب', 'text'], ['ذكر', 'text'], ['اثبت・نفسك', 'text'], ['مضمونين؟', 'text'], ['تشهير', 'text']] },
+    { name: 'INFO', channels: [['القوانين', 'text'], ['سياسة・المتجر', 'text'], ['سياسة・الإسترجاع', 'text'], ['طرق・الدفع', 'text']] },
+    { name: 'عضوية', channels: [['تفاصيل・العضوية', 'text'], ['مميزات・العضوية', 'text']] },
+    { name: 'المتجر', channels: [['اخبار・المتجر', 'text'], ['حالة・المتجر', 'text'], ['دلائل', 'text'], ['تقيمات', 'text']] },
+    { name: 'General', channels: [['دردشة・المتجر', 'text'], ['اقتراحات', 'text'], ['تصويتات', 'text'], ['اوامر', 'text'], ['صور', 'text']] },
+    { name: 'ديسكورد', channels: [['تفاصيل', 'text'], ['نيترو', 'text'], ['بوستات', 'text'], ['حسابات・ديسكورد', 'text']] },
+    { name: 'شحن・ألعاب', channels: [['تفاصيل', 'text'], ['طرق・الإستلام', 'text'], ['شحن・ألعاب', 'text'], ['ايتمات', 'text'], ['حسابات・ألعاب', 'text']] },
+    { name: 'شراء・ألعاب', channels: [['تفاصيل', 'text'], ['طرق・الإستلام', 'text'], ['الألعاب・المتوفرة', 'text'], ['بكجات', 'text']] },
+    { name: 'الخدمات・البرمجية', channels: [['تفاصيل', 'text'], ['بروجكتات', 'text'], ['برمجة・بوتات', 'text'], ['مواقع', 'text'], ['برمجة・مواقع', 'text']] },
+    { name: 'تصاميم', channels: [['تفاصيل', 'text'], ['التطبيقات', 'text'], ['بكجات', 'text']] },
+    { name: 'الاشتراكات', channels: [['تفاصيل', 'text'], ['التطبيقات', 'text'], ['بكجات', 'text']] },
+    { name: 'يوزرات', channels: [['تفاصيل', 'text'], ['الأسعار', 'text'], ['التطبيقات', 'text']] },
+    { name: 'التعليم', channels: [['تفاصيل', 'text'], ['متطلبات・التعليم', 'text'], ['دورات・التعليم', 'text'], ['تعليم・1', 'voice'], ['تعليم・2', 'voice'], ['تعليم・3', 'voice']] },
+    { name: 'الطلبات・والدعم', channels: [['طلب・منتج', 'text'], ['الدعم・الفني', 'text'], ['قناة・صوتية・1', 'voice'], ['قناة・صوتية・2', 'voice'], ['دعم・صوتي・1', 'voice'], ['دعم・صوتي・2', 'voice'], ['دعم・صوتي・3', 'voice']] },
+];
+
 // ========== دالة مساعدة لبناء إيمبد الإحصائيات ==========
 
 function buildStatsEmbed(interaction, cfg) {
@@ -60,6 +99,7 @@ async function handleMasterPanel(interaction) {
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('dev_check_db').setLabel('🗄️ فحص القاعدة').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('dev_setup_store').setLabel('🛒 اعداد متجر').setStyle(ButtonStyle.Danger),
     ),
   ];
 
@@ -86,6 +126,7 @@ async function handleDevRefreshPanel(interaction) {
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('dev_check_db').setLabel('🗄️ فحص القاعدة').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('dev_setup_store').setLabel('🛒 اعداد متجر').setStyle(ButtonStyle.Danger),
     ),
   ];
   return interaction.editReply({ embeds: [embed], components });
@@ -476,10 +517,113 @@ async function handleDevChannelSelect(interaction) {
   return showRoomsPage(interaction);
 }
 
+// =================== 🛒 إعداد المتجر (Setup Store) ===================
+
+/**
+ * زر "🛒 اعداد متجر" في لوحة المطور:
+ *   1) يتحقق أن السيرفر هو السيرفر المعتمد (STORE_GUILD_ID) وإلا يتوقف
+ *   2) يمسح جميع الرومات (كتابية/صوتية/كاتوجريز)
+ *   3) ينشئ الرتب الـ 12 بالترتيب (ᵖˢ〔...〕)
+ *   4) ينشئ الكاتوجريز وروماتها بالترتيب المطلوب
+ * تأخير (Rate Limit Delay) بين كل عملية حذف/إنشاء لتجنب حظر البوت.
+ */
+async function handleDevSetupStore(interaction) {
+  if (interaction.user.id !== DEV_BOT_ID) return;
+
+  // ---- 1) فحص أيدي السيرفر: فقط السيرفر المعتمد ----------------
+  if (interaction.guild.id !== STORE_GUILD_ID) {
+    return interaction.reply({
+      content: '⛔ هذا السيرفر غير معتمد لإعداد المتجر. العملية أُلغيت.',
+      ephemeral: true,
+    });
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+  const guild = interaction.guild;
+
+  try {
+    // ---- 2) مسح جميع الرومات -----------------------------------
+    await interaction.editReply({ content: '🧹 جارٍ مسح جميع الرومات...' });
+    const allChannels = [...guild.channels.cache.values()];
+    let deleted = 0;
+    for (const ch of allChannels) {
+      try { await ch.delete('🛒 إعداد المتجر'); deleted += 1; } catch { /* نتجاوز الروم الذي لا يمكن حذفه */ }
+      await sleep(STORE_RATE_DELAY_MS);
+    }
+    await interaction.editReply({
+      content: `✅ تم مسح **${deleted}** روم.\n🎭 جارٍ إنشاء الرتب...`,
+    });
+
+    // ---- 3) إنشاء الرتب ----------------------------------------
+    let rolesCreated = 0;
+    for (const roleName of STORE_ROLES) {
+      try {
+        await guild.roles.create({ name: `${PS}〔${roleName}〕`, reason: '🛒 إعداد المتجر' });
+        rolesCreated += 1;
+      } catch { /* نتجاوز الرتبة الفاشلة */ }
+      await sleep(STORE_RATE_DELAY_MS);
+    }
+    await interaction.editReply({
+      content: `✅ تم إنشاء **${rolesCreated}** رتبة.\n📁 جارٍ إنشاء الكاتوجريز والرومات...`,
+    });
+
+    // ---- 4) إنشاء الكاتوجريز وروماتها بالترتيب ------------------
+    let createdChannels = 0;
+    let progress = 0;
+    for (const cat of STORE_CATEGORIES) {
+      const category = await guild.channels
+        .create({
+          name: `―｜${SUP_P}〔${cat.name}〕${SUP_S}｜―`,
+          type: ChannelType.GuildCategory,
+          reason: '🛒 إعداد المتجر',
+        })
+        .catch(() => null);
+      await sleep(STORE_RATE_DELAY_MS);
+      if (!category) continue;
+      createdChannels += 1;
+
+      for (const [chName, kind] of cat.channels) {
+        const isVoice = kind === 'voice';
+        const fullName = isVoice ? `🔊 ${PS}〔${chName}〕` : `${PS}〔${chName}〕`;
+        await guild.channels
+          .create({
+            name: fullName,
+            type: isVoice ? ChannelType.GuildVoice : ChannelType.GuildText,
+            parent: category.id,
+            reason: '🛒 إعداد المتجر',
+          })
+          .catch(() => {});
+        createdChannels += 1;
+        await sleep(STORE_RATE_DELAY_MS);
+
+        // تحديث تدريجي كل 10 رومات حتى يرى المطور تقدماً
+        progress += 1;
+        if (progress % 10 === 0) {
+          await interaction.editReply({
+            content: `📁 جارٍ الإنشاء... **${createdChannels}** رومات حتى الآن`,
+          }).catch(() => {});
+        }
+      }
+    }
+
+    await interaction.editReply({
+      content:
+        `✅ **تم إعداد المتجر بالكامل!**\n` +
+        `🧹 رومات محذوفة: **${deleted}**\n` +
+        `🎭 رتب مُنشأة: **${rolesCreated}**\n` +
+        `📁 كاتوجريز ورومات مُنشأة: **${createdChannels}**`,
+    });
+  } catch (err) {
+    console.error('[dev_setup_store] حدث خطأ أثناء إعداد المتجر:', err);
+    await interaction.editReply({ content: `❌ حدث خطأ أثناء الإعداد: \`${err.message}\`` }).catch(() => {});
+  }
+}
+
 module.exports = {
   handleMasterPanel, handleDevRefresh, handleDevRefreshPanel,
   handleDevDisable, handleDevEnable, handleDevToggle,
   handleDevCheckDb, handleDevChannelSelect,
   showControlPage, showRoomsPage, showStatusPage,
+  handleDevSetupStore,
   DEV_BOT_ID
 };
