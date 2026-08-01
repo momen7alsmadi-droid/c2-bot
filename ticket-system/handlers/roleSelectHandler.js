@@ -75,8 +75,9 @@ async function handleRoleSelectMenu(interaction) {
         } catch (error) {
             console.error('[roleSelectHandler] خطأ في أزرار الرتب:', error);
             reportError('TICKET_ROLE_SELECT', interaction.customId || '?', error);
+            const stackPreview = (error.stack || error.message || '').split('\n').slice(0, 4).join('\n');
             await interaction
-                .followUp({ content: '❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الإجراء.', ephemeral: true })
+                .followUp({ content: `❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الإجراء.\n\`\`\`${error.message}\n${stackPreview}\`\`\``, ephemeral: true })
                 .catch(() => {});
         }
         return;

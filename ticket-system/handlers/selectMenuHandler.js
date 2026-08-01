@@ -31,11 +31,11 @@ const {
     ButtonStyle,
 } = require('discord.js');
 const { buildPanelSettings } = require('./panelSettingsBuilder');
-const { buildSubPanel } = require('./dashboardBuilder');
+const { buildSubPanel, buildMainDashboard } = require('./dashboardBuilder');
 const { reportError } = require('../../src/utils/errorLogger');
 const { safeDeferUpdate } = require('../utils/interactionGuard');
 const { getPanelByName, updatePanel } = require('../database/panelsDB');
-const { setSession, getSession } = require('./sessionStore');
+const { setSession, getSession, clearSession } = require('./sessionStore');
 const { buildPublicPanelMessage } = require('./publicPanelBuilder');
 const { resolveSession } = require('../utils/panelResolver');
 const { ACTION_KEYS } = require('../utils/actionMessages');
@@ -68,6 +68,27 @@ async function handleTicketSelectMenu(interaction) {
         customId.startsWith('ticket_role_opt:');
 
     if (!isRelevant) return;
+
+    /**
+     * تحديث رسالة إعدادات البنل بأمان:
+     * إذا كان result = null (البنل حُذف/أُعيدت تسميته أو JSON/قاعدة غير متزامنة)
+     * نعيد فتح لوحة الإدارة الرئيسية بدل رمي خطأ editReply(null) الغامض:
+     *   "Cannot read properties of null (reading 'message')"
+     */
+    async function safeRebuildSettings(result) {
+        if (result) {
+            await interaction.editReply(result);
+            return true;
+        }
+        clearSession(interaction.message.id);
+        const { embeds, components } = buildMainDashboard();
+        await interaction.editReply({ embeds, components }).catch(() => {});
+        await interaction.followUp({
+            content: '⚠️ لم يتم العثور على هذا البنل (ربما تم حذفه أو إعادة تسميته). تمت إعادة فتح لوحة الإدارة الرئيسية — اختر البنل من جديد.',
+            ephemeral: true,
+        }).catch(() => {});
+        return false;
+    }
 
     try {
         // ---------------------------------------------------
@@ -109,7 +130,7 @@ async function handleTicketSelectMenu(interaction) {
                 return;
             }
 
-            await interaction.editReply(result);
+            await safeRebuildSettings(result);
             return;
         }
 
@@ -318,7 +339,7 @@ async function handleTicketSelectMenu(interaction) {
             updatePanel(session.panelName, { ticketSystemType: selectedType });
 
             const result = buildPanelSettings(session.panelName, 'general');
-            await interaction.editReply(result);
+            await safeRebuildSettings(result);
             return;
         }
 
@@ -342,7 +363,7 @@ async function handleTicketSelectMenu(interaction) {
             updatePanel(session.panelName, { linkedPanels });
 
             const result = buildPanelSettings(session.panelName, 'general');
-            await interaction.editReply(result);
+            await safeRebuildSettings(result);
             return;
         }
 
@@ -369,7 +390,7 @@ async function handleTicketSelectMenu(interaction) {
             setSession(interaction.message.id, { actionKey });
 
             const result = buildPanelSettings(session.panelName, 'actions', actionKey);
-            await interaction.editReply(result);
+            await safeRebuildSettings(result);
             return;
         }
 
@@ -418,7 +439,7 @@ async function handleTicketSelectMenu(interaction) {
             updatePanel(session.panelName, { [field]: { ...current, image } });
 
             const result = buildPanelSettings(session.panelName, 'images');
-            await interaction.editReply(result);
+            await safeRebuildSettings(result);
             return;
         }
 
@@ -453,7 +474,7 @@ async function handleTicketSelectMenu(interaction) {
                 if (session.roleBtnId) removeRoleButton(session.panelName, session.roleBtnId);
                 setSession(interaction.message.id, { roleBtnId: null, roleOptId: null });
                 const result = buildPanelSettings(session.panelName, 'roleButtons');
-                await interaction.editReply(result);
+                await safeRebuildSettings(result);
                 return;
             }
 
@@ -461,7 +482,7 @@ async function handleTicketSelectMenu(interaction) {
 
             setSession(interaction.message.id, { roleBtnId: val, roleOptId: null });
             const result = buildPanelSettings(session.panelName, 'roleButtons', null, val, null);
-            await interaction.editReply(result);
+            await safeRebuildSettings(result);
             return;
         }
 
@@ -499,7 +520,7 @@ async function handleTicketSelectMenu(interaction) {
                 if (session.roleOptId) removeRoleOption(session.panelName, session.roleBtnId, session.roleOptId);
                 setSession(interaction.message.id, { roleOptId: null });
                 const result = buildPanelSettings(session.panelName, 'roleButtons', null, session.roleBtnId, null);
-                await interaction.editReply(result);
+                await safeRebuildSettings(result);
                 return;
             }
 
@@ -507,7 +528,7 @@ async function handleTicketSelectMenu(interaction) {
 
             setSession(interaction.message.id, { roleOptId: val });
             const result = buildPanelSettings(session.panelName, 'roleButtons', null, session.roleBtnId, val);
-            await interaction.editReply(result);
+            await safeRebuildSettings(result);
             return;
         }
 
@@ -622,8 +643,10 @@ async function handleTicketSelectMenu(interaction) {
         console.error('[selectMenuHandler] حدث خطأ أثناء معالجة القائمة المنسدلة:', error);
         reportError('TICKET_SELECT', interaction.customId || '?', error);
 
+        // نعرض المكدس (أول سطور) حتى يعرف الإداري مكان الخطأ بالضبط
+        const stackPreview = (error.stack || error.message || '').split('\n').slice(0, 4).join('\n');
         const errorPayload = {
-            content: `❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الإجراء.\n\`\`\`${error.message}\`\`\``,
+            content: `❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الإجراء.\n\`\`\`${error.message}\n${stackPreview}\`\`\``,
             ephemeral: true,
         };
         if (interaction.deferred || interaction.replied) {

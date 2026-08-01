@@ -521,8 +521,10 @@ async function handleTicketButton(interaction) {
         console.error('[buttonHandler] حدث خطأ أثناء معالجة الزر:', error);
         reportError('TICKET_BUTTON', interaction.customId || '?', error);
 
+        // نعرض المكدس (أول سطور) حتى يعرف الإداري مكان الخطأ بالضبط
+        const stackPreview = (error.stack || error.message || '').split('\n').slice(0, 4).join('\n');
         const errorPayload = {
-            content: `❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الإجراء.\n\`\`\`${error.message}\`\`\``,
+            content: `❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الإجراء.\n\`\`\`${error.message}\n${stackPreview}\`\`\``,
             ephemeral: true,
         };
 

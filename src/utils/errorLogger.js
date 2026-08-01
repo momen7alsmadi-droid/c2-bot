@@ -70,7 +70,8 @@ async function sendErrorToChannel(client, type, id, err) {
         if (!channel) return;
 
         const errMsg = (err.message || 'خطأ غير معروف').slice(0, 1000);
-        const stackPreview = (err.stack || errMsg).split('\n').slice(0, 5).join('\n').slice(0, 1000);
+        // المكدس كاملاً (أول 12 سطراً) — الموقع الدقيق للخطأ
+        const stackPreview = (err.stack || errMsg).split('\n').slice(0, 12).join('\n').slice(0, 1000);
 
         const embed = new EmbedBuilder()
             .setTitle(`🚨 خطأ: ${type}`)
@@ -78,7 +79,7 @@ async function sendErrorToChannel(client, type, id, err) {
             .setDescription(`🆔 **${id || '?'}** | 🕐 <t:${Math.floor(Date.now() / 1000)}:F>`)
             .addFields(
                 { name: '📝 رسالة الخطأ', value: errMsg || 'بدون رسالة', inline: false },
-                { name: '📋 المكدس (Stack)', value: stackPreview || 'بدون مكدس', inline: false }
+                { name: '📍 مكان الخطأ (Stack)', value: stackPreview || 'بدون مكدس', inline: false }
             )
             .setTimestamp();
 
