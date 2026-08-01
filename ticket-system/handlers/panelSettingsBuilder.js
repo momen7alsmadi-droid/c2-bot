@@ -61,6 +61,7 @@ const PAGES = {
     messages: { label: 'الرسائل', emoji: '💬' },
     images: { label: 'مكتبة الصور', emoji: '🖼️' },
     actions: { label: 'رسائل الأزرار', emoji: '🔔' },
+    roleButtons: { label: 'أزرار الرتب', emoji: '🎖️' },
 };
 
 /**
@@ -257,6 +258,18 @@ function buildSettingsEmbed(panel, page, actionKey) {
             inline: false,
         },
         {
+            name: '🎖️ أزرار الرتب',
+            value: (() => {
+                const btns = Array.isArray(panel.customRoleButtons) ? panel.customRoleButtons : [];
+                if (btns.length === 0) return 'لا توجد أزرار رتبة بعد — أضفها من صفحة أزرار الرتب';
+                return btns
+                    .map(b => `${b.enabled ? '🟢' : '🔴'} ${String(b.label).slice(0, 60)} — ${(b.options || []).length} خيار${b.exclusive ? ' (حصري)' : ''}`)
+                    .join('\n')
+                    .slice(0, 1024);
+            })(),
+            inline: false,
+        },
+        {
             name: '🔤 المتغيرات المدعومة',
             value: SUPPORTED_VARIABLES,
             inline: false,
@@ -321,6 +334,10 @@ function buildGeneralPage(panel) {
         new ButtonBuilder()
             .setCustomId('settings_page_actions')
             .setLabel('🔔 رسائل الأزرار')
+            .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+            .setCustomId('settings_page_role_buttons')
+            .setLabel('🎖️ أزرار الرتب')
             .setStyle(ButtonStyle.Primary)
     );
 
@@ -570,6 +587,120 @@ function buildImagesPage(panel) {
  * @param {Object} panel
  * @param {String|null} actionKey - الإجراء المحدد حالياً (من الجلسة)
  */
+/**
+ * بناء صفحة "أزرار الرتب": إدارة أزرار الرتب المخصصة التي تظهر
+ * فوق القائمة المنسدلة داخل لوحة التكت.
+ *
+ * التخطيط (5 صفوف كحد أقصى):
+ *   1) اختيار الزر (أو إنشاء/حذف)
+ *   2) اختيار الخيار (أو إضافة/حذف)
+ *   3) الرتبة التي تُعطى للخيار المحدد (RoleSelect)
+ *   4) الرتب المسموح لها باستخدام الزر (RoleSelect)
+ *   5) تفعيل/إطفاء + حصري/متعدد + رجوع
+ *
+ * @param {Object} panel
+ * @param {String|null} btnId - الزر المحدد حالياً (من الجلسة)
+ * @param {String|null} optId - الخيار المحدد حالياً (من الجلسة)
+ */
+function buildRoleButtonsPage(panel, btnId = null, optId = null) {
+    const { getRoleButton } = require('../utils/roleButtons');
+    const buttons = Array.isArray(panel.customRoleButtons) ? panel.customRoleButtons : [];
+    const button = getRoleButton(panel, btnId);
+    const option = button ? (button.options || []).find(o => o.id === optId) || null : null;
+
+    // ---- صف 1: اختيار الزر ----
+    const btnSelect = new StringSelectMenuBuilder()
+        .setCustomId('settings_select_role_button')
+        .setPlaceholder('🎖️ اختر زر الرتبة لإدارته...')
+        .setMaxValues(1);
+
+    if (buttons.length === 0) {
+        btnSelect
+            .addOptions({ label: 'لا توجد أزرار بعد — أنشئ واحداً', value: 'none' })
+            .addOptions({ label: '➕ إنشاء زر رتبة جديد', value: '__create__' });
+    } else {
+        btnSelect.addOptions(
+            buttons.map(b => ({
+                label: `${b.enabled ? '✅' : '❌'} ${String(b.label).slice(0, 70)} (${(b.options || []).length} خيار)`,
+                value: b.id,
+                emoji: '🎖️',
+                default: b.id === btnId,
+            }))
+        );
+        btnSelect.addOptions({ label: '➕ إنشاء زر رتبة جديد', value: '__create__', emoji: '➕' });
+        if (btnId) btnSelect.addOptions({ label: '🗑️ حذف الزر المحدد', value: '__delete__', emoji: '🗑️' });
+    }
+
+    // ---- صف 2: اختيار الخيار ----
+    const optSelect = new StringSelectMenuBuilder()
+        .setCustomId('settings_select_role_btn_option')
+        .setPlaceholder(button ? '🎖️ اختر الخيار لتعيين رتبته...' : 'اختر زراً أولاً')
+        .setDisabled(!button);
+
+    if (button) {
+        const options = button.options || [];
+        if (options.length === 0) {
+            optSelect.addOptions({ label: 'لا توجد خيارات بعد — أضف واحداً', value: 'none' });
+        } else {
+            optSelect.addOptions(
+                options.map(o => ({
+                    label: `${o.roleId ? '✅' : '❌'} ${String(o.label).slice(0, 70)}`,
+                    value: o.id,
+                    emoji: '🎖️',
+                    default: o.id === optId,
+                }))
+            );
+        }
+        optSelect
+            .addOptions({ label: '➕ إضافة خيار جديد', value: '__add_option__', emoji: '➕' })
+            .addOptions({ label: '🗑️ حذف الخيار المحدد', value: '__delete_option__', emoji: '🗑️' });
+    }
+
+    // ---- صف 3: رتبة الخيار المحدد ----
+    const optRoleSelect = new RoleSelectMenuBuilder()
+        .setCustomId('settings_select_role_btn_role')
+        .setPlaceholder(
+            option
+                ? `🎭 الرتبة لخيار: ${String(option.label).slice(0, 60)}`
+                : '🎭 اختر خياراً أولاً لتعيين رتبته'
+        )
+        .setDisabled(!option);
+
+    // ---- صف 4: الرتب المسموح لها باستخدام الزر ----
+    const useRoleSelect = new RoleSelectMenuBuilder()
+        .setCustomId('settings_select_role_btn_use')
+        .setPlaceholder('🎭 الرتب المسموح لها باستخدام الزر (فارغ = الستاف) — الإدارة العليا دائماً')
+        .setMinValues(0)
+        .setMaxValues(25)
+        .setDisabled(!button);
+
+    // ---- صف 5: أزرار الحالة + الرجوع ----
+    const stateRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('settings_toggle_role_btn')
+            .setLabel(button && !button.enabled ? '❌ الزر مطفأ (مخفي)' : '✅ الزر مفعّل (ظاهر)')
+            .setStyle(button && !button.enabled ? ButtonStyle.Danger : ButtonStyle.Success)
+            .setDisabled(!button),
+        new ButtonBuilder()
+            .setCustomId('settings_toggle_role_btn_exclusive')
+            .setLabel(button && button.exclusive ? '🔄 حصري: رتبة واحدة' : '🔄 متعدد: أكثر من رتبة')
+            .setStyle(button && button.exclusive ? ButtonStyle.Primary : ButtonStyle.Secondary)
+            .setDisabled(!button),
+        new ButtonBuilder()
+            .setCustomId('settings_page_general')
+            .setLabel('🔙 رجوع للإعدادات العامة')
+            .setStyle(ButtonStyle.Secondary)
+    );
+
+    return [
+        new ActionRowBuilder().addComponents(btnSelect),
+        new ActionRowBuilder().addComponents(optSelect),
+        new ActionRowBuilder().addComponents(optRoleSelect),
+        new ActionRowBuilder().addComponents(useRoleSelect),
+        stateRow,
+    ];
+}
+
 function buildActionsPage(panel, actionKey) {
     const select = new StringSelectMenuBuilder()
         .setCustomId('settings_select_action')
@@ -643,7 +774,7 @@ function buildActionPreview(panel, actionKey) {
  * @param {String} [actionKey] - الإجراء المحدد في صفحة رسائل الأزرار
  * @returns {{ embeds: EmbedBuilder[], components: ActionRowBuilder[] } | null} null إذا لم يوجد البنل
  */
-function buildPanelSettings(panelName, page = 'general', actionKey) {
+function buildPanelSettings(panelName, page = 'general', actionKey, btnId, optId) {
     const panel = getPanelByName(panelName);
     if (!panel) return null;
 
@@ -688,6 +819,8 @@ function buildPanelSettings(panelName, page = 'general', actionKey) {
     else if (page === 'messages') rows = [...buildMessagesPage(), buildBackToGeneralRow()];
     else if (page === 'images') rows = [...buildImagesPage(panel), buildBackToGeneralRow()];
     else if (page === 'actions') rows = [...buildActionsPage(panel, actionKey), buildBackToGeneralRow()];
+    // صفحة أزرار الرتب تحوي زر الرجوع داخل صف الحالة (الصف 5) — لا نضيف صف رجوع إضافي
+    else if (page === 'roleButtons') rows = buildRoleButtonsPage(panel, btnId, optId);
 
     return {
         embeds,

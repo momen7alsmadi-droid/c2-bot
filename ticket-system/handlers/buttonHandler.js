@@ -29,7 +29,7 @@
  * =========================================================
  */
 
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder } = require('discord.js');
 const { reportError } = require('../../src/utils/errorLogger');
 const { safeDeferUpdate } = require('../utils/interactionGuard');
 const { buildMainDashboard, buildSubPanel } = require('./dashboardBuilder');
@@ -47,6 +47,9 @@ const { getPanelByName, updatePanel, deletePanel } = require('../database/panels
 const { getSession, setSession, clearSession } = require('./sessionStore');
 const { resolvePanel, resolveSession } = require('../utils/panelResolver');
 const { getActionMessage } = require('../utils/actionMessages');
+const { getRoleButton, toggleRoleButtonEnabled, toggleRoleButtonExclusive } = require('../utils/roleButtons');
+const { canUseRoleButton, canUseExclusiveRoleButton } = require('./permissionUtils');
+const { getTicketSession } = require('./ticketStore');
 
 // خريطة تربط كل customId (الجزء الأول) بنوع اللوحة الفرعية المطلوب بناؤها
 const SUB_PANEL_MAP = {
@@ -65,6 +68,7 @@ const SETTINGS_PAGE_IDS = [
     'settings_page_messages',
     'settings_page_actions',
     'settings_page_images',
+    'settings_page_role_buttons',
 ];
 
 /**
@@ -84,13 +88,17 @@ async function handleTicketButton(interaction) {
         'settings_edit_action',
         'settings_toggle_action',
         'settings_toggle_enabled',
+        'settings_toggle_role_btn',
+        'settings_toggle_role_btn_exclusive',
         'settings_save',
         'ticket_log_back',
         'ticket_delete_no',
         ...Object.keys(SUB_PANEL_MAP),
         ...SETTINGS_PAGE_IDS,
     ];
-    if (!relevantIds.includes(interaction.customId) && !interaction.customId.startsWith('ticket_delete_yes:')) return;
+    if (!relevantIds.includes(interaction.customId) &&
+        !interaction.customId.startsWith('ticket_delete_yes:') &&
+        !interaction.customId.startsWith('ticket_role_btn:')) return;
 
     try {
         // ---------------------------------------------------
@@ -205,7 +213,7 @@ async function handleTicketButton(interaction) {
             setSession(interaction.message.id, { panelName: session.panelName, page });
 
             // في صفحة رسائل الأزرار نمرر الإجراء المحدد لعرض تفاصيله ومعاينته
-            const result = buildPanelSettings(session.panelName, page, session.actionKey);
+            const result = buildPanelSettings(session.panelName, page, session.actionKey, session.roleBtnId, session.roleOptId);
             if (!result) {
                 // البنل حُذف أو أُعيدت تسميته بعد فتح الصفحة (رسالة قديمة):
                 // بدل ترك الإداري في طريق مسدود نعيد فتح لوحة الإدارة الرئيسية
@@ -341,6 +349,116 @@ async function handleTicketButton(interaction) {
 
             const result = buildPanelSettings(session.panelName, 'actions', session.actionKey);
             await interaction.editReply(result);
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 7-ز) تبديل تفعيل/إطفاء زر الرتبة المحدد (مطفأ = مخفي)
+        // ---------------------------------------------------
+        if (interaction.customId === 'settings_toggle_role_btn') {
+            if (!(await safeDeferUpdate(interaction))) return;
+
+            const session = resolveSession(interaction);
+            if (!session.panelName || !session.roleBtnId) {
+                await interaction.followUp({ content: '⚠️ اختر زر رتبة من القائمة أولاً.', ephemeral: true }).catch(() => {});
+                return;
+            }
+
+            toggleRoleButtonEnabled(session.panelName, session.roleBtnId);
+            const result = buildPanelSettings(session.panelName, 'roleButtons', null, session.roleBtnId, session.roleOptId);
+            await interaction.editReply(result);
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 7-ح) تبديل الوضع الحصري لزر الرتبة (رتبة واحدة/متعدد)
+        // ---------------------------------------------------
+        if (interaction.customId === 'settings_toggle_role_btn_exclusive') {
+            if (!(await safeDeferUpdate(interaction))) return;
+
+            const session = resolveSession(interaction);
+            if (!session.panelName || !session.roleBtnId) {
+                await interaction.followUp({ content: '⚠️ اختر زر رتبة من القائمة أولاً.', ephemeral: true }).catch(() => {});
+                return;
+            }
+
+            toggleRoleButtonExclusive(session.panelName, session.roleBtnId);
+            const result = buildPanelSettings(session.panelName, 'roleButtons', null, session.roleBtnId, session.roleOptId);
+            await interaction.editReply(result);
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 7-ط) زر رتبة مخصص داخل التكت: رسالة مخفية + قائمة منسدلة
+        //      اختيار خيار = إعطاء رتبته لصاحب التكت
+        // ---------------------------------------------------
+        if (interaction.customId.startsWith('ticket_role_btn:')) {
+            const btnId = interaction.customId.split(':')[1];
+
+            const ticketSession = getTicketSession(interaction.channel.id);
+            const panel = ticketSession && ticketSession.panelName ? getPanelByName(ticketSession.panelName) : null;
+            const button = panel ? getRoleButton(panel, btnId) : null;
+
+            if (!ticketSession || !panel || !button) {
+                await interaction.reply({
+                    content: '⚠️ لم يتم العثور على هذا الزر أو أن التذكرة غير نشطة.',
+                    ephemeral: true,
+                });
+                return;
+            }
+
+            // فحص الصلاحيات: الإدارة العليا دائماً، ثم الرتب المسموحة، ثم الستاف
+            if (!canUseRoleButton(interaction.member, panel, button)) {
+                await interaction.reply({
+                    content: '⛔ لا تملك صلاحية استخدام هذا الزر.',
+                    ephemeral: true,
+                });
+                return;
+            }
+
+            // الوضع الحصري: فقط من استلم التكت أو الإدارة العليا
+            if (button.exclusive && !canUseExclusiveRoleButton(interaction.member, ticketSession, panel)) {
+                await interaction.reply({
+                    content: '⛔ هذا الزر حصري: يستخدمه فقط من استلم التكت أو الإدارة العليا.',
+                    ephemeral: true,
+                });
+                return;
+            }
+
+            const options = (button.options || []).filter(o => o.roleId);
+            if (options.length === 0) {
+                await interaction.reply({
+                    content: '❌ لا توجد خيارات برتب معيّنة لهذا الزر بعد.',
+                    ephemeral: true,
+                });
+                return;
+            }
+
+            const menu = new StringSelectMenuBuilder()
+                .setCustomId(`ticket_role_opt:${btnId}`)
+                .setPlaceholder('اختر رتبة...')
+                .setMaxValues(1)
+                .addOptions(
+                    options.slice(0, 25).map(o => ({
+                        label: String(o.label || 'خيار').slice(0, 100),
+                        value: o.id,
+                        emoji: '🎖️',
+                        description: String(o.description || '').slice(0, 100) || undefined,
+                    }))
+                );
+
+            const embed = new EmbedBuilder()
+                .setColor(0x2b2d31)
+                .setTitle(String(button.label || '🎖️ اختر رتبة').slice(0, 256))
+                .setDescription('اختر خياراً من القائمة المنسدلة بالأسفل — ستحصل على الرتبة المحددة له.')
+                .setFooter({ text: `الوضع: ${button.exclusive ? 'حصري (رتبة واحدة فقط)' : 'متعدد (أكثر من رتبة)'}` })
+                .setTimestamp();
+
+            await interaction.reply({
+                embeds: [embed],
+                components: [new ActionRowBuilder().addComponents(menu)],
+                ephemeral: true,
+            });
             return;
         }
 

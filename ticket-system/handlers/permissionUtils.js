@@ -87,10 +87,48 @@ function canUseRestrictedControls(member, ticketSession, panel) {
     return member.id === ticketSession.claimedBy;
 }
 
+/**
+ * هل يُسمح لهذا العضو باستخدام "زر رتبة مخصص" في التكت؟
+ * القاعدة:
+ *   - الإدارة العليا + أي رتبة Administrator تستطيع دائماً (حتى لو
+ *     لم تكن ضمن allowedRoles) — كما في كل صلاحيات التكت
+ *   - إن كانت allowedRoles غير فارغة يجب امتلاك إحداها
+ *   - إن كانت فارغة = الستاف فقط
+ * @param {import('discord.js').GuildMember} member
+ * @param {Object} panel
+ * @param {Object} button - زر الرتبة من panel.customRoleButtons
+ * @returns {Boolean}
+ */
+function canUseRoleButton(member, panel, button) {
+    if (!button || button.enabled === false) return false;
+
+    // الإدارة العليا وأي Administrator تستخدم كل شيء في التكت
+    if (isUpperManagement(member, panel)) return true;
+
+    const allowed = Array.isArray(button.allowedRoles) ? button.allowedRoles : [];
+    if (allowed.length > 0) {
+        return member.roles.cache.some(role => allowed.includes(role.id));
+    }
+    return isStaff(member, panel);
+}
+
+/**
+ * هل يُسمح بهذا العضو في الوضع الحصري (exclusive)؟
+ * في الوضع الحصري لا يستخدم الزر إلا من استلم التكت أو الإدارة العليا
+ * @returns {Boolean}
+ */
+function canUseExclusiveRoleButton(member, session, panel) {
+    if (!session) return false;
+    if (isUpperManagement(member, panel)) return true;
+    return session.claimedBy === member.id;
+}
+
 module.exports = {
     isAdmin,
     isUpperManagement,
     isStaff,
     canOpenTicket,
     canUseRestrictedControls,
+    canUseRoleButton,
+    canUseExclusiveRoleButton,
 };

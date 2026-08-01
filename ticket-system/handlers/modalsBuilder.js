@@ -365,6 +365,66 @@ function buildRenameTicketModal(currentName) {
     return modal;
 }
 
+/**
+ * Modal إنشاء/تعديل "زر رتبة مخصص" (يظهر فوق القائمة المنسدلة داخل التكت)
+ * @param {String} [btnId] - إذا وُجد = تعديل زر موجود (يملأ الحقول)
+ */
+function buildRoleButtonModal(panel, btnId = null) {
+    const { getRoleButton } = require('../utils/roleButtons');
+    const button = btnId ? getRoleButton(panel, btnId) : null;
+
+    const modal = new ModalBuilder()
+        .setCustomId(btnId ? `modal_custom_role_btn:${btnId}` : 'modal_custom_role_btn')
+        .setTitle(btnId ? '✏️ تعديل زر الرتبة' : '➕ إنشاء زر رتبة');
+
+    const nameInput = new TextInputBuilder()
+        .setCustomId('role_btn_name')
+        .setLabel('اسم الزر (يظهر داخل التكت فوق القائمة)')
+        .setStyle(TextInputStyle.Short)
+        .setValue(button ? button.label : '')
+        .setPlaceholder('مثال: 🎖️ اختر رتبتك')
+        .setMaxLength(80)
+        .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(nameInput));
+    return modal;
+}
+
+/**
+ * Modal إنشاء/تعديل "خيار" داخل زر رتبة
+ * @param {String} btnId - الزر الذي يتبع له الخيار
+ * @param {Object} [option] - إذا وُجد = تعديل خيار موجود
+ */
+function buildRoleButtonOptionModal(btnId, option = null) {
+    const modal = new ModalBuilder()
+        .setCustomId(option ? `modal_custom_role_btn_option:${btnId}:${option.id}` : `modal_custom_role_btn_option:${btnId}`)
+        .setTitle(option ? '✏️ تعديل الخيار' : '➕ إضافة خيار');
+
+    const nameInput = new TextInputBuilder()
+        .setCustomId('role_opt_name')
+        .setLabel('اسم الخيار')
+        .setStyle(TextInputStyle.Short)
+        .setValue(option ? option.label : '')
+        .setPlaceholder('مثال: 🟢 جاهز للدعم')
+        .setMaxLength(100)
+        .setRequired(true);
+
+    const descInput = new TextInputBuilder()
+        .setCustomId('role_opt_desc')
+        .setLabel('وصف الخيار (يظهر داخل القائمة المنسدلة)')
+        .setStyle(TextInputStyle.Paragraph)
+        .setValue(option ? option.description : '')
+        .setPlaceholder('مثال: ستحصل على رتبة جاهز للدعم')
+        .setMaxLength(100)
+        .setRequired(false);
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(nameInput),
+        new ActionRowBuilder().addComponents(descInput)
+    );
+    return modal;
+}
+
 module.exports = {
     buildCreatePanelModal,
     buildEditNameDescModal,
@@ -374,4 +434,6 @@ module.exports = {
     buildTicketNameModal,
     buildActionMessageModal,
     buildRenameTicketModal,
+    buildRoleButtonModal,
+    buildRoleButtonOptionModal,
 };

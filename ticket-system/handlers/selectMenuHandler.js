@@ -40,6 +40,18 @@ const { buildPublicPanelMessage } = require('./publicPanelBuilder');
 const { resolveSession } = require('../utils/panelResolver');
 const { ACTION_KEYS } = require('../utils/actionMessages');
 const { getImageUrl } = require('../utils/imageLibrary');
+const {
+    buildRoleButtonModal,
+    buildRoleButtonOptionModal,
+} = require('./modalsBuilder');
+const {
+    getRoleButton,
+    getRoleOption,
+    removeRoleButton,
+    removeRoleOption,
+} = require('../utils/roleButtons');
+const { canUseRoleButton, canUseExclusiveRoleButton } = require('./permissionUtils');
+const { getSession: getTicketSession, addAuditLog } = require('./ticketStore');
 
 async function handleTicketSelectMenu(interaction) {
     const { customId } = interaction;
@@ -50,7 +62,10 @@ async function handleTicketSelectMenu(interaction) {
         customId === 'settings_select_linked_panel' ||
         customId === 'settings_select_action' ||
         customId === 'settings_select_panel_image' ||
-        customId === 'settings_select_ticket_image';
+        customId === 'settings_select_ticket_image' ||
+        customId === 'settings_select_role_button' ||
+        customId === 'settings_select_role_btn_option' ||
+        customId.startsWith('ticket_role_opt:');
 
     if (!isRelevant) return;
 
@@ -404,6 +419,194 @@ async function handleTicketSelectMenu(interaction) {
 
             const result = buildPanelSettings(session.panelName, 'images');
             await interaction.editReply(result);
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 7) صفحة أزرار الرتب: اختيار الزر (أو إنشاء/حذف)
+        //    ملاحظة: الإنشاء يفتح Modal فلا يجوز defer قبله
+        // ---------------------------------------------------
+        if (customId === 'settings_select_role_button') {
+            const val = interaction.values[0];
+            const session = resolveSession(interaction);
+            if (!session.panelName) {
+                await interaction.reply({
+                    content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء الرجوع للوحة الرئيسية والمحاولة مجدداً.',
+                    ephemeral: true,
+                }).catch(() => {});
+                return;
+            }
+
+            if (val === '__create__') {
+                const panel = getPanelByName(session.panelName);
+                if (!panel) {
+                    await interaction.reply({ content: '⚠️ لم يتم العثور على هذا البنل.', ephemeral: true }).catch(() => {});
+                    return;
+                }
+                await interaction.showModal(buildRoleButtonModal(panel));
+                return;
+            }
+
+            if (!(await safeDeferUpdate(interaction))) return;
+
+            if (val === '__delete__') {
+                if (session.roleBtnId) removeRoleButton(session.panelName, session.roleBtnId);
+                setSession(interaction.message.id, { roleBtnId: null, roleOptId: null });
+                const result = buildPanelSettings(session.panelName, 'roleButtons');
+                await interaction.editReply(result);
+                return;
+            }
+
+            if (val === 'none') return;
+
+            setSession(interaction.message.id, { roleBtnId: val, roleOptId: null });
+            const result = buildPanelSettings(session.panelName, 'roleButtons', null, val, null);
+            await interaction.editReply(result);
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 8) صفحة أزرار الرتب: اختيار الخيار (أو إضافة/حذف)
+        // ---------------------------------------------------
+        if (customId === 'settings_select_role_btn_option') {
+            const val = interaction.values[0];
+            const session = resolveSession(interaction);
+            if (!session.panelName || !session.roleBtnId) {
+                await interaction.reply({
+                    content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء الرجوع للوحة الرئيسية والمحاولة مجدداً.',
+                    ephemeral: true,
+                }).catch(() => {});
+                return;
+            }
+
+            if (val === '__add_option__') {
+                await interaction.showModal(buildRoleButtonOptionModal(session.roleBtnId));
+                return;
+            }
+
+            if (!(await safeDeferUpdate(interaction))) return;
+
+            if (val === '__delete_option__') {
+                if (session.roleOptId) removeRoleOption(session.panelName, session.roleBtnId, session.roleOptId);
+                setSession(interaction.message.id, { roleOptId: null });
+                const result = buildPanelSettings(session.panelName, 'roleButtons', null, session.roleBtnId, null);
+                await interaction.editReply(result);
+                return;
+            }
+
+            if (val === 'none') return;
+
+            setSession(interaction.message.id, { roleOptId: val });
+            const result = buildPanelSettings(session.panelName, 'roleButtons', null, session.roleBtnId, val);
+            await interaction.editReply(result);
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 9) اختيار رتبة من قائمة "زر الرتبة" داخل التكت:
+        //    إعطاء رتبة الخيار لصاحب التكت (الوضع الحصري يزيل
+        //    الرتب الأخرى من خيارات نفس الزر أولاً)
+        // ---------------------------------------------------
+        if (customId.startsWith('ticket_role_opt:')) {
+            const btnId = customId.split(':')[1];
+            const optId = interaction.values[0];
+
+            if (!(await safeDeferUpdate(interaction))) return;
+
+            const ticketSession = getTicketSession(interaction.channel.id);
+            const panel = ticketSession && ticketSession.panelName ? getPanelByName(ticketSession.panelName) : null;
+            const button = panel ? getRoleButton(panel, btnId) : null;
+            const option = button ? getRoleOption(button, optId) : null;
+
+            if (!ticketSession || !panel || !button || !option) {
+                await interaction.followUp({
+                    content: '⚠️ لم يتم العثور على هذا الخيار أو أن التذكرة غير نشطة.',
+                    ephemeral: true,
+                }).catch(() => {});
+                return;
+            }
+
+            // إعادة فحص الصلاحيات (أمان: لا نعتمد على الرسالة فقط)
+            if (!canUseRoleButton(interaction.member, panel, button)) {
+                await interaction.followUp({
+                    content: '⛔ لا تملك صلاحية استخدام هذا الزر.',
+                    ephemeral: true,
+                }).catch(() => {});
+                return;
+            }
+            if (button.exclusive && !canUseExclusiveRoleButton(interaction.member, ticketSession, panel)) {
+                await interaction.followUp({
+                    content: '⛔ هذا الزر حصري: يستخدمه فقط من استلم التكت أو الإدارة العليا.',
+                    ephemeral: true,
+                }).catch(() => {});
+                return;
+            }
+            if (!option.roleId) {
+                await interaction.followUp({
+                    content: '❌ لم تُعيّن رتبة لهذا الخيار بعد (من إعدادات البنل).',
+                    ephemeral: true,
+                }).catch(() => {});
+                return;
+            }
+
+            const role = interaction.guild.roles.cache.get(option.roleId);
+            if (!role) {
+                await interaction.followUp({
+                    content: '❌ الرتبة المرتبطة بهذا الخيار لم تعد موجودة في السيرفر.',
+                    ephemeral: true,
+                }).catch(() => {});
+                return;
+            }
+
+            const opener = await interaction.guild.members
+                .fetch(ticketSession.openerId)
+                .catch(() => null);
+            if (!opener) {
+                await interaction.followUp({
+                    content: '❌ لم يتم العثور على صاحب التكت لمنحه الرتبة.',
+                    ephemeral: true,
+                }).catch(() => {});
+                return;
+            }
+
+            // الوضع الحصري: إزالة رتب الخيارات الأخرى من نفس الزر
+            if (button.exclusive) {
+                for (const o of button.options || []) {
+                    if (o.roleId && o.roleId !== option.roleId && opener.roles.cache.has(o.roleId)) {
+                        await opener.roles.remove(o.roleId).catch(() => {});
+                    }
+                }
+            }
+
+            await opener.roles.add(option.roleId).catch(async err => {
+                console.error('[selectMenuHandler] فشل منح الرتبة:', err.message);
+                await interaction.followUp({
+                    content: `❌ فشل منح الرتبة: \`${err.message}\``,
+                    ephemeral: true,
+                }).catch(() => {});
+            });
+
+            // إن كانت الرتبة أُعطيت بنجاح (أو كانت موجودة أصلاً) نؤكد
+            const granted = opener.roles.cache.has(option.roleId);
+            if (granted) {
+                addAuditLog(
+                    interaction.channel.id,
+                    `<@${interaction.user.id}> منح ${opener} رتبة ${role.name}${button.exclusive ? ' (حصري)' : ''}`
+                );
+
+                const confirmEmbed = new EmbedBuilder()
+                    .setColor(0x2ECC71)
+                    .setTitle('✅ تم منح الرتبة')
+                    .setDescription(
+                        `**${opener}** حصل على رتبة **${role.name}**` +
+                        (button.exclusive
+                            ? '\n🔄 الوضع الحصري: أُزيلت الرتب الأخرى من خيارات هذا الزر.'
+                            : '')
+                    )
+                    .setTimestamp();
+
+                await interaction.editReply({ embeds: [confirmEmbed], components: [] }).catch(() => {});
+            }
             return;
         }
     } catch (error) {

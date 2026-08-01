@@ -16,6 +16,41 @@ const {
     ButtonStyle,
     StringSelectMenuBuilder,
 } = require('discord.js');
+const { getPanelByName } = require('../database/panelsDB');
+
+/**
+ * بناء صف أزرار الرتب المخصصة (من إعدادات البنل):
+ * كل زر مفعّل يظهر كزر واحد في صف مستقل يقع فوق القائمة المنسدلة
+ * (تحت صف الاستلام/القفل وفوق قائمة الستاف). الزر المطفأ = مخفي.
+ * @param {Object} session - جلسة التذكرة
+ * @returns {ActionRowBuilder[]}
+ */
+function buildCustomRoleButtonRows(session) {
+    const panel = session && session.panelName ? getPanelByName(session.panelName) : null;
+    const buttons = (panel && Array.isArray(panel.customRoleButtons))
+        ? panel.customRoleButtons.filter(b => b && b.enabled !== false)
+        : [];
+
+    if (buttons.length === 0) return [];
+
+    // حد ديسكورد: 5 صفوف كحد أقصى للرسالة (صف الاستلام/القفل + صف
+    // القائمة المنسدلة = صفان)، لذلك نعرض 3 أزرار كحد أقصى
+    const visible = buttons.slice(0, 3);
+
+    const rows = [];
+    for (let i = 0; i < visible.length; i += 1) {
+        const b = visible[i];
+        rows.push(
+            new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`ticket_role_btn:${b.id}`)
+                    .setLabel(String(b.label || '🎖️ رتبة').slice(0, 80))
+                    .setStyle(ButtonStyle.Primary)
+            )
+        );
+    }
+    return rows;
+}
 
 /**
  * @param {Object} session - جلسة التذكرة من ticketStore
@@ -57,7 +92,10 @@ function buildTicketControlRows(session, locked = false) {
 
     const row2 = new ActionRowBuilder().addComponents(staffMenu);
 
-    return [row1, row2];
+    // أزرار الرتب المخصصة تظهر فوق القائمة المنسدلة مباشرة
+    const customRows = buildCustomRoleButtonRows(session);
+
+    return [row1, ...customRows, row2];
 }
 
 module.exports = { buildTicketControlRows };

@@ -72,6 +72,7 @@ const DEFAULT_PANEL_FIELDS = {
     logChannelId: null,
     welcomeMessage: null,
     panelMessage: null,
+    customRoleButtons: [],
 };
 
 // ---------- MongoDB Schema ----------
@@ -96,6 +97,7 @@ const panelSchema = new mongoose.Schema(
         logChannelId: { type: String, default: null },
         welcomeMessage: { type: String, default: null },
         panelMessage: { type: mongoose.Schema.Types.Mixed, default: null },
+        customRoleButtons: { type: mongoose.Schema.Types.Mixed, default: [] },
     },
     { collection: 'ticketpanels', versionKey: false }
 );
@@ -172,6 +174,32 @@ function withDefaults(panel) {
     merged.upperManagementRoles = merged.upperManagementRoles.filter(
         id => typeof id === 'string' && id.trim()
     ).slice(0, 25);
+
+    // ---- ترحيل: أزرار الرتب المخصصة (customRoleButtons) ----
+    if (!Array.isArray(merged.customRoleButtons)) merged.customRoleButtons = [];
+    merged.customRoleButtons = merged.customRoleButtons
+        .filter(b => b && typeof b === 'object' && typeof b.id === 'string' && b.id.trim())
+        .slice(0, 10)
+        .map(b => ({
+            id: b.id,
+            label: String(b.label || 'زر رتبة').slice(0, 80),
+            enabled: b.enabled !== false,
+            exclusive: !!b.exclusive,
+            allowedRoles: Array.isArray(b.allowedRoles)
+                ? b.allowedRoles.filter(x => typeof x === 'string' && x.trim()).slice(0, 25)
+                : [],
+            options: Array.isArray(b.options)
+                ? b.options
+                      .filter(o => o && typeof o === 'object' && typeof o.id === 'string' && o.id.trim())
+                      .slice(0, 25)
+                      .map(o => ({
+                          id: o.id,
+                          label: String(o.label || 'خيار').slice(0, 100),
+                          description: String(o.description || '').slice(0, 100),
+                          roleId: typeof o.roleId === 'string' && o.roleId.trim() ? o.roleId : null,
+                      }))
+                : [],
+        }));
 
     // ---- تنظيف المصفوفة: نصوص صالحة فقط، بلا مكررات، بلا اسم البنل نفسه، حد 25 ----
     merged.linkedPanels = [

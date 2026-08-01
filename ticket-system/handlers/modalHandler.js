@@ -31,8 +31,16 @@ const { safeEmoji } = require('../utils/emoji');
 const { resolveSession } = require('../utils/panelResolver');
 const { sendActionMessage } = require('../utils/actionMessages');
 const { enrichActionContext } = require('../utils/ticketContext');
+const { addRoleButton, addRoleOption } = require('../utils/roleButtons');
 
-const RELEVANT_IDS = ['modal_create_panel', 'modal_edit_name_desc', 'modal_welcome_message', 'modal_panel_message', 'modal_ticket_embed', 'modal_ticket_name', 'modal_action_message', 'modal_rename_ticket'];
+const RELEVANT_IDS = ['modal_create_panel', 'modal_edit_name_desc', 'modal_welcome_message', 'modal_panel_message', 'modal_ticket_embed', 'modal_ticket_name', 'modal_action_message', 'modal_rename_ticket', 'modal_custom_role_btn'];
+
+/**
+ * هل هذا الـ Modal من نظام أزرار الرتب؟ (customId يحمل btnId/optId)
+ */
+function isRoleButtonModal(customId) {
+    return customId.startsWith('modal_custom_role_btn_option:');
+}
 
 /**
  * تحويل إدخال الصورة من الإداري إلى رابط صورة صالح:
@@ -96,7 +104,7 @@ function normalizeColor(input) {
  * @param {import('discord.js').ModalSubmitInteraction} interaction
  */
 async function handleTicketModal(interaction) {
-    if (!RELEVANT_IDS.includes(interaction.customId)) return;
+    if (!RELEVANT_IDS.includes(interaction.customId) && !isRoleButtonModal(interaction.customId)) return;
 
     try {
         // ---------------------------------------------------
@@ -304,6 +312,80 @@ async function handleTicketModal(interaction) {
             updatePanel(session.panelName, { ticketNameTemplate: template || null });
 
             const result = buildPanelSettings(session.panelName, 'messages');
+            await interaction.update(result);
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 3-د) إنشاء/تعديل زر رتبة مخصص (صفحة أزرار الرتب)
+        // ---------------------------------------------------
+        if (interaction.customId === 'modal_custom_role_btn' || interaction.customId.startsWith('modal_custom_role_btn:')) {
+            const session = resolveSession(interaction);
+            if (!session.panelName) {
+                await interaction.reply({ content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء المحاولة مجدداً.', ephemeral: true });
+                return;
+            }
+
+            const btnId = interaction.customId.split(':')[1] || null;
+            const label = interaction.fields.getTextInputValue('role_btn_name').trim() || '🎖️ زر رتبة';
+
+            if (btnId) {
+                // تعديل زر موجود
+                updatePanel(session.panelName, {
+                    customRoleButtons: (getPanelByName(session.panelName).customRoleButtons || []).map(b =>
+                        b.id === btnId ? { ...b, label: label.slice(0, 80) } : b
+                    ),
+                });
+            } else {
+                // إنشاء زر جديد
+                addRoleButton(session.panelName, label);
+            }
+
+            const result = buildPanelSettings(session.panelName, 'roleButtons');
+            await interaction.update(result);
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 3-هـ) إنشاء/تعديل خيار داخل زر رتبة (إضافة اسم + وصف)
+        //      ثم تُعيّن رتبته لاحقاً من قائمة الرتب في الصفحة
+        // ---------------------------------------------------
+        if (isRoleButtonModal(interaction.customId)) {
+            const session = resolveSession(interaction);
+            if (!session.panelName) {
+                await interaction.reply({ content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء المحاولة مجدداً.', ephemeral: true });
+                return;
+            }
+
+            const parts = interaction.customId.split(':'); // [modal_custom_role_btn_option, btnId, optId?]
+            const btnId = parts[1];
+            const optId = parts[2] || null;
+            const label = interaction.fields.getTextInputValue('role_opt_name').trim();
+            const description = interaction.fields.getTextInputValue('role_opt_desc').trim();
+
+            if (btnId) {
+                if (optId) {
+                    // تعديل خيار موجود
+                    updatePanel(session.panelName, {
+                        customRoleButtons: (getPanelByName(session.panelName).customRoleButtons || []).map(b =>
+                            b.id === btnId
+                                ? {
+                                      ...b,
+                                      options: (b.options || []).map(o =>
+                                          o.id === optId
+                                              ? { ...o, label: label.slice(0, 100), description: description.slice(0, 100) }
+                                              : o
+                                      ),
+                                  }
+                                : b
+                        ),
+                    });
+                } else {
+                    addRoleOption(session.panelName, btnId, label, description);
+                }
+            }
+
+            const result = buildPanelSettings(session.panelName, 'roleButtons');
             await interaction.update(result);
             return;
         }
