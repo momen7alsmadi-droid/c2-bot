@@ -48,6 +48,37 @@ function extractPageFromFooter(interaction) {
 }
 
 /**
+ * استخراج زر الرتبة المحدد من تذييل إيمبد المعلومات
+ * التذييل بصيغة: "بنل: <الاسم> | الصفحة: <الصفحة> | زر: <id> | خيار: <id>"
+ * @param {import('discord.js').BaseInteraction} interaction
+ * @returns {String|null}
+ */
+function extractRoleBtnFromFooter(interaction) {
+    try {
+        const footer = interaction.message?.embeds?.[0]?.footer?.text || '';
+        const match = footer.match(/زر:\s*([^|]+)/);
+        return match ? match[1].trim() : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * استخراج الخيار المحدد من تذييل إيمبد المعلومات
+ * @param {import('discord.js').BaseInteraction} interaction
+ * @returns {String|null}
+ */
+function extractRoleOptFromFooter(interaction) {
+    try {
+        const footer = interaction.message?.embeds?.[0]?.footer?.text || '';
+        const match = footer.match(/خيار:\s*([^|]+)/);
+        return match ? match[1].trim() : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
  * استرجاع الجلسة الفعالة (مع احتياط التذييل)
  * @param {import('discord.js').BaseInteraction} interaction
  * @returns {{ panelName: String, page: String, actionKey: String|undefined, roleBtnId: String|undefined, roleOptId: String|undefined }}
@@ -67,7 +98,7 @@ function resolveSession(interaction) {
         };
     }
 
-    // 2) احتياط: من تذييل الإيمبد (بعد إعادة تشغيل البوت)
+    // 2) احتياط: من تذييل الإيمبد (بعد إعادة تشغيل البوت أو رسالة قديمة)
     const fromFooter = extractPanelNameFromFooter(interaction);
     if (fromFooter) {
         const page = extractPageFromFooter(interaction);
@@ -76,8 +107,8 @@ function resolveSession(interaction) {
             page: page || 'general',
             // قد تكون الجلسة تحوي إجراءً محدداً حتى لو فُقد الاسم (نمرره مع الاحتياط)
             actionKey: session.actionKey,
-            roleBtnId: session.roleBtnId,
-            roleOptId: session.roleOptId,
+            roleBtnId: extractRoleBtnFromFooter(interaction),
+            roleOptId: extractRoleOptFromFooter(interaction),
         };
     }
 
@@ -95,4 +126,4 @@ function resolvePanel(interaction) {
     return getPanelByName(panelName);
 }
 
-module.exports = { resolvePanel, resolveSession, extractPanelNameFromFooter, extractPageFromFooter };
+module.exports = { resolvePanel, resolveSession, extractPanelNameFromFooter, extractPageFromFooter, extractRoleBtnFromFooter, extractRoleOptFromFooter };

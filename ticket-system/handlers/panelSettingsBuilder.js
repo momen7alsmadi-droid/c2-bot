@@ -149,14 +149,22 @@ function channelToText(channelId) {
  *
  * @param {Object} panel
  * @param {String} page - تُستخدم فقط في الفوتر (الصفحة الحالية)
+ * @param {String} [actionKey] - الإجراء المحدد (يُعرض في الفوتر)
+ * @param {String} [btnId] - زر الرتبة المحدد (يُحفظ في الفوتر لاسترجاع الجلسة)
+ * @param {String} [optId] - خيار الزر المحدد (يُحفظ في الفوتر لاسترجاع الجلسة)
  * @returns {EmbedBuilder}
  */
-function buildSettingsEmbed(panel, page, actionKey) {
+function buildSettingsEmbed(panel, page, actionKey, btnId, optId) {
     const pageLabel = (PAGES[page] || { label: 'إعدادات' }).label;
+    // الفوتر يحمل كل ما نحتاجه لاسترجاع الجلسة حتى بعد إعادة تشغيل البوت:
+    // بنل + الصفحة + (زر الرتبة المحدد + خياره) لصفحة أزرار الرتب
+    const footerParts = [`بنل: ${panel.name}`, `الصفحة: ${pageLabel}`];
+    if (btnId) footerParts.push(`زر: ${btnId}`);
+    if (optId) footerParts.push(`خيار: ${optId}`);
     const embed = new EmbedBuilder()
         .setColor(INFO_COLOR)
         .setTitle('ℹ️ معلومات البنل')
-        .setFooter({ text: `بنل: ${panel.name} | الصفحة: ${pageLabel}` })
+        .setFooter({ text: footerParts.join(' | ') })
         .setTimestamp();
 
     // ===== الحقول الصغيرة (inline) =====
@@ -794,7 +802,7 @@ function buildPanelSettings(panelName, page = 'general', actionKey, btnId, optId
     const pageKey = Object.keys(PAGES).find(k => PAGES[k].label === page) || page;
     page = pageKey;
 
-    const infoEmbed = buildSettingsEmbed(panel, page, actionKey);
+    const infoEmbed = buildSettingsEmbed(panel, page, actionKey, btnId, optId);
 
     // معاينة حية لما سيراه الأعضاء: البنل + كل البنلات المرتبطة به (الباقة)
     // (إن فشل عرض الباقة — بنل مرتبط محذوف أو إيموجي غير صالح — نكتفي
