@@ -27,6 +27,14 @@ async function handleHelp(interaction) {
         name: '📖 /مساعدة',
         value: 'عرض شرح البوت والأوامر.',
       },
+      {
+        name: '🔤 /تغيير-اسم-البوت',
+        value: 'تغيير اسم البوت (للمطور فقط).',
+      },
+      {
+        name: '🖼️ /تغيير-صورة-البوت',
+        value: 'تغيير صورة البوت (للمطور فقط).',
+      },
     )
     .setFooter({ text: `الإصدار: ${version}` })
     .setTimestamp();

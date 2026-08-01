@@ -29,6 +29,7 @@ const { handleStarboardMain, handleStarboardInteraction, handleStarboardModal, h
 const { deployCommands } = require('./deploy-commands');
 const { handleAdminPanelMain, handleAdminInteraction } = require('./handlers/admin-panel');
 const { handleBoardMain, handleBoardInteraction } = require('./handlers/admin-board');
+const { handleBotName, handleBotAvatar } = require('./handlers/botProfile');
 const { initAdminModel, syncAdminConfigFromMongo } = require('./utils/adminStorage');
 
 // ====== نظام التذاكر ======
@@ -553,6 +554,8 @@ async function handleSlashCommand(interaction) {
     case 'لوحة_النجوم': return handleStarboardMain(interaction);
     case 'اعدادات_لوحة_الإدارة': return handleAdminPanelMain(interaction);
     case 'لوحة_الإدارة': return handleBoardMain(interaction);
+    case 'تغيير-اسم-البوت': return handleBotName(interaction);
+    case 'تغيير-صورة-البوت': return handleBotAvatar(interaction);
     case 'ticket-setup': return ticketSetupCmd.execute(interaction);
     case 'رفع-صورة': return panelImageCmd.execute(interaction);
   }

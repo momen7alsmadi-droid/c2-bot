@@ -107,6 +107,18 @@ commands.push(
   new SlashCommandBuilder()
     .setName('لوحة_الإدارة')
     .setDescription('🛡️ لوحة الإدارة - الترقية والتنزيل وتوب الإدارة')
+    .toJSON(),
+  // أمر تغيير اسم البوت (للمطور فقط)
+  new SlashCommandBuilder()
+    .setName('تغيير-اسم-البوت')
+    .setDescription('🔤 تغيير اسم البوت (للمطور فقط)')
+    .addStringOption(o => o.setName('الاسم').setDescription('الاسم الجديد للبوت').setRequired(true).setMaxLength(32))
+    .toJSON(),
+  // أمر تغيير صورة البوت (للمطور فقط)
+  new SlashCommandBuilder()
+    .setName('تغيير-صورة-البوت')
+    .setDescription('🖼️ تغيير صورة البوت (للمطور فقط)')
+    .addAttachmentOption(o => o.setName('الصورة').setDescription('الصورة الجديدة للبوت').setRequired(true))
     .toJSON()
 );
 
