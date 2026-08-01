@@ -570,6 +570,12 @@ async function handleModalSubmit(interaction) {
 
 async function handleButton(interaction) {
   const id = interaction.customId;
+
+  // الزر الشكلي "🔄 إعادة تعيين" (بلا وظيفة — مجرد تأكيد إخفائي)
+  if (id === 'ui_deco_reset') {
+    return interaction.reply({ content: '🔄', ephemeral: true }).catch(() => {});
+  }
+
   const parts = id.split('_');
   const prefix = parts[0];
 

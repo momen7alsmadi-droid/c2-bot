@@ -30,6 +30,7 @@ const {
 const { getAllPanels } = require('../database/panelsDB');
 const { safeEmoji } = require('../utils/emoji');
 const { version } = require('../../package.json');
+const { appendDecorativeReset } = require('../../src/utils/decorativeReset');
 
 // ألوان موحدة مع باقي لوحات البوت (نفس لوحة الإيمبد)
 const COLORS = {
@@ -138,7 +139,7 @@ function buildSubPanel(type) {
     return {
         content: content[type],
         embeds: [],
-        components: [selectRow, backRow],
+        components: appendDecorativeReset([selectRow, backRow]),
     };
 }
 

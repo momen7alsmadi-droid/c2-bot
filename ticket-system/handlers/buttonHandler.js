@@ -50,6 +50,7 @@ const { getActionMessage } = require('../utils/actionMessages');
 const { getRoleButton, toggleRoleButtonEnabled, toggleRoleButtonExclusive } = require('../utils/roleButtons');
 const { canUseRoleButton, canUseExclusiveRoleButton } = require('./permissionUtils');
 const { getTicketSession } = require('./ticketStore');
+const { appendDecorativeReset } = require('../../src/utils/decorativeReset');
 
 // خريطة تربط كل customId (الجزء الأول) بنوع اللوحة الفرعية المطلوب بناؤها
 const SUB_PANEL_MAP = {
@@ -456,7 +457,7 @@ async function handleTicketButton(interaction) {
 
             await interaction.reply({
                 embeds: [embed],
-                components: [new ActionRowBuilder().addComponents(menu)],
+                components: appendDecorativeReset([new ActionRowBuilder().addComponents(menu)]),
                 ephemeral: true,
             });
             return;

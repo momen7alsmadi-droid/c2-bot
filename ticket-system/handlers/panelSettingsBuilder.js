@@ -37,6 +37,7 @@ const { SUPPORTED_VARIABLES } = require('../utils/messageVariables');
 const { safeEmoji } = require('../utils/emoji');
 const { ACTION_KEYS, DEFAULT_ACTION_MESSAGES, getActionMessage, isActionEnabled } = require('../utils/actionMessages');
 const { getAllImages } = require('../utils/imageLibrary');
+const { appendDecorativeReset } = require('../../src/utils/decorativeReset');
 
 /**
  * تحويل رابط صورة مُحفوظ في البنل إلى اسمها في المكتبة
@@ -830,6 +831,9 @@ function buildPanelSettings(panelName, page = 'general', actionKey, btnId, optId
     else if (page === 'actions') rows = [...buildActionsPage(panel, actionKey), buildBackToGeneralRow()];
     // صفحة أزرار الرتب تحوي زر الرجوع داخل صف الحالة (الصف 5) — لا نضيف صف رجوع إضافي
     else if (page === 'roleButtons') rows = buildRoleButtonsPage(panel, btnId, optId);
+
+    // الزر الشكلي "🔄 إعادة تعيين" في نهاية الصفحات التي تحتوي قوائم منسدلة
+    rows = appendDecorativeReset(rows);
 
     return {
         embeds,

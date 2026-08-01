@@ -17,6 +17,7 @@ const {
     StringSelectMenuBuilder,
 } = require('discord.js');
 const { getPanelByName } = require('../database/panelsDB');
+const { appendDecorativeReset } = require('../../src/utils/decorativeReset');
 
 /**
  * بناء صف أزرار الرتب المخصصة (من إعدادات البنل):
@@ -95,7 +96,10 @@ function buildTicketControlRows(session, locked = false) {
     // أزرار الرتب المخصصة تظهر فوق القائمة المنسدلة مباشرة
     const customRows = buildCustomRoleButtonRows(session);
 
-    return [row1, ...customRows, row2];
+    const rows = [row1, ...customRows, row2];
+
+    // الزر الشكلي "🔄 إعادة تعيين" أسفل القائمة المنسدلة (قائمة الستاف)
+    return appendDecorativeReset(rows);
 }
 
 module.exports = { buildTicketControlRows };
