@@ -73,6 +73,7 @@ const DEFAULT_PANEL_FIELDS = {
     welcomeMessage: null,
     panelMessage: null,
     customRoleButtons: [],
+    claimButtonColor: 'success',
 };
 
 // ---------- MongoDB Schema ----------
@@ -98,6 +99,7 @@ const panelSchema = new mongoose.Schema(
         welcomeMessage: { type: String, default: null },
         panelMessage: { type: mongoose.Schema.Types.Mixed, default: null },
         customRoleButtons: { type: mongoose.Schema.Types.Mixed, default: [] },
+        claimButtonColor: { type: String, default: 'success' },
     },
     { collection: 'ticketpanels', versionKey: false }
 );
@@ -174,6 +176,11 @@ function withDefaults(panel) {
     merged.upperManagementRoles = merged.upperManagementRoles.filter(
         id => typeof id === 'string' && id.trim()
     ).slice(0, 25);
+
+    // ---- لون زر الاستلام (ألوان ديسكورد المسموحة فقط) ----
+    if (!['success', 'primary', 'danger', 'secondary'].includes(merged.claimButtonColor)) {
+        merged.claimButtonColor = 'success';
+    }
 
     // ---- ترحيل: أزرار الرتب المخصصة (customRoleButtons) ----
     if (!Array.isArray(merged.customRoleButtons)) merged.customRoleButtons = [];

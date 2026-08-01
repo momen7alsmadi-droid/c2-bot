@@ -491,6 +491,7 @@ client.on('interactionCreate', async (interaction) => {
                  interaction.customId === 'settings_select_action' ||
                  interaction.customId === 'settings_select_panel_image' ||
                  interaction.customId === 'settings_select_ticket_image' ||
+                 interaction.customId === 'settings_select_claim_color' ||
                  interaction.customId === 'settings_select_role_button' ||
                  interaction.customId === 'settings_select_role_btn_option' ||
                  interaction.customId.startsWith('ticket_role_opt:')) {

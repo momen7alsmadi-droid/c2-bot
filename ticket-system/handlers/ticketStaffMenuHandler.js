@@ -55,10 +55,14 @@ async function handleTicketStaffMenu(interaction) {
             return;
         }
 
-        // حماية إضافية: هذه القائمة تتطلب استلاماً + أن يكون الضاغط المستلم أو الإدارة
-        if (!session.claimedBy || !canUseRestrictedControls(interaction.member, session, panel)) {
+        // حماية: الإدارة العليا تستطيع استخدام القائمة دائماً (حتى بدون
+        // استلام)، أما الباقي فيحتاج استلاماً + أن يكون هو المستلم.
+        const isUpper = canUseRestrictedControls(interaction.member, session, panel);
+        if (!isUpper) {
             await interaction.reply({
-                content: '❌ يجب استلام التذكرة أولاً، ولا يمكن استخدام هذه القائمة إلا من قبل المستلم أو الإدارة العليا.',
+                content: session.claimedBy
+                    ? '❌ هذه القائمة مخصصة للمستلم أو الإدارة العليا فقط.'
+                    : '❌ يجب استلام التذكرة أولاً لاستخدام هذه القائمة — الإدارة العليا فقط تستطيع استخدامها بدون استلام.',
                 ephemeral: true,
             });
             return;

@@ -19,7 +19,7 @@ const { getPanelByName } = require('../database/panelsDB');
 const { reportError } = require('../../src/utils/errorLogger');
 const { safeDeferUpdate } = require('../utils/interactionGuard');
 const { getSession, updateSession, addAuditLog } = require('./ticketStore');
-const { isStaff, canUseRestrictedControls } = require('./permissionUtils');
+const { isStaff, isUpperManagement, canUseRestrictedControls } = require('./permissionUtils');
 const { buildTicketControlRows } = require('./ticketControlBuilder');
 const {
     applyClaimPermissions,
@@ -70,7 +70,8 @@ async function handleTicketControlButton(interaction) {
         if (interaction.customId === 'ticket_claim') {
             if (!session.claimedBy) {
                 // لا يوجد مستلم بعد -> يجب أن يكون الضاغط ستاف
-                if (!isStaff(interaction.member, panel)) {
+                // الستاف أو الإدارة العليا يمكنهم الاستلام
+                if (!isStaff(interaction.member, panel) && !isUpperManagement(interaction.member, panel)) {
                     await interaction.reply({ content: '❌ هذا الزر مخصص لأعضاء الستاف فقط.', ephemeral: true });
                     return;
                 }

@@ -59,11 +59,21 @@ function buildCustomRoleButtonRows(session) {
  * @returns {ActionRowBuilder[]}
  */
 function buildTicketControlRows(session, locked = false) {
+    // لون زر الاستلام قابل للتخصيص من إعدادات البنل (claimButtonColor)
+    const panel = session && session.panelName ? getPanelByName(session.panelName) : null;
+    const CLAIM_COLORS = {
+        success: ButtonStyle.Success,
+        primary: ButtonStyle.Primary,
+        danger: ButtonStyle.Danger,
+        secondary: ButtonStyle.Secondary,
+    };
+    const claimColor = (panel && CLAIM_COLORS[panel.claimButtonColor]) || ButtonStyle.Success;
+
     const claimButton = new ButtonBuilder()
         .setCustomId('ticket_claim')
         .setLabel(session.claimedBy ? 'إلغاء الاستلام' : 'استلام')
         .setEmoji(session.claimedBy ? '🙅' : '🙋')
-        .setStyle(session.claimedBy ? ButtonStyle.Secondary : ButtonStyle.Success)
+        .setStyle(session.claimedBy ? ButtonStyle.Secondary : claimColor)
         .setDisabled(locked);
 
     const lockButton = new ButtonBuilder()
@@ -77,9 +87,14 @@ function buildTicketControlRows(session, locked = false) {
     const staffMenu = new StringSelectMenuBuilder()
         .setCustomId('ticket_staff_menu')
         .setPlaceholder(
-            session.claimedBy ? 'قائمة تحكم الستاف...' : 'يجب استلام التذكرة أولاً لاستخدام هذه القائمة'
+            session.claimedBy
+                ? 'قائمة تحكم الستاف...'
+                : 'قائمة تحكم الستاف — الإدارة العليا بدون استلام'
         )
-        .setDisabled(!session.claimedBy || locked)
+        // القائمة ظاهرة/مفعّلة دائماً (ما لم تكن التذكرة مقفلة) حتى يتمكن
+        // الستاف من استلامها والإدارة العليا من استخدامها دون استلام،
+        // والتحقق النهائي من الصلاحية يتم في ticketStaffMenuHandler.
+        .setDisabled(locked)
         .addOptions(
             { label: 'تغيير اسم التكت', value: 'rename', emoji: '✏️' },
             { label: 'تفعيل إرسال الصور/الملفات', value: 'enable_attachments', emoji: '🖼️' },

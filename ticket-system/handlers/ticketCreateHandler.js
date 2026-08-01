@@ -159,7 +159,7 @@ async function handleTicketCreate(interaction) {
             openerId: interaction.member.id,
         });
 
-        const controlRows = buildTicketControlRows({ claimedBy: null }, false);
+        const controlRows = buildTicketControlRows({ claimedBy: null, panelName: panel.name }, false);
 
         const controlMessage = await ticketChannel.send({
             content: pingMentions,

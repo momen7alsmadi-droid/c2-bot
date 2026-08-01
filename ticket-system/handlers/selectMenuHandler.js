@@ -63,6 +63,7 @@ async function handleTicketSelectMenu(interaction) {
         customId === 'settings_select_action' ||
         customId === 'settings_select_panel_image' ||
         customId === 'settings_select_ticket_image' ||
+        customId === 'settings_select_claim_color' ||
         customId === 'settings_select_role_button' ||
         customId === 'settings_select_role_btn_option' ||
         customId.startsWith('ticket_role_opt:');
@@ -390,6 +391,31 @@ async function handleTicketSelectMenu(interaction) {
             setSession(interaction.message.id, { actionKey });
 
             const result = buildPanelSettings(session.panelName, 'actions', actionKey);
+            await safeRebuildSettings(result);
+            return;
+        }
+
+        // ---------------------------------------------------
+        // تغيير لون زر الاستلام في التكت (من صفحة رسائل الأزرار)
+        // ---------------------------------------------------
+        if (customId === 'settings_select_claim_color') {
+            if (!(await safeDeferUpdate(interaction))) return;
+
+            const session = resolveSession(interaction);
+            if (!session.panelName) {
+                await interaction.followUp({
+                    content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء الرجوع للوحة الرئيسية والمحاولة مجدداً.',
+                    ephemeral: true,
+                }).catch(() => {});
+                return;
+            }
+
+            const color = interaction.values[0];
+            if (!['success', 'primary', 'danger', 'secondary'].includes(color)) return;
+
+            updatePanel(session.panelName, { claimButtonColor: color });
+
+            const result = buildPanelSettings(session.panelName, 'actions', session.actionKey);
             await safeRebuildSettings(result);
             return;
         }

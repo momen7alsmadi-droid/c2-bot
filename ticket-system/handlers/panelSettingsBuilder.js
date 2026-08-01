@@ -759,7 +759,26 @@ function buildActionsPage(panel, actionKey) {
             .setDisabled(!actionKey)
     );
 
-    return [selectRow, actionsRow];
+    // منتقي لون زر الاستلام (يظهر في التكت) — ألوان ديسكورد المسموحة
+    const CLAIM_COLOR_LABELS = {
+        success: '🟢 أخضر (الافتراضي)',
+        primary: '🔵 أزرق',
+        danger: '🔴 أحمر',
+        secondary: '⚪ رمادي',
+    };
+    const currentColor = CLAIM_COLOR_LABELS[panel.claimButtonColor] || CLAIM_COLOR_LABELS.success;
+    const colorSelect = new StringSelectMenuBuilder()
+        .setCustomId('settings_select_claim_color')
+        .setPlaceholder(`🎨 لون زر الاستلام: ${currentColor}`)
+        .addOptions(
+            Object.entries(CLAIM_COLOR_LABELS).map(([value, label]) => ({
+                label,
+                value,
+                default: (panel.claimButtonColor || 'success') === value,
+            }))
+        );
+
+    return [selectRow, actionsRow, new ActionRowBuilder().addComponents(colorSelect)];
 }
 
 /**
