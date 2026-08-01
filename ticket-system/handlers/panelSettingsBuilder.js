@@ -638,7 +638,10 @@ function buildRoleButtonsPage(panel, btnId = null, optId = null) {
         .setPlaceholder(button ? '🎖️ اختر الخيار لتعيين رتبته...' : 'اختر زراً أولاً')
         .setDisabled(!button);
 
-    if (button) {
+    if (!button) {
+        // ديسكورد يرفض القوائم بلا خيارات (1-25) — خيار وهمي معطّل
+        optSelect.addOptions({ label: 'اختر زراً أولاً من القائمة بالأعلى', value: 'none' });
+    } else if (button) {
         const options = button.options || [];
         if (options.length === 0) {
             optSelect.addOptions({ label: 'لا توجد خيارات بعد — أضف واحداً', value: 'none' });
