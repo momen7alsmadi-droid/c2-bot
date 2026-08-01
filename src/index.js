@@ -319,8 +319,8 @@ ID: ${guild.id}
   client.once('ready', async () => {
     console.log(`✅ البوت شغّال باسم ${client.user.tag}`);
 
-    // تسجيل الأوامر (مسح القديم + تسجيل الكل)
-    await deployCommands(client.user.id);
+    // تسجيل الأوامر (Global + كل سيرفرات البوت غير المعطّلة)
+    await deployCommands(client);
     console.log('📋 تمت مزامنة جميع الأوامر مع Discord API');
 
     // إعادة بناء مكتبة الصور من روم بنك الصور (استرجاع بعد مسح القرص)

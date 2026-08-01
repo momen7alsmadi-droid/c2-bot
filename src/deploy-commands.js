@@ -1,4 +1,6 @@
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 const { REST, Routes, SlashCommandBuilder, ChannelType } = require('discord.js');
 
 // ========== تحميل الأوامر من ملفاتها الأصلية ==========
@@ -155,14 +157,22 @@ console.log('');
 
 const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);
 
-async function deployCommands(clientId) {
-  const id = clientId || process.env.CLIENT_ID;
+async function deployCommands(clientOrId) {
+  // يقبل كائناً (client) أو نصاً (client id) للتوافق مع الاستدعاء القديم
+  const id =
+    typeof clientOrId === 'string'
+      ? clientOrId
+      : clientOrId && clientOrId.user
+      ? clientOrId.user.id
+      : process.env.CLIENT_ID;
   if (!id) {
     console.error('❌ deployCommands: CLIENT_ID غير موجود!');
     return;
   }
 
   const guildId = process.env.GUILD_ID;
+  const extraGuildIds = (process.env.GUILD_IDS || '')
+    .split(',').map(s => s.trim()).filter(Boolean);
 
   // ====== 1) تسجيل الأوامر كـ Global (تظهر في كل السيرفرات) ======
   // الأوامر العامة تُظهر في أي سيرفر يدخل البوت إليه (خلال دقائق حتى ساعة)
@@ -175,17 +185,37 @@ async function deployCommands(clientId) {
     if (err.stack) console.error(err.stack);
   }
 
-  // ====== 2) تسجيل Guild Commands لسيرفر التطوير (تحديث فوري) ======
-  // نفس أسماء الأوامر في السيرفر تُغطي النسخة العالمية (لا ازدواج)،
-  // والتحديث فيها يظهر فوراً بدل انتظار انتشار النسخة العالمية.
-  if (guildId) {
+  // ====== 2) تسجيل Guild Commands في كل سيرفر موجود فيه البوت (تحديث فوري) ======
+  // السيرفرات المعطّلة من لوحة المطور تُستثنى. نفس أسماء الأوامر في السيرفر
+  // تُغطي النسخة العالمية (لا ازدواج)، والتحديث يظهر فوراً هناك.
+  const allGuildIds = new Set([
+    ...(guildId ? [guildId] : []),
+    ...extraGuildIds,
+    ...(clientOrId && clientOrId.guilds && clientOrId.guilds.cache
+      ? clientOrId.guilds.cache.map(g => g.id)
+      : []),
+  ]);
+
+  // السيرفرات المعطّلة من لوحة المطور (لا تُسجَّل فيها الأوامر)
+  let disabledGuilds = [];
+  try {
+    const cfgPath = path.join(__dirname, '..', 'data', 'config.json');
+    if (fs.existsSync(cfgPath)) {
+      const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+      if (Array.isArray(cfg.disabledGuilds)) disabledGuilds = cfg.disabledGuilds;
+    }
+  } catch (e) { /* تجاهل أي خطأ في قراءة الإعدادات */ }
+
+  for (const gid of allGuildIds) {
+    if (disabledGuilds.includes(gid)) {
+      console.log(`⏭️ تخطّي السيرفر المعطّل ${gid}`);
+      continue;
+    }
     try {
-      console.log(`⏳ جاري تسجيل Guild Commands (Guild: ${guildId})...`);
-      await rest.put(Routes.applicationGuildCommands(id, guildId), { body: commands });
-      console.log(`✅ تم تسجيل ${commands.length} أمر في سيرفر التطوير ${guildId}.`);
+      await rest.put(Routes.applicationGuildCommands(id, gid), { body: commands });
+      console.log(`✅ تم تسجيل ${commands.length} أمر في السيرفر ${gid}.`);
     } catch (err) {
-      console.error('❌ فشل تسجيل Guild Commands:', err.message);
-      if (err.stack) console.error(err.stack);
+      console.error(`❌ فشل تسجيل Guild Commands في ${gid}:`, err.message);
     }
   }
 
