@@ -164,36 +164,27 @@ async function deployCommands(clientId) {
 
   const guildId = process.env.GUILD_ID;
 
-  // ====== 1) مسح الأوامر القديمة (Global) دائماً ======
-  // ⚠️ هام جداً: بدون هذا المسح يبقى نسختان من كل أمر (Global + Guild)
-  // وتظهر الأوامر مكررة في السيرفر. التسجيل يكون Guild فقط عندما
-  // يتوفر GUILD_ID (تحديث فوري)، و Global فقط كاحتياط عند غيابه.
+  // ====== 1) تسجيل الأوامر كـ Global (تظهر في كل السيرفرات) ======
+  // الأوامر العامة تُظهر في أي سيرفر يدخل البوت إليه (خلال دقائق حتى ساعة)
   try {
-    console.log('⏳ جاري مسح الأوامر القديمة (Global)...');
-    await rest.put(Routes.applicationCommands(id), { body: [] });
-    console.log('✅ تم مسح الأوامر القديمة (Global).');
+    console.log(`⏳ جاري تسجيل Global Commands (${commands.length} أمر)...`);
+    await rest.put(Routes.applicationCommands(id), { body: commands });
+    console.log('✅ تم تسجيل الأوامر كـ Global — ستظهر في كل السيرفرات.');
   } catch (err) {
-    console.error('❌ فشل مسح الأوامر القديمة:', err.message);
+    console.error('❌ فشل تسجيل Global Commands:', err.message);
+    if (err.stack) console.error(err.stack);
   }
 
-  // ====== 2) تسجيل كـ Guild Commands للتحديث الفوري ======
+  // ====== 2) تسجيل Guild Commands لسيرفر التطوير (تحديث فوري) ======
+  // نفس أسماء الأوامر في السيرفر تُغطي النسخة العالمية (لا ازدواج)،
+  // والتحديث فيها يظهر فوراً بدل انتظار انتشار النسخة العالمية.
   if (guildId) {
     try {
-      console.log(`⏳ جاري تسجيل الأوامر كـ Guild Commands (Guild: ${guildId})...`);
+      console.log(`⏳ جاري تسجيل Guild Commands (Guild: ${guildId})...`);
       await rest.put(Routes.applicationGuildCommands(id, guildId), { body: commands });
-      console.log(`✅ تم تسجيل ${commands.length} أمر في السيرفر ${guildId}.`);
+      console.log(`✅ تم تسجيل ${commands.length} أمر في سيرفر التطوير ${guildId}.`);
     } catch (err) {
       console.error('❌ فشل تسجيل Guild Commands:', err.message);
-      if (err.stack) console.error(err.stack);
-    }
-  } else {
-    // ====== 3) احتياط: بدون GUILD_ID نسجّل Global فقط (لا ازدواج) ======
-    try {
-      console.log(`⏳ جاري تسجيل Global Commands (${commands.length} أمر)...`);
-      await rest.put(Routes.applicationCommands(id), { body: commands });
-      console.log(`✅ تم تسجيل ${commands.length} أمر كـ Global (احتياط).`);
-    } catch (err) {
-      console.error('❌ فشل تسجيل Global Commands:', err.message);
       if (err.stack) console.error(err.stack);
     }
   }
