@@ -655,25 +655,12 @@ function buildRoleButtonsPage(panel, btnId = null, optId = null) {
     const button = getRoleButton(panel, btnId);
     const option = button ? (button.options || []).find(o => o.id === optId) || null : null;
 
-    // ---- صف 1: اختيار الزر ----
+    // ---- صف 1: اختيار الزر (باقة الألوان انتقلت لصفحة مستقلة
+    //      لأن كل قائمة منسدلة تأخذ عرض الصف كاملاً) ----
     const btnSelect = new StringSelectMenuBuilder()
         .setCustomId('settings_select_role_button')
         .setPlaceholder('🎖️ اختر زر الرتبة لإدارته...')
         .setMaxValues(1);
-
-    // ---- صف 1 (بجانب اختيار الزر): لون الزر من باقة /الألوان_المتوفرة ----
-    // (أول 23 لوناً من الباقة — حد ديسكورد 25 خياراً + زر "لون مخصص" أسفل)
-    const colorSelect = new StringSelectMenuBuilder()
-        .setCustomId('settings_select_role_btn_color')
-        .setPlaceholder('🎨 لون الزر (باقة الألوان المتوفرة)...')
-        .setDisabled(!button)
-        .addOptions(
-            COLORS.slice(0, 23).map(c => ({
-                label: c.name,
-                value: c.value,
-                default: !!button && button.color === c.value,
-            }))
-        );
 
     if (buttons.length === 0) {
         btnSelect
@@ -756,17 +743,60 @@ function buildRoleButtonsPage(panel, btnId = null, optId = null) {
             .setStyle(ButtonStyle.Secondary)
             .setDisabled(!button),
         new ButtonBuilder()
+            .setCustomId('settings_page_role_btn_color')
+            .setLabel('🎨 باقة الألوان')
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(!button),
+        new ButtonBuilder()
             .setCustomId('settings_page_general')
             .setLabel('🔙 رجوع للإعدادات العامة')
             .setStyle(ButtonStyle.Secondary)
     );
 
     return [
-        new ActionRowBuilder().addComponents(btnSelect, colorSelect),
+        new ActionRowBuilder().addComponents(btnSelect),
         new ActionRowBuilder().addComponents(optSelect),
         new ActionRowBuilder().addComponents(optRoleSelect),
         new ActionRowBuilder().addComponents(useRoleSelect),
         stateRow,
+    ];
+}
+
+/**
+ * صفحة باقة الألوان للزر (صفحة مستقلة):
+ * كل قائمة منسدلة تأخذ عرض الصف كاملاً في ديسكورد، لذلك لا يمكن
+ * وضعها بجانب اختيار الزر في نفس الصف (COMPONENT_LAYOUT_WIDTH_EXCEEDED)
+ * @param {Object} panel
+ * @param {String|null} btnId
+ * @returns {Array<ActionRowBuilder>}
+ */
+function buildRoleBtnColorPage(panel, btnId = null) {
+    const { getRoleButton } = require('../utils/roleButtons');
+    const button = getRoleButton(panel, btnId);
+
+    // أول 23 لوناً من الباقة — حد ديسكورد 25 خياراً + "إعادة تعيين" الشكلي
+    const colorSelect = new StringSelectMenuBuilder()
+        .setCustomId('settings_select_role_btn_color')
+        .setPlaceholder('🎨 لون الزر (باقة الألوان المتوفرة)...')
+        .setDisabled(!button)
+        .addOptions(
+            COLORS.slice(0, 23).map(c => ({
+                label: c.name,
+                value: c.value,
+                default: !!button && button.color === c.value,
+            }))
+        );
+
+    const backRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('settings_page_role_buttons')
+            .setLabel('🔙 رجوع لأزرار الرتب')
+            .setStyle(ButtonStyle.Secondary)
+    );
+
+    return [
+        new ActionRowBuilder().addComponents(colorSelect),
+        backRow,
     ];
 }
 
@@ -927,6 +957,8 @@ function buildPanelSettings(panelName, page = 'general', actionKey, btnId, optId
     else if (page === 'actions') rows = [...buildActionsPage(panel, actionKey), buildBackToGeneralRow()];
     // صفحة أزرار الرتب تحوي زر الرجوع داخل صف الحالة (الصف 5) — لا نضيف صف رجوع إضافي
     else if (page === 'roleButtons') rows = buildRoleButtonsPage(panel, btnId, optId);
+    // صفحة باقة الألوان المستقلة (قائمة منسدلة كاملة العرض + زر رجوع)
+    else if (page === 'role_btn_color') rows = buildRoleBtnColorPage(panel, btnId);
 
     // الزر الشكلي "🔄 إعادة تعيين" في نهاية الصفحات التي تحتوي قوائم منسدلة
     rows = appendDecorativeOption(rows);

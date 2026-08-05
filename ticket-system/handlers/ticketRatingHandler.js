@@ -279,14 +279,17 @@ function buildRatingSettingsPage() {
         .setPlaceholder(s.notesChannelId ? '📝 روم الملاحظات (محدد)' : '📝 اختر روم الملاحظات...')
         .setChannelTypes(0);
 
-    const row1 = new ActionRowBuilder().addComponents(ratingSelect, notesSelect);
-    const row2 = new ActionRowBuilder().addComponents(
+    // ⚠️ ديسكورد: كل قائمة منسدلة (ChannelSelectMenu) تأخذ عرض الصف
+    // كاملاً — لا يجوز وضع قائمتين في صف واحد (COMPONENT_LAYOUT_WIDTH_EXCEEDED)
+    const row1 = new ActionRowBuilder().addComponents(ratingSelect);
+    const row2 = new ActionRowBuilder().addComponents(notesSelect);
+    const row3 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('ticket_settings_rating_off').setLabel('🚫 تعطيل روم التقييمات').setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId('ticket_settings_notes_off').setLabel('🚫 تعطيل روم الملاحظات').setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId('ticket_settings_back').setLabel('🔙 رجوع للإعدادات').setStyle(ButtonStyle.Secondary)
     );
 
-    return { embeds: [embed], components: [row1, row2] };
+    return { embeds: [embed], components: [row1, row2, row3] };
 }
 
 module.exports = {

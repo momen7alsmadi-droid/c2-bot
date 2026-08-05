@@ -76,6 +76,7 @@ const SETTINGS_PAGE_IDS = [
     'settings_page_actions',
     'settings_page_images',
     'settings_page_role_buttons',
+    'settings_page_role_btn_color',
 ];
 
 /**
