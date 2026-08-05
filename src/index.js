@@ -728,6 +728,8 @@ async function handleButton(interaction) {
   if (id.startsWith('ticket_open:')) return handleTicketCreate(interaction);
   if (['ticket_claim', 'ticket_lock'].includes(id)) return handleTicketControlButton(interaction);
   if (['ticket_reopen', 'ticket_delete_confirm', 'ticket_delete_cancel'].includes(id)) return handleTicketCloseButton(interaction);
+  // أزرار إحصائيات التكتات (📊 احصائياتي / 🏆 توب نقاط / التنقل / اختيار شخص) — من لوحة الإدارة
+  if (id.startsWith('ticket_stats_')) return handleBoardInteraction(interaction);
   // أزرار لوحة الإدارة + التحكم داخل التذكرة (تسلك بسلاسة)
   if (id.startsWith('ticket_') || id.startsWith('settings_')) return handleTicketButton(interaction);
 
