@@ -69,6 +69,7 @@ function ensureUser(userId) {
             ticketsClosed: 0,
             messagesSent: 0,
             ratings: [],
+            ratedTickets: [], // معرّفات التكتات المقيَّمة (منع التقييم المكرر)
             claimTimes: [],
             // حقول الإحصائيات المفصلة:
             transferredAway: 0, // تكتات حوّلها لغيره (خرجت من استلامه)
@@ -227,6 +228,29 @@ function commitTicketStats(session) {
     updateSession(session.channelId, { statsCommitted: true, messageCounts: {}, staffActivity: {} });
 }
 
+/**
+ * هل قيّم هذا المستخدم هذه التذكرة من قبل؟ (منع التقييم المكرر حتى لو
+ * وصلت رسالة تقييم مكررة — مثلاً عند ازدواج عملية الحذف)
+ * @param {String} userId - آيدي المُقيِّم (صاحب التكت)
+ * @param {String} ticketKey - معرّف فريد للتذكرة (channelId)
+ */
+function isTicketRated(userId, ticketKey) {
+    if (!userId || !ticketKey) return false;
+    const raw = state.users[userId];
+    return !!raw && Array.isArray(raw.ratedTickets) && raw.ratedTickets.includes(ticketKey);
+}
+
+/** تسجيل أن التذكرة قُيّمت (لمنع التكرار) */
+function markTicketRated(userId, ticketKey) {
+    if (!userId || !ticketKey) return;
+    const raw = ensureUser(userId);
+    if (!Array.isArray(raw.ratedTickets)) raw.ratedTickets = [];
+    if (!raw.ratedTickets.includes(ticketKey)) {
+        raw.ratedTickets.push(ticketKey);
+        persist();
+    }
+}
+
 /** تسجيل تقييم نجمي (1-5) */
 function recordRating(userId, value) {
     if (!userId) return;
@@ -256,7 +280,8 @@ function getUserStats(userId) {
     const points = calculatePoints(raw);
     const ratings = Array.isArray(raw.ratings) ? raw.ratings : [];
     const ratingCount = ratings.length;
-    const avgRating = ratingCount > 0 ? ratings.reduce((s, r) => s + r.value, 0) / ratingCount : 0;
+    const ratingSum = ratings.reduce((s, r) => s + r.value, 0);
+    const avgRating = ratingCount > 0 ? ratingSum / ratingCount : 0;
 
     return {
         ticketsClaimed: raw.ticketsClaimed || 0,
@@ -264,6 +289,7 @@ function getUserStats(userId) {
         messagesSent: raw.messagesSent || 0,
         ratings,
         ratingCount,
+        ratingSum,
         avgRating,
         claimTimes: Array.isArray(raw.claimTimes) ? raw.claimTimes : [],
         avgClaimTimeMs:
@@ -385,6 +411,7 @@ function getDetailedStats(userId, sessions = []) {
         // ⭐ التقييم
         fiveStarRatings: stats.ratings.filter(r => r.value === 5).length,
         negativeRatings: stats.ratings.filter(r => r.value <= 2).length,
+        ratingSum: stats.ratingSum,
         // 🏆 المستوى والمركز
         xp: xpInfo.xp,
         level: levelFromPoints(stats.points.total),
@@ -619,6 +646,8 @@ module.exports = {
     recordMessages,
     recordClaimSpeed,
     recordRating,
+    isTicketRated,
+    markTicketRated,
     recordTransfer,
     recordTicketDeleted,
     recordDailyLogin,

@@ -21,7 +21,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const { version } = require('../../package.json');
 const { getTicketSettings, updateTicketSettings } = require('../database/ticketSettingsDB');
-const { recordRating, getUserStats } = require('../database/ticketStatsStore');
+const { recordRating, getUserStats, isTicketRated, markTicketRated } = require('../database/ticketStatsStore');
 const { formatClaimSpeed } = require('./ticketStatsBuilder');
 const { reportError } = require('../../src/utils/errorLogger');
 
@@ -30,9 +30,19 @@ const COLORS = { main: 0x5865F2 };
 /** ألوان إيمبد التقييم حسب عدد النجوم */
 const RATING_COLORS = { 1: 0xe74c3c, 2: 0xe67e22, 3: 0xf1c40f, 4: 0x2ecc71, 5: 0x00d26a };
 
-/** اسم روم التذكرة من customId (قد يحتوي '-' وأرقام — آمناً من الفواصل) */
-function decodeTicketName(parts) {
-    return parts.slice(3).join(':') || 'تذكرة';
+/**
+ * اسم روم التذكرة من customId (قد يحتوي '-' وأرقام — آمناً من الفواصل)
+ * الصيغة الجديدة: ticket_rating:<نجوم>:<ستاف>:<channelId>:<اسم التكت>
+ * الصيغة القديمة: ticket_rating:<نجوم>:<ستاف>:<اسم التكت>
+ * صيغة الملاحظة: ticket_note:<ستاف>:<اسم التكت>
+ */
+function decodeTicketName(parts, fromIndex = 3) {
+    return parts.slice(fromIndex).join(':') || 'تذكرة';
+}
+
+/** قصّ اسم التكت حتى لا يتجاوز حد customId (100 حرف) عند حمله channelId */
+function encodeTicketName(name) {
+    return String(name || 'تذكرة').slice(0, 28);
 }
 
 /**
@@ -41,6 +51,9 @@ function decodeTicketName(parts) {
  * فلا يبقى أي زر لضغطه بعد ذلك حتى بعد إعادة تشغيل البوت)
  */
 const ratedMessages = new Set();
+
+/** منع إرسال رسالة تقييم مكررة لنفس القناة (ازدواج عملية الحذف/التنظيف) */
+const ratingInvitedChannels = new Set();
 
 // =========================================================
 // إرسال رسالة التقييم الخاصة لصاحب التذكرة عند الحذف
@@ -57,29 +70,25 @@ async function sendRatingDM(channel, session, panel) {
         const opener = await client.users.fetch(session.openerId).catch(() => null);
         if (!opener) return;
 
-        const ticketName = channel.name;
-        const claimerId = session.claimedBy;
+        // منع الإرسال المكرر لنفس القناة (ازدواج الحذف/التنظيف) — رسالة تقييم واحدة فقط
+        if (ratingInvitedChannels.has(channel.id)) return;
+        ratingInvitedChannels.add(channel.id);
 
-        // إحصائيات الستاف المستلم (من المخزن — مُلتزمة عند قفل التذكرة)
-        const claimerStats = getUserStats(claimerId);
-        const statsLine =
-            `🎫 ${claimerStats.ticketsClaimed} تكتات | 📥 ${claimerStats.ticketsClosed} مغلقة | ` +
-            `💬 ${claimerStats.messagesSent} رسالة | 🏆 **${claimerStats.points.total} نقطة** | ` +
-            `⚡ سرعة الاستلام: ${formatClaimSpeed(claimerStats.avgClaimTimeMs)}`;
+        const ticketName = encodeTicketName(channel.name);
+        const claimerId = session.claimedBy;
 
         const embed = new EmbedBuilder()
             .setColor(COLORS.main)
             .setTitle('⭐ تقييم تذكرتك')
             .setDescription(
                 `شكراً لاستخدامك تذاكر **${channel.guild.name}**! 🎫\n` +
-                `كيف كانت خدمة <@${claimerId}> في تذكرتك **${ticketName}**؟\n` +
+                `كيف كانت خدمة <@${claimerId}> في تذكرتك **${channel.name}**؟\n` +
                 `اضغط على عدد النجوم التي تستحقها، أو أضف ملاحظة (اختياري).`
             )
             .addFields(
-                { name: '🎫 التذكرة', value: `\`${ticketName}\``, inline: true },
+                { name: '🎫 التذكرة', value: `\`${channel.name}\``, inline: true },
                 { name: '📁 البنل', value: panel?.name || '—', inline: true },
-                { name: '👥 الستاف المستلم', value: `<@${claimerId}>`, inline: true },
-                { name: '📊 إحصائيات الستاف', value: statsLine, inline: false }
+                { name: '👥 الستاف المستلم', value: `<@${claimerId}>`, inline: true }
             )
             .setFooter({ text: `الإصدار: ${version}` })
             .setTimestamp();
@@ -87,7 +96,7 @@ async function sendRatingDM(channel, session, panel) {
         const starRow = new ActionRowBuilder().addComponents(
             [1, 2, 3, 4, 5].map(stars =>
                 new ButtonBuilder()
-                    .setCustomId(`ticket_rating:${stars}:${claimerId}:${ticketName}`)
+                    .setCustomId(`ticket_rating:${stars}:${claimerId}:${channel.id}:${ticketName}`)
                     .setLabel('⭐'.repeat(stars))
                     .setStyle(ButtonStyle.Primary)
             )
@@ -117,10 +126,19 @@ async function handleRatingButton(interaction) {
         const parts = interaction.customId.split(':');
         const stars = Math.max(1, Math.min(5, Math.floor(Number(parts[1]) || 0)));
         const claimerId = parts[2];
-        const ticketName = decodeTicketName(parts);
         const openerId = interaction.user.id;
 
-        // حماية: هذه الرسالة قُيّمت من قبل (منع التقييم أكثر من مرة)
+        // الصيغة الجديدة (تحمل channelId للتذكرة الفريدة) / القديمة للتوافق
+        let channelId = null;
+        let ticketName;
+        if (parts.length >= 5) {
+            channelId = parts[3];
+            ticketName = decodeTicketName(parts, 4);
+        } else {
+            ticketName = decodeTicketName(parts, 3);
+        }
+
+        // حماية 1 (ذاكرة): هذه الرسالة قُيّمت من قبل (منع التقييم أكثر من مرة)
         if (interaction.message?.id && ratedMessages.has(interaction.message.id)) {
             await interaction.reply({
                 content: 'ℹ️ لقد قيّمت هذه التذكرة من قبل ✅ — لا يمكن التقييم أكثر من مرة.',
@@ -128,7 +146,18 @@ async function handleRatingButton(interaction) {
             });
             return;
         }
+
+        // حماية 2 (دائمة): هذه التذكرة نفسها قُيّمت سابقاً حتى عبر رسالة مكررة
+        if (channelId && isTicketRated(openerId, channelId)) {
+            await interaction.reply({
+                content: 'ℹ️ لقد قيّمت هذه التذكرة من قبل ✅ — لا يمكن التقييم أكثر من مرة.',
+                ephemeral: true,
+            });
+            return;
+        }
+
         if (interaction.message?.id) ratedMessages.add(interaction.message.id);
+        if (channelId) markTicketRated(openerId, channelId);
 
         // تسجيل التقييم في إحصائيات الستاف (نقاط)
         recordRating(claimerId, stars);
@@ -205,7 +234,7 @@ async function handleNoteButton(interaction) {
     try {
         const parts = interaction.customId.split(':');
         const claimerId = parts[1];
-        const ticketName = decodeTicketName(parts);
+        const ticketName = decodeTicketName(parts, 2); // ticket_note:<ستاف>:<اسم التكت>
 
         const modal = new ModalBuilder()
             .setCustomId(`modal_ticket_note:${claimerId}:${ticketName}`)
@@ -234,7 +263,7 @@ async function handleNoteModal(interaction) {
     try {
         const parts = interaction.customId.split(':');
         const claimerId = parts[1];
-        const ticketName = decodeTicketName(parts);
+        const ticketName = decodeTicketName(parts, 2); // modal_ticket_note:<ستاف>:<اسم التكت>
         const openerId = interaction.user.id;
         const text = interaction.fields.getTextInputValue('note_text').trim();
 

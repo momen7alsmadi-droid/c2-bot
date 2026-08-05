@@ -112,8 +112,8 @@ function buildUserStatsEmbed(targetUser, guild, options = {}) {
             { name: '📅 أيام تسجيل الدخول', value: `${stats.loginDays}`, inline: true },
             { name: '📊 معدل الرسائل لكل تكت', value: `${stats.messagesPerTicket.toFixed(2)}`, inline: true },
             { name: '⚡ سرعة الاستلام (متوسط)', value: formatClaimSpeed(stats.avgClaimTimeMs), inline: true },
-            { name: '⭐ عدد نجوم التقييم', value: `${stats.ratingCount}`, inline: true },
-            { name: '🌟 معدل التقييم', value: stats.ratingCount > 0 ? `${stats.avgRating.toFixed(2)} / 5` : 'لا توجد تقييمات بعد', inline: true },
+            { name: '⭐ مجموع التقيمات (بالنجوم)', value: stats.ratingCount > 0 ? `**${stats.ratingSum}** نجمة (من ${stats.ratingCount} تقييم)` : 'لا توجد تقييمات بعد', inline: true },
+            { name: '🌟 متوسط التقييم لكل تكت', value: stats.ratingCount > 0 ? `**${stats.avgRating.toFixed(2)}** / 5` : 'لا توجد تقييمات بعد', inline: true },
             { name: '🎯 معدل الاستلام', value: `${claimRate}% من إجمالي **${totalClaims}** استلام بالسيرفر`, inline: true },
         )
         .setFooter({ text: `الإصدار: ${version}` })
@@ -292,7 +292,8 @@ function buildDetailedStatsEmbed(targetUser, guild, detail) {
             // ⭐ التقييمات
             { name: '🌟 تقييمات 5 نجوم', value: `**${detail.fiveStarRatings}**`, inline: true },
             { name: '💔 التقييمات السلبية (1-2★)', value: `**${detail.negativeRatings}**`, inline: true },
-            { name: '🎯 عدد التقييمات', value: `**${detail.ratingCount}** (متوسط ${detail.avgRating > 0 ? detail.avgRating.toFixed(1) : '—'})`, inline: true },
+            { name: '⭐ مجموع التقيمات (بالنجوم)', value: `**${detail.ratingSum}** (من ${detail.ratingCount} تقييم)`, inline: true },
+            { name: '🌟 متوسط التقييم لكل تكت', value: detail.avgRating > 0 ? `**${detail.avgRating.toFixed(2)}** / 5` : '—', inline: true },
             // 🏆 الخبرة والمركز
             { name: '🧬 نقاط الخبرة (XP)', value: `**${detail.xp}**`, inline: true },
             { name: '📊 المستوى', value: `**${detail.level}**`, inline: true },
@@ -397,8 +398,8 @@ async function buildTeamStatsEmbed(guild) {
             { name: '📥 مغلقة (آخر مستلم)', value: `${agg.ticketsClosed}`, inline: true },
             { name: '💬 رسائلهم', value: `${agg.messagesSent}`, inline: true },
             { name: '📅 أيام تسجيل الدخول', value: `${agg.loginDays}`, inline: true },
-            { name: '⭐ التقييمات', value: `${agg.ratingCount}`, inline: true },
-            { name: '🌟 معدل التقييم', value: agg.ratingCount > 0 ? `${agg.avgRating.toFixed(2)} / 5` : 'لا توجد', inline: true },
+            { name: '⭐ مجموع التقيمات (بالنجوم)', value: agg.ratingCount > 0 ? `**${agg.ratingSum}** (من ${agg.ratingCount} تقييم)` : 'لا توجد', inline: true },
+            { name: '🌟 متوسط التقييم لكل تكت', value: agg.ratingCount > 0 ? `**${agg.avgRating.toFixed(2)}** / 5` : 'لا توجد', inline: true },
             { name: '⚡ متوسط سرعة الاستلام', value: formatClaimSpeed(agg.avgClaimTimeMs), inline: true },
             { name: '🎯 معدل الاستلام', value: `${claimRate}% من ${totalClaims}`, inline: true },
             { name: '🕐 آخر تواجد', value: agg.lastActivityAt ? `<t:${Math.floor(agg.lastActivityAt / 1000)}:R>` : '—', inline: true },
@@ -444,7 +445,8 @@ async function buildTeamDetailEmbed(guild) {
             { name: '👥 ردود على أعضاء', value: `**${agg.repliedToMembers}**`, inline: true },
             { name: '🌟 تقييمات 5 نجوم', value: `**${agg.fiveStarRatings}**`, inline: true },
             { name: '💔 التقييمات السلبية', value: `**${agg.negativeRatings}**`, inline: true },
-            { name: '🎯 عدد التقييمات', value: `**${agg.ratingCount}** (متوسط ${agg.avgRating > 0 ? agg.avgRating.toFixed(1) : '—'})`, inline: true },
+            { name: '⭐ مجموع التقيمات (بالنجوم)', value: `**${agg.ratingSum}** (من ${agg.ratingCount} تقييم)`, inline: true },
+            { name: '🌟 متوسط التقييم لكل تكت', value: agg.avgRating > 0 ? `**${agg.avgRating.toFixed(2)}** / 5` : '—', inline: true },
             { name: '🧬 نقاط الخبرة (XP)', value: `**${agg.xp}**`, inline: true },
             { name: '📊 المستوى', value: `**${agg.level}**`, inline: true },
             { name: '🏆 النقاط', value: `**${agg.points.total} نقطة**`, inline: true },
