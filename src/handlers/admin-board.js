@@ -436,10 +436,10 @@ async function showRoleLadder(interaction) {
 // ================== اللوحة الرئيسية (للأمر) ==================
 
 async function handleBoardMain(interaction) {
-  // 🚫 لوحة الإدارة متاحة لرتبة Administrator فقط
-  if (!interaction.member?.permissions.has('Administrator')) {
+  // 🚫 توليد لوحة جديدة (تنفيذ الأمر) لرتبة Administrator فقط — أما الأزرار فتعمل للجميع كما قبل
+  if (interaction.isCommand() && !interaction.member?.permissions.has('Administrator')) {
     return interaction
-      .reply({ content: '🚫 لوحة الإدارة متاحة فقط لمن يملك صلاحية **Administrator**.', ephemeral: true })
+      .reply({ content: '🚫 توليد لوحة إدارية جديدة متاح فقط لمن يملك صلاحية **Administrator**.', ephemeral: true })
       .catch(() => {});
   }
   // للأزرار: تأكيد فوري قبل أي عملية طويلة (لمنع timeout)
@@ -792,12 +792,6 @@ async function renderTopPage(interaction, state) {
 // ================== الموزع الرئيسي ==================
 
 async function handleBoardInteraction(interaction) {
-  // 🚫 كل أزرار لوحة الإدارة (وإحصائياتها) لرتبة Administrator فقط
-  if (!interaction.member?.permissions.has('Administrator')) {
-    return interaction
-      .reply({ content: '🚫 لوحة الإدارة متاحة فقط لمن يملك صلاحية **Administrator**.', ephemeral: true })
-      .catch(() => {});
-  }
   const id = interaction.customId;
   const parts = id.split('_');
   const prefix = parts[0];
