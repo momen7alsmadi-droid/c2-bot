@@ -271,6 +271,7 @@ async function sendBoardPanelToChannel(guild, channelId) {
 // ================== عرض الملف الشخصي (للأمر وزر [عرض ملفي]) ==================
 
 async function showMyProfile(interaction) {
+  await ackComponent(interaction);
   const cfg = getAdminConfig();
   const guild = interaction.guild;
   const member = interaction.member;
@@ -303,7 +304,7 @@ async function showMyProfile(interaction) {
   );
 
   // الملف الشخصي يظهر بشكل خاص لكل مستخدم
-  return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+  return deliverComponent(interaction, { embeds: [embed], components: [row], ephemeral: true });
 }
 
 // ================== العودة للملف من السلم (تحديث نفس الرسالة المخفية) ==================
@@ -344,6 +345,7 @@ async function showMyProfileUpdate(interaction) {
 // ================== سلم الرتب (عرض كل الرتب مع موقع العضو) ==================
 
 async function showRoleLadder(interaction) {
+  await ackComponent(interaction);
   const cfg = getAdminConfig();
   const guild = interaction.guild;
   const member = interaction.member;
@@ -435,7 +437,7 @@ async function showRoleLadder(interaction) {
   );
 
   // سلم الرتب يظهر بشكل خاص لكل مستخدم
-  return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+  return deliverComponent(interaction, { embeds: [embed], components: [row], ephemeral: true });
 }
 
 // ================== اللوحة الرئيسية (للأمر) ==================
@@ -447,9 +449,9 @@ async function handleBoardMain(interaction) {
       .reply({ content: '🚫 توليد لوحة إدارية جديدة متاح فقط لمن يملك صلاحية **Administrator**.', ephemeral: true })
       .catch(() => {});
   }
-  // للأزرار: تأكيد فوري قبل أي عملية طويلة (لمنع timeout)
+  // للأزرار: تأكيد فوري آمن (محاولة إضافية عند أخطاء الشبكة العابرة)
   if (!interaction.isCommand()) {
-    await interaction.deferUpdate().catch(() => {});
+    await ackComponent(interaction);
   }
   const cfg = getAdminConfig();
   const guild = interaction.guild;
@@ -471,11 +473,17 @@ async function handleBoardMain(interaction) {
   const embed = buildMainPanelEmbed(guild, cfg, stats);
   const components = buildMainPanelComponents(isAdmin);
 
+  const payload = { embeds: [embed], components };
+
   // الأمر: لوحة عامة / الزر: رد على التأكيد الفوري
   if (interaction.isCommand()) {
-    return interaction.reply({ embeds: [embed], components, ephemeral: false });
+    return interaction.reply({ ...payload, ephemeral: false }).catch(() => {});
   }
-  return interaction.editReply({ embeds: [embed], components });
+  if (interaction.deferred || interaction.replied) {
+    return interaction.editReply(payload).catch(() => {});
+  }
+  // فشل التأكيد تماماً (تفاعل منتهي/عابر): نسخة مخفية بديلة — لا انهيار
+  return interaction.reply({ ...payload, ephemeral: true }).catch(() => {});
 }
 
 // ================== ترقية / تنزيل / سحب — قائمة منسدلة مع pagination ==================
