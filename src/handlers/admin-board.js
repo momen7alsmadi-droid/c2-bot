@@ -9,6 +9,7 @@ const {
 const { version } = require('../../package.json');
 const { getAdminConfig } = require('../utils/adminStorage');
 const { sendLog } = require('../utils/helpers');
+const { handleMyStats, handleTopStats, handleTopNav, handlePickPerson } = require('../../ticket-system/handlers/ticketStatsBuilder');
 
 // ---------- حالة pagination لكل مستخدم ----------
 const paginationState = new Map();
@@ -225,7 +226,11 @@ function buildMainPanelComponents(isHigh) {
     new ButtonBuilder().setCustomId('adm_board_demote').setLabel('📉 تنزيل').setStyle(ButtonStyle.Primary).setDisabled(!isHigh),
     new ButtonBuilder().setCustomId('adm_board_remove').setLabel('🗑️ سحب').setStyle(ButtonStyle.Danger).setDisabled(!isHigh),
   );
-  return [row1, row2];
+  const row3 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('ticket_stats_me').setLabel('📊 احصائياتي').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('ticket_stats_top').setLabel('🏆 توب نقاط').setStyle(ButtonStyle.Primary),
+  );
+  return [row1, row2, row3];
 }
 
 // ================== إرسال اللوحة إلى قناة ==================
@@ -793,6 +798,13 @@ async function handleBoardInteraction(interaction) {
   if (id === 'adm_board_demote') return showMemberSelector(interaction, 'demote');
   if (id === 'adm_board_remove') return showMemberSelector(interaction, 'remove');
   if (id === 'adm_board_top') return showTopAdmins(interaction);
+
+  // إحصائيات التكتات (من لوحة الإدارة)
+  if (id === 'ticket_stats_me') return handleMyStats(interaction);
+  if (id === 'ticket_stats_top') return handleTopStats(interaction);
+  if (id === 'ticket_stats_top_prev') return handleTopNav(interaction, 'prev');
+  if (id === 'ticket_stats_top_next') return handleTopNav(interaction, 'next');
+  if (id === 'ticket_stats_pick') return handlePickPerson(interaction);
 
   // Pagination - نمرر getState بعد الأزرار الرئيسية عشان نضمن state محدث
   const state = getState(interaction.user.id);

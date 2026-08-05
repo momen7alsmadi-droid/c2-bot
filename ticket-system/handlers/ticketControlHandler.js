@@ -19,6 +19,7 @@ const { getPanelByName } = require('../database/panelsDB');
 const { reportError } = require('../../src/utils/errorLogger');
 const { safeDeferUpdate } = require('../utils/interactionGuard');
 const { getSession, updateSession, getAllSessions, addAuditLog } = require('./ticketStore');
+const { recordClaim, recordClose } = require('../database/ticketStatsStore');
 const { isStaff, isUpperManagement, canUseRestrictedControls, isAdmin } = require('./permissionUtils');
 const { getTicketSettings } = require('../database/ticketSettingsDB');
 const { buildTicketControlRows } = require('./ticketControlBuilder');
@@ -102,6 +103,7 @@ async function handleTicketControlButton(interaction) {
                     lastActivityAt: Date.now(),
                 });
                 addAuditLog(interaction.channel.id, `<@${interaction.member.id}> قام باستلام التذكرة`);
+                recordClaim(interaction.member.id);
 
                 const rows = buildTicketControlRows(updated, !!updated.lockedAt);
                 await interaction.editReply({ components: rows });
@@ -164,6 +166,8 @@ async function handleTicketControlButton(interaction) {
                 await applyLockPermissions(interaction.channel, panel, session);
                 const updated = updateSession(interaction.channel.id, { lockedAt: Date.now() });
                 addAuditLog(interaction.channel.id, `<@${interaction.member.id}> قام بقفل التذكرة`);
+                // نقطة إغلاق: آخر مستلم للتذكرة يحصل على نقطة
+                if (session.claimedBy) recordClose(session.claimedBy);
 
                 const rows = buildTicketControlRows(updated, true);
                 await interaction.editReply({ components: rows });

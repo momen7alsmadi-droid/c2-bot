@@ -44,8 +44,10 @@ const { initTicketStore, getSession: getTicketSession, updateSession: updateTick
 const { initTicketSettings } = require('../ticket-system/database/ticketSettingsDB');
 const { initCooldownStore } = require('../ticket-system/database/ticketCooldownStore');
 const { initCounterStore } = require('../ticket-system/database/ticketCounterStore');
+const { initStatsStore, recordMessage } = require('../ticket-system/database/ticketStatsStore');
 const { startTicketMaintenance } = require('../ticket-system/handlers/ticketAutoClose');
 const { handleUserSelectMenu } = require('../ticket-system/handlers/userSelectHandler');
+const { handleStatsUserSelect } = require('../ticket-system/handlers/ticketStatsBuilder');
 const { handleTicketCloseButton } = require('../ticket-system/handlers/ticketCloseHandler');
 const { handleRoleSelectMenu } = require('../ticket-system/handlers/roleSelectHandler');
 const { handleChannelSelectMenu } = require('../ticket-system/handlers/channelSelectHandler');
@@ -238,6 +240,7 @@ async function initialize() {
   initTicketSettings();
   initCooldownStore();
   initCounterStore();
+  initStatsStore();
 
   // تأكيد حالة التخزين
   console.log('\n═══════════════════════════════════════');
@@ -405,10 +408,13 @@ ID: ${guild.id}
     }
     try {
       // تحديث نشاط التذكرة (لدعم الإغلاق التلقائي للخمول ومهلة رد الستاف)
-      // — أي رسالة بشرية داخل روم تذكرة تحدّث وقت آخر نشاط
+      // — أي رسالة بشرية داخل روم تذكرة تحدّث وقت آخر نشاط + تُحسب في الإحصائيات
       if (!message.author.bot) {
         const ticketSess = getTicketSession(message.channel?.id);
-        if (ticketSess) updateTicketSession(message.channel.id, { lastActivityAt: Date.now() });
+        if (ticketSess) {
+          updateTicketSession(message.channel.id, { lastActivityAt: Date.now() });
+          recordMessage(message.author.id);
+        }
       }
 
       console.log('📨 رسالة جديدة:', message.id, 'channel:', message.channel?.id, 'author:', message.author?.tag);
@@ -532,7 +538,11 @@ client.on('interactionCreate', async (interaction) => {
       } else if (interaction.isChannelSelectMenu()) {
         await handleChannelSelectMenu(interaction);
       } else if (interaction.isUserSelectMenu()) {
-        await handleUserSelectMenu(interaction);
+        if (interaction.customId === 'ticket_stats_user_select') {
+          await handleStatsUserSelect(interaction);
+        } else {
+          await handleUserSelectMenu(interaction);
+        }
       } else {
         await handleSettingsSelect(interaction);
       }
