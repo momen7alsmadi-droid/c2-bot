@@ -174,7 +174,16 @@ async function handleStaffWeekCommand(interaction) {
 
 // ================== 🔘 أزرار اللوحة ==================
 
+/** فحص صلاحية Administrator لأي تفاعل (زر/قائمة/نافذة) */
+function isAdmin(interaction) {
+    return !!(interaction.member?.permissions?.has('Administrator'));
+}
+
 async function handleStaffWeekInteraction(interaction) {
+    // 🔒 كل أزرار اللوحة لرتبة Administrator فقط
+    if (!isAdmin(interaction)) {
+        return interaction.reply({ content: '🚫 هذه اللوحة متاحة فقط لمن يملك صلاحية **Administrator**.', ephemeral: true }).catch(() => {});
+    }
     const id = interaction.customId;
 
     if (id === 'sw_back') {
@@ -220,6 +229,10 @@ async function handleStaffWeekInteraction(interaction) {
 // ================== 📋 قوائم الاختيار ==================
 
 async function handleStaffWeekSelect(interaction) {
+    // 🔒 قوائم اللوحة لرتبة Administrator فقط
+    if (!isAdmin(interaction)) {
+        return interaction.reply({ content: '🚫 هذه اللوحة متاحة فقط لمن يملك صلاحية **Administrator**.', ephemeral: true }).catch(() => {});
+    }
     if (interaction.customId === 'sw_sel_channel') {
         await ackComponent(interaction);
         const channelId = interaction.values?.[0];
@@ -266,6 +279,10 @@ function showMsgModal(interaction) {
 }
 
 async function handleStaffWeekModal(interaction) {
+    // 🔒 نوافذ اللوحة لرتبة Administrator فقط
+    if (!isAdmin(interaction)) {
+        return interaction.reply({ content: '🚫 هذه اللوحة متاحة فقط لمن يملك صلاحية **Administrator**.', ephemeral: true }).catch(() => {});
+    }
     if (interaction.customId === 'sw_time_modal') {
         const raw = interaction.fields.getTextInputValue('sw_time_input');
         updateTicketSettings({ staffWeekTime: raw });

@@ -350,8 +350,12 @@ ID: ${guild.id}
     console.log(`✅ البوت شغّال باسم ${client.user.tag}`);
 
     // تسجيل الأوامر (Guild-only في كل سيرفرات البوت غير المعطّلة)
-    await deployCommands(client);
-    console.log('📋 تمت مزامنة جميع الأوامر مع Discord API');
+    const deployed = await deployCommands(client);
+    if (deployed) {
+      console.log('📋 تمت مزامنة جميع الأوامر مع Discord API');
+    } else {
+      console.error('⚠️ لم تُسجَّل الأوامر (تحقق من CLIENT_ID/GUILD_ID في متغيرات البيئة و أن البوت في سيرفر واحد على الأقل)');
+    }
 
     // إعادة بناء مكتبة الصور من روم بنك الصور (استرجاع بعد مسح القرص)
     setTimeout(async () => {

@@ -33,6 +33,7 @@ const mongoose = require('mongoose');
 const { EmbedBuilder } = require('discord.js');
 const { getConfig } = require('./storage');
 const CHANGELOG = require('./changelog');
+const { reportError } = require('./errorLogger');
 
 const STATE_PATH = path.join(__dirname, '..', '..', 'data', 'last-notified-version.json');
 const COLOR_MAIN = 0x5865F2;
@@ -273,11 +274,19 @@ async function notifyVersionUpdate(client) {
         }
         const channel = await client.channels.fetch(channelId).catch(() => null);
         if (!channel) {
-            console.log(`📦 إشعارات التحديث: تعذر الوصول لروم ${channelId}`);
+            console.log(`📦 إشعارات التحديث: ⚠️ تعذر الوصول إلى روم <#${channelId}> — تحقق من أن البوت يملك صلاحية الرؤية والإرسال فيه`);
+            reportError('UPDATE_NOTIFY_NO_CHANNEL', 'version-notifier', new Error(`channel ${channelId} unreachable`));
             return;
         }
 
         const stored = await readStoredVersion(channel);
+
+        // 📋 سجل تشخيصي دائم: يظهر في اللوق حتى بدون إرسال
+        console.log(
+            `📦 إشعارات التحديث: الروم <#${channelId}> | الحالي v${current}` +
+            (stored ? ` | آخر مُبلَّغ: v${stored}` : ' | أول تشغيل (لا سجل)') +
+            (stored === current ? ' | لا تغيير (لا إرسال)' : ' | سأُرسل الإشعار')
+        );
 
         // أول تشغيل (لا علامة ولا سجل): أرسل التاريخ الكامل + تأكيد، ثم أنشئ العلامة
         if (!stored) {

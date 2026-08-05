@@ -173,8 +173,8 @@ async function deployCommands(clientOrId) {
       ? clientOrId.user.id
       : process.env.CLIENT_ID;
   if (!id) {
-    console.error('❌ deployCommands: CLIENT_ID غير موجود!');
-    return;
+    console.error('❌ deployCommands: CLIENT_ID غير موجود! أضِف CLIENT_ID إلى متغيرات البيئة (env) حتى تُسجَّل الأوامر.');
+    return false;
   }
 
   const guildId = process.env.GUILD_ID;
@@ -214,9 +214,10 @@ async function deployCommands(clientOrId) {
 
   if (allGuildIds.size === 0) {
     console.warn('⚠️ لا يوجد سيرفرات لتسجيل الأوامر فيها.');
-    return;
+    return false;
   }
 
+  let okCount = 0;
   for (const gid of allGuildIds) {
     if (disabledGuilds.includes(gid)) {
       console.log(`⏭️ تخطّي السيرفر المعطّل ${gid}`);
@@ -225,12 +226,14 @@ async function deployCommands(clientOrId) {
     try {
       await rest.put(Routes.applicationGuildCommands(id, gid), { body: commands });
       console.log(`✅ تم تسجيل ${commands.length} أمر في السيرفر ${gid}.`);
+      okCount++;
     } catch (err) {
       console.error(`❌ فشل تسجيل Guild Commands في ${gid}:`, err.message);
     }
   }
 
-  console.log('📋 تمت مزامنة جميع الأوامر مع Discord API.');
+  console.log(`📋 تمت مزامنة جميع الأوامر مع Discord API (${okCount}/${allGuildIds.size} سيرفر).`);
+  return okCount > 0;
 }
 
 // إذا شُغّل كسكريبت مستقل
