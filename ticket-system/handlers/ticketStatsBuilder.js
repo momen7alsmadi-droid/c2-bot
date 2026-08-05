@@ -311,7 +311,34 @@ async function handleDetailStats(interaction) {
 
     const detail = getDetailedStats(targetId, getAllSessions());
     const embed = buildDetailedStatsEmbed(targetUser, interaction.guild, detail);
-    return interaction.followUp({ embeds: [embed], ephemeral: true }).catch(() => {});
+
+    // 🔙 زر رجوع: مفصلة شخص مختار → ملفه، مفصلة نفسي → احصائياتي
+    const backId = targetId === interaction.member.id ? 'ticket_stats_me' : `ticket_stats_detail_back:${targetId}`;
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(backId).setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary),
+    );
+    return interaction.followUp({ embeds: [embed], components: [row], ephemeral: true }).catch(() => {});
+}
+
+/** رجوع من مفصلة شخص مختار → إعادة عرض ملفه (نفس عرض اختيار الشخص) */
+async function handleDetailStatsBack(interaction) {
+    const targetId = (interaction.customId || '').split(':')[1];
+    const member = interaction.guild?.members.cache.get(targetId);
+    const targetUser = member?.user || (await interaction.client.users.fetch(targetId).catch(() => null));
+    if (!targetUser) {
+        return interaction.update({ content: '⚠️ لم يتم العثور على هذا العضو.', components: [] }).catch(() => {});
+    }
+    const { embed } = buildUserStatsEmbed(targetUser, interaction.guild, {
+        title: 'إحصائيات',
+        color: COLORS.green,
+    });
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`ticket_stats_detail:${targetId}`).setLabel('📊 إحصائيات مفصلة').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('ticket_stats_top').setLabel('🏆 توب نقاط').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('ticket_stats_me').setLabel('📊 احصائياتي').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Secondary),
+    );
+    return interaction.update({ embeds: [embed], components: [row] }).catch(() => {});
 }
 
 module.exports = {
@@ -321,5 +348,6 @@ module.exports = {
     handlePickPerson,
     handleStatsUserSelect,
     handleDetailStats,
+    handleDetailStatsBack,
     formatClaimSpeed,
 };
