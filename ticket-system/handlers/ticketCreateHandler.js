@@ -29,6 +29,7 @@ const { getPanelByName } = require('../database/panelsDB');
 const { canOpenTicket, isAdmin } = require('./permissionUtils');
 const { createSession, updateSession, getAllSessions, addAuditLog } = require('./ticketStore');
 const { getTicketSettings } = require('../database/ticketSettingsDB');
+const { getNextTicketNumber } = require('../database/ticketCounterStore');
 const { getLastOpen, setLastOpen } = require('../database/ticketCooldownStore');
 const { buildTicketControlRows } = require('./ticketControlBuilder');
 const { buildTicketEmbed, sendWelcomeMessage } = require('./ticketEmbedBuilder');
