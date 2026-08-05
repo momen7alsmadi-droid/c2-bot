@@ -391,6 +391,122 @@ function getDetailedStats(userId, sessions = []) {
     };
 }
 
+/**
+ * إحصائيات عامة للإدارة — يعامل كل الأعضاء المحددين كشخص واحد:
+ * يجمع كل إحصائياتهم، ويسجّل الأرقام القياسية مع اسم صاحبها:
+ *   الأسرع/الأبطأ استلام، الأسرع/الأبطأ إغلاق، أطول جلسة،
+ *   أطول تكت رسائلي، الأكثر رسائل، الأكثر تكتات.
+ * @param {String[]} adminIds - آيديات الإدارة (رتبة الإدارة المشتركة)
+ * @param {Array} [sessions] - جلسات حية من ticketStore (لقيد المعالجة)
+ * @returns {Object}
+ */
+function getTeamAggregate(adminIds, sessions = []) {
+    const ids = [...new Set((adminIds || []).filter(Boolean))];
+    const raws = ids.map(id => ({ id, raw: ensureUser(id) }));
+    const idSet = new Set(ids);
+
+    const agg = {
+        members: ids.length,
+        ticketsClaimed: 0, ticketsClosed: 0, messagesSent: 0, loginDays: 0,
+        ratingCount: 0, ratingSum: 0,
+        claimTimes: [], durations: [],
+        longestSessionMs: 0, maxMessagesInTicket: 0,
+        transferredAway: 0, receivedFromOthers: 0, ticketsDeleted: 0,
+        mentionsCount: 0, attachmentsCount: 0, repliedToMembers: 0,
+        messagesToday: 0, lastActivityAt: 0, inProgress: 0,
+        xp: 0, daily: {},
+    };
+
+    // سجلات فردية لكل عضو (لأرقام القياسية مع الأسماء)
+    const perUser = [];
+
+    for (const { id, raw } of raws) {
+        const stats = getUserStats(id);
+        const ratings = Array.isArray(raw.ratings) ? raw.ratings : [];
+        const durations = Array.isArray(raw.sessionDurations) ? raw.sessionDurations : [];
+        const daily = raw.daily || {};
+        const todayKey = new Date().toISOString().slice(0, 10);
+
+        agg.ticketsClaimed += stats.ticketsClaimed;
+        agg.ticketsClosed += stats.ticketsClosed;
+        agg.messagesSent += stats.messagesSent;
+        agg.loginDays += stats.loginDays;
+        agg.ratingCount += ratings.length;
+        agg.ratingSum += ratings.reduce((s, r) => s + r.value, 0);
+        agg.claimTimes.push(...(stats.claimTimes || []));
+        agg.durations.push(...durations);
+        agg.longestSessionMs = Math.max(agg.longestSessionMs, raw.longestSessionMs || 0);
+        agg.maxMessagesInTicket = Math.max(agg.maxMessagesInTicket, raw.maxMessagesInTicket || 0);
+        agg.transferredAway += raw.transferredAway || 0;
+        agg.receivedFromOthers += raw.receivedFromOthers || 0;
+        agg.ticketsDeleted += raw.ticketsDeleted || 0;
+        agg.mentionsCount += raw.mentionsCount || 0;
+        agg.attachmentsCount += raw.attachmentsCount || 0;
+        agg.repliedToMembers += raw.repliedToMembers || 0;
+        agg.messagesToday += daily[todayKey] || 0;
+        agg.lastActivityAt = Math.max(agg.lastActivityAt, raw.lastActivityAt || 0);
+        agg.xp += calculateXP(raw).xp;
+
+        perUser.push({
+            id, raw,
+            claimTimes: stats.claimTimes || [],
+            durations,
+            longestSessionMs: raw.longestSessionMs || 0,
+            maxMessagesInTicket: raw.maxMessagesInTicket || 0,
+            messagesSent: stats.messagesSent,
+            ticketsClaimed: stats.ticketsClaimed,
+            lastActivityAt: raw.lastActivityAt || 0,
+        });
+    }
+
+    // 🎫 قيد المعالجة: الجلسات الحية المملوكة لأي من الإدارة
+    agg.inProgress = sessions.filter(s => s.claimedBy && idSet.has(s.claimedBy) && !s.lockedAt).length;
+
+    // 🏅 الأرقام القياسية مع اسم صاحبها
+    const findBest = (list, dir) => {
+        let best = null;
+        for (const u of perUser) {
+            for (const v of list(u)) {
+                if (!best || (dir === 'min' ? v < best.value : v > best.value)) best = { value: v, id: u.id };
+            }
+        }
+        return best;
+    };
+    const allClaimTimes = () => [];
+    const records = {
+        fastestClaim: findBest(u => u.claimTimes, 'min'),
+        slowestClaim: findBest(u => u.claimTimes, 'max'),
+        fastestClose: findBest(u => u.durations, 'min'),
+        slowestClose: findBest(u => u.durations, 'max'),
+        longestSession: findBest(u => [u.longestSessionMs], 'max'),
+        maxMessagesInTicket: findBest(u => [u.maxMessagesInTicket], 'max'),
+        mostMessages: findBest(u => [u.messagesSent], 'max'),
+        mostTickets: findBest(u => [u.ticketsClaimed], 'max'),
+    };
+
+    // النقاط (مجمّعة) + المستوى من الإجمالي
+    let messagePoints = 0, closePoints = 0, ratingPoints = 0, loginPoints = 0;
+    for (const { raw } of raws) {
+        const p = calculatePoints(raw);
+        messagePoints += p.messagePoints; closePoints += p.closePoints;
+        ratingPoints += p.ratingPoints; loginPoints += p.loginPoints;
+    }
+    const points = { messagePoints, closePoints, ratingPoints, loginPoints, total: messagePoints + closePoints + ratingPoints + loginPoints };
+
+    return {
+        ...agg,
+        points,
+        avgRating: agg.ratingCount > 0 ? agg.ratingSum / agg.ratingCount : 0,
+        avgClaimTimeMs: agg.claimTimes.length > 0 ? agg.claimTimes.reduce((s, v) => s + v, 0) / agg.claimTimes.length : null,
+        avgTicketDurationMs: agg.durations.length > 0 ? agg.durations.reduce((s, v) => s + v, 0) / agg.durations.length : null,
+        messagesPerTicket: agg.ticketsClaimed > 0 ? agg.messagesSent / agg.ticketsClaimed : 0,
+        fiveStarRatings: raws.reduce((s, { raw }) => s + (Array.isArray(raw.ratings) ? raw.ratings : []).filter(r => r.value === 5).length, 0),
+        negativeRatings: raws.reduce((s, { raw }) => s + (Array.isArray(raw.ratings) ? raw.ratings : []).filter(r => r.value <= 2).length, 0),
+        level: levelFromPoints(points.total),
+        records,
+    };
+}
+
 module.exports = {
     initStatsStore,
     recordClaim,
@@ -407,6 +523,7 @@ module.exports = {
     getAllStats,
     getTotalClaims,
     getDetailedStats,
+    getTeamAggregate,
     calculatePoints,
     calculateXP,
     getXPLeaderboard,

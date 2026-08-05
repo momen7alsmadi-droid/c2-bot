@@ -8,16 +8,20 @@
  *     الاستلام، وتفصيل النقاط (رسائل + تكتات مغلقة + تقييمات)
  *   - 🏆 توب نقاط: ترتيب الأعلى نقاطاً مع صفحات (10 لكل صفحة)، منشن
  *     الشخص + رتبته + نقاطه داخل الإيمبد، وزر اختيار شخص لعرض كل إحصائياته
+ *   - 📊 إحصائيات عامة: كل الإدارة (رتبة الإدارة المشتركة) كشخص واحد،
+ *     مع الأرقام القياسية (أسرع/أبطأ استلام وإغلاق...) باسم صاحبها
  *
  * الأزرار: ticket_stats_me | ticket_stats_top | ticket_stats_top_prev
  *          ticket_stats_top_next | ticket_stats_pick | ticket_stats_user_select
  *          ticket_stats_detail | ticket_stats_detail:<userId>
+ *          ticket_stats_team | ticket_stats_team_detail
  * =========================================================
  */
 
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, UserSelectMenuBuilder } = require('discord.js');
 const { version } = require('../../package.json');
-const { getUserStats, getAllStats, getTotalClaims, getDetailedStats, getLevelInfo, MESSAGES_PER_POINT, LOGIN_POINTS_PER_DAY } = require('../database/ticketStatsStore');
+const { getUserStats, getAllStats, getTotalClaims, getDetailedStats, getTeamAggregate, getLevelInfo, MESSAGES_PER_POINT, LOGIN_POINTS_PER_DAY } = require('../database/ticketStatsStore');
+const { getAdminConfig } = require('../../src/utils/adminStorage');
 const { getAllSessions } = require('./ticketStore');
 
 const COLORS = { main: 0x5865F2, gold: 0xF1C40F, green: 0x2ECC71 };
@@ -341,6 +345,131 @@ async function handleDetailStatsBack(interaction) {
     return interaction.update({ embeds: [embed], components: [row] }).catch(() => {});
 }
 
+// ================== 📊 إحصائيات عامة (الإدارة كلها كشخص واحد) ==================
+
+/** آيديات الإدارة: من يملك رتبة الإدارة المشتركة (أو صلاحية Administrator كبديل) */
+function getTeamAdminIds(guild) {
+    if (!guild) return [];
+    const cfg = getAdminConfig();
+    const roleId = cfg.sharedAdminRoleId;
+    if (roleId && guild.roles.cache.has(roleId)) {
+        return guild.members.cache.filter(m => m.roles.cache.has(roleId)).map(m => m.id);
+    }
+    // بديل: إن لم تُحدَّد الرتبة المشتركة، نجمع من يملك صلاحية المدير
+    return guild.members.cache.filter(m => m.permissions.has('Administrator')).map(m => m.id);
+}
+
+/** تنسيق رقم قياسي: القيمة + من سجّلها (مثال: 3 دقائق — <@id>) */
+const fmtRecord = rec => (rec ? `${formatClaimSpeed(rec.value)} — <@${rec.id}>` : '—');
+
+/** إيمبد الملخص العام للإدارة */
+function buildTeamStatsEmbed(guild) {
+    const adminIds = getTeamAdminIds(guild);
+    const agg = getTeamAggregate(adminIds, getAllSessions());
+    const levelInfo = getLevelInfo(agg.points.total);
+    const bar = buildProgressBar(levelInfo.inLevel / levelInfo.nextLevelAt);
+    const totalClaims = getTotalClaims();
+    const claimRate = totalClaims > 0 ? Math.round((agg.ticketsClaimed / totalClaims) * 100) : 0;
+
+    return new EmbedBuilder()
+        .setColor(COLORS.main)
+        .setTitle('📊 إحصائيات عامة — الإدارة')
+        .setDescription(`👥 عدد أفراد الإدارة (رتبة الإدارة المشتركة): **${agg.members}**`)
+        .addFields(
+            { name: '🏆 النقاط الإجمالية (كل الإدارة)', value: `**${agg.points.total} نقطة**`, inline: false },
+            { name: '📊 المستوى', value: `**المستوى ${levelInfo.level}**\n🎯 ${bar} \`${levelInfo.inLevel}/${levelInfo.nextLevelAt}\` نقطة للمستوى ${levelInfo.level + 1}`, inline: false },
+            { name: '🧮 تفاصيل النقاط', value: [
+                `📅 تسجيل دخول يومي: **+${agg.points.loginPoints}**`,
+                `💬 رسائل (كل ${MESSAGES_PER_POINT} = نقطة): **+${agg.points.messagePoints}**`,
+                `📥 تكتات مغلقة: **+${agg.points.closePoints}**`,
+                `⭐ تقييمات: **+${agg.points.ratingPoints}**`,
+            ].join('\n'), inline: false },
+            { name: '🎫 تكتات استلموها', value: `${agg.ticketsClaimed}`, inline: true },
+            { name: '📥 مغلقة (آخر مستلم)', value: `${agg.ticketsClosed}`, inline: true },
+            { name: '💬 رسائلهم', value: `${agg.messagesSent}`, inline: true },
+            { name: '📅 أيام تسجيل الدخول', value: `${agg.loginDays}`, inline: true },
+            { name: '⭐ التقييمات', value: `${agg.ratingCount}`, inline: true },
+            { name: '🌟 معدل التقييم', value: agg.ratingCount > 0 ? `${agg.avgRating.toFixed(2)} / 5` : 'لا توجد', inline: true },
+            { name: '⚡ متوسط سرعة الاستلام', value: formatClaimSpeed(agg.avgClaimTimeMs), inline: true },
+            { name: '🎯 معدل الاستلام', value: `${claimRate}% من ${totalClaims}`, inline: true },
+            { name: '🕐 آخر تواجد', value: agg.lastActivityAt ? `<t:${Math.floor(agg.lastActivityAt / 1000)}:R>` : '—', inline: true },
+            // 🏅 الأرقام القياسية (الرقم + من سجّله)
+            { name: '🚀 أسرع استلام', value: fmtRecord(agg.records.fastestClaim), inline: true },
+            { name: '🐢 أبطأ استلام', value: fmtRecord(agg.records.slowestClaim), inline: true },
+            { name: '🏃‍♂️ أسرع إغلاق', value: fmtRecord(agg.records.fastestClose), inline: true },
+            { name: '🐌 أبطأ إغلاق', value: fmtRecord(agg.records.slowestClose), inline: true },
+            { name: '🕰️ أطول جلسة', value: fmtRecord(agg.records.longestSession), inline: true },
+            { name: '📜 أطول تكت رسائلي', value: agg.records.maxMessagesInTicket ? `${agg.records.maxMessagesInTicket.value} رسالة — <@${agg.records.maxMessagesInTicket.id}>` : '—', inline: true },
+            { name: '💬 الأكثر رسائل', value: agg.records.mostMessages ? `${agg.records.mostMessages.value} — <@${agg.records.mostMessages.id}>` : '—', inline: true },
+            { name: '🎫 الأكثر تكتات', value: agg.records.mostTickets ? `${agg.records.mostTickets.value} — <@${agg.records.mostTickets.id}>` : '—', inline: true },
+            { name: '\u200b', value: '\u200b', inline: true },
+        )
+        .setFooter({ text: `الإصدار: ${version}` })
+        .setTimestamp();
+}
+
+/** إيمبد مفصّل عام (نفس صيغة الإحصائيات المفصلة لكن لكل الإدارة) */
+function buildTeamDetailEmbed(guild) {
+    const agg = getTeamAggregate(getTeamAdminIds(guild), getAllSessions());
+    return new EmbedBuilder()
+        .setColor(COLORS.main)
+        .setTitle('📊 إحصائيات مفصلة عامة — الإدارة')
+        .setDescription(`👥 عدد أفراد الإدارة: **${agg.members}** | 🎫 تكتات استلموها: **${agg.ticketsClaimed}** | 💬 رسائلهم: **${agg.messagesSent}**`)
+        .addFields(
+            { name: '🎫 تكتات قيد المعالجة', value: `**${agg.inProgress}**`, inline: true },
+            { name: '🔀 حوّلوها لغيره', value: `**${agg.transferredAway}**`, inline: true },
+            { name: '📥 استلموها من غيره', value: `**${agg.receivedFromOthers}**`, inline: true },
+            { name: '🗑️ حذفوها نهائياً', value: `**${agg.ticketsDeleted}**`, inline: true },
+            { name: '🚀 أسرع استلام', value: fmtRecord(agg.records.fastestClaim), inline: true },
+            { name: '🐢 أبطأ استلام', value: fmtRecord(agg.records.slowestClaim), inline: true },
+            { name: '🏃‍♂️ أسرع إغلاق', value: fmtRecord(agg.records.fastestClose), inline: true },
+            { name: '🐌 أبطأ إغلاق', value: fmtRecord(agg.records.slowestClose), inline: true },
+            { name: '⏳ متوسط مدة التكت', value: formatClaimSpeed(agg.avgTicketDurationMs), inline: true },
+            { name: '🕰️ أطول جلسة', value: fmtRecord(agg.records.longestSession), inline: true },
+            { name: '📜 أطول تكت رسائلي', value: agg.records.maxMessagesInTicket ? `${agg.records.maxMessagesInTicket.value} رسالة — <@${agg.records.maxMessagesInTicket.id}>` : '—', inline: true },
+            { name: '🕐 آخر تواجد', value: agg.lastActivityAt ? `<t:${Math.floor(agg.lastActivityAt / 1000)}:R>` : '—', inline: true },
+            { name: '📅 رسائلهم خلال اليوم', value: `**${agg.messagesToday}**`, inline: true },
+            { name: '📅 أيام تسجيل الدخول', value: `**${agg.loginDays}**`, inline: true },
+            { name: '📢 المنشنات (@)', value: `**${agg.mentionsCount}**`, inline: true },
+            { name: '📎 المرفقات', value: `**${agg.attachmentsCount}**`, inline: true },
+            { name: '👥 ردود على أعضاء', value: `**${agg.repliedToMembers}**`, inline: true },
+            { name: '🌟 تقييمات 5 نجوم', value: `**${agg.fiveStarRatings}**`, inline: true },
+            { name: '💔 التقييمات السلبية', value: `**${agg.negativeRatings}**`, inline: true },
+            { name: '🎯 عدد التقييمات', value: `**${agg.ratingCount}** (متوسط ${agg.avgRating > 0 ? agg.avgRating.toFixed(1) : '—'})`, inline: true },
+            { name: '🧬 نقاط الخبرة (XP)', value: `**${agg.xp}**`, inline: true },
+            { name: '📊 المستوى', value: `**${agg.level}**`, inline: true },
+            { name: '🏆 النقاط', value: `**${agg.points.total} نقطة**`, inline: true },
+            { name: '\u200b', value: '\u200b', inline: true },
+        )
+        .setFooter({ text: `الإصدار: ${version}` })
+        .setTimestamp();
+}
+
+/** عرض الملخص العام (زر من لوحة الإدارة) */
+async function handleTeamStats(interaction) {
+    await interaction.deferUpdate().catch(() => {});
+    if (!interaction.guild) return;
+    const embed = buildTeamStatsEmbed(interaction.guild);
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('ticket_stats_team_detail').setLabel('📊 مفصلة عامة').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('ticket_stats_top').setLabel('🏆 توب نقاط').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('ticket_stats_me').setLabel('📊 احصائياتي').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Secondary),
+    );
+    return interaction.followUp({ embeds: [embed], components: [row], ephemeral: true }).catch(() => {});
+}
+
+/** عرض المفصلة العامة */
+async function handleTeamDetail(interaction) {
+    await interaction.deferUpdate().catch(() => {});
+    if (!interaction.guild) return;
+    const embed = buildTeamDetailEmbed(interaction.guild);
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('ticket_stats_team').setLabel('🔙 رجوع للملخص').setStyle(ButtonStyle.Secondary),
+    );
+    return interaction.followUp({ embeds: [embed], components: [row], ephemeral: true }).catch(() => {});
+}
+
 module.exports = {
     handleMyStats,
     handleTopStats,
@@ -349,5 +478,7 @@ module.exports = {
     handleStatsUserSelect,
     handleDetailStats,
     handleDetailStatsBack,
+    handleTeamStats,
+    handleTeamDetail,
     formatClaimSpeed,
 };
