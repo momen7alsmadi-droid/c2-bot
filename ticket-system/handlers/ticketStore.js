@@ -30,6 +30,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose');
 const { reportError } = require('../../src/utils/errorLogger');
 
 const SESSIONS_PATH = path.join(__dirname, '..', 'data', 'ticket-sessions.json');
@@ -89,6 +90,7 @@ function writeSessionsNow() {
 function persistSessions() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(writeSessionsNow, 400);
+    scheduleMongoSync(); // نسخ احتياطي إلى MongoDB (بلا انتظار)
 }
 
 function serializeSession(session) {
@@ -164,7 +166,7 @@ function initTicketStore() {
  * @param {Object} data
  */
 function createSession(channelId, data) {
-    sessions.set(channelId, {
+    const session = {
         panelName: data.panelName,
         openerId: data.openerId,
         claimedBy: null,
@@ -186,8 +188,10 @@ function createSession(channelId, data) {
         auditLog: [],
         ...data,
         channelId, // نحفظ المفتاح داخل الجلسة لاستعادته من القرص
-    });
+    };
+    sessions.set(channelId, session);
     persistSessions();
+    return session;
 }
 
 /**
@@ -244,6 +248,156 @@ function deleteSession(channelId) {
     persistSessions();
 }
 
+// =========================================================
+// MongoDB Backup (نسخ احتياطي — حماية من مسح القرص المؤقت)
+// =========================================================
+// الجلسات تُحفظ في MongoDB مثل البنلات والإحصائيات: كل تغيير
+// يُنسخ خلف الكواليس، وعند التشغيل تُستعاد أي جلسات فُقدت من
+// القرص المؤقت (المنصات المجانية تمسح القرص عند كل نشر).
+
+const sessionSchema = new mongoose.Schema({ _id: String }, { collection: 'ticketsessions', versionKey: false, strict: false });
+
+let SessionModel;
+
+function isMongoReady() {
+    if (mongoose.connection.readyState !== 1) return false;
+    if (SessionModel) return true;
+    try {
+        SessionModel = mongoose.models.TicketSession || mongoose.model('TicketSession', sessionSchema);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/** تهيئة النموذج (تُستدعى عند التشغيل) */
+function initSessionModel() {
+    if (isMongoReady()) {
+        console.log('📦 ticketSessions → ✅ MongoDB');
+        return true;
+    }
+    console.log('📦 ticketSessions → ⚠️ JSON فقط');
+    return false;
+}
+
+let mongoSyncTimer = null;
+
+/** مزامنة كل الجلسات من JSON إلى MongoDB (كتابة مخفّفة) */
+function scheduleMongoSync() {
+    clearTimeout(mongoSyncTimer);
+    mongoSyncTimer = setTimeout(() => {
+        syncSessionsToMongo().catch(() => {});
+    }, 2000);
+}
+
+/**
+ * مزامنة كل الجلسات إلى MongoDB (Upsert)
+ * @returns {Promise<Number>} عدد الجلسات المُزامنة
+ */
+async function syncSessionsToMongo() {
+    if (!isMongoReady()) return 0;
+    const all = [...sessions.values()];
+    if (all.length === 0) return 0;
+    try {
+        const ops = all.map(s => ({
+            updateOne: {
+                filter: { _id: s.channelId },
+                update: { $set: { ...serializeSession(s), _id: s.channelId } },
+                upsert: true,
+            },
+        }));
+        await SessionModel.bulkWrite(ops, { ordered: false });
+        console.log(`✅ sessions: تمت مزامنة ${all.length} جلسة إلى MongoDB`);
+        return all.length;
+    } catch (e) {
+        console.error('❌ sessions sync MongoDB:', e.message);
+        return 0;
+    }
+}
+
+/**
+ * استعادة الجلسات من MongoDB (حماية من مسح القرص):
+ * يُضاف أي جلسة موجودة في MongoDB ولا توجد في الذاكرة.
+ * @returns {Promise<Number>} عدد الجلسات المستعادة
+ */
+async function loadSessionsFromMongo() {
+    if (!isMongoReady()) return 0;
+    try {
+        const docs = await SessionModel.find().lean();
+        if (!docs || docs.length === 0) return 0;
+        let restored = 0;
+        for (const doc of docs) {
+            const id = doc._id;
+            if (!id || !doc.panelName) continue;
+            if (sessions.has(id)) continue; // الموجود في الذاكرة هو الأحدث
+            const { _id, deleteTimer, ...rest } = doc;
+            sessions.set(id, sanitizeLoadedSession({ ...rest, channelId: id }));
+            restored++;
+        }
+        if (restored > 0) {
+            persistSessions();
+            console.log(`🔄 sessions: تمت استعادة ${restored} جلسة من MongoDB`);
+        }
+        return restored;
+    } catch (e) {
+        console.error('❌ sessions load MongoDB:', e.message);
+        return 0;
+    }
+}
+
+// =========================================================
+// استعادة جلسة تذكرة من رسالة التحكم (حماية إضافية):
+// عندما يضغط ستاف زر (قفل/استلام) في تكت بلا جلسة — بسبب
+// فقدان ملف الجلسات أو حالة نادرة — نعيد بناء الجلسة من رسالة
+// التحكم نفسها بدل عرض "هذه ليست تذكرة فعالة".
+// =========================================================
+
+/**
+ * محاولة استعادة جلسة من رسالة التحكم في الروم:
+ *   - نبحث عن رسالة تحمل أزرار ticket_claim/ticket_lock
+ *   - نستخرج اسم البنل من عنوان الإيمبد + آيدي الفاتح من المنشن
+ * @param {import('discord.js').TextChannel} channel
+ * @returns {Promise<Object|null>} الجلسة المستعادة أو null
+ */
+async function recoverTicketSession(channel) {
+    if (!channel || !channel.guild) return null;
+    try {
+        // نبحث في آخر 30 رسالة عن رسالة التحكم (تحمل أزرار القفل/الاستلام)
+        const messages = await channel.messages.fetch({ limit: 30 }).catch(() => null);
+        if (!messages) return null;
+
+        const controlMsg = [...messages.values()].find(m => {
+            const row = m.components?.find(r => r.components?.some(b => ['ticket_claim', 'ticket_lock'].includes(b.customId)));
+            return !!row;
+        });
+        if (!controlMsg) return null;
+
+        // 1) اسم البنل: عنوان الإيمبد = "إيموجي + اسم البنل" (ننزع الإيموجي)
+        const title = controlMsg.embeds?.[0]?.title || '';
+        const panelName = title.replace(/^[^\p{L}\p{N}]+/u, '').trim(); // إزالة أي إيموجي في البداية
+        if (!panelName) return null;
+        const { getPanelByName } = require('../database/panelsDB');
+        const panel = getPanelByName(panelName);
+        if (!panel) return null;
+
+        // 2) آيدي الفاتح: أول منشن مستخدم في محتوى رسالة التحكم
+        const content = controlMsg.content || '';
+        const mentionMatch = content.match(/<@(\d+)>/);
+        const openerId = mentionMatch ? mentionMatch[1] : '';
+
+        const session = createSession(channel.id, {
+            panelName: panel.name,
+            openerId,
+            controlMessageId: controlMsg.id,
+        });
+        console.log(`♻️ sessions: تمت استعادة جلسة تذكرة ${channel.name} من رسالة التحكم (بنل: ${panel.name})`);
+        return session;
+    } catch (e) {
+        console.error('[ticketStore] فشل استعادة الجلسة من الرسالة:', e.message);
+        return null;
+    }
+}
+
 module.exports = {
     createSession,
     getSession,
@@ -252,4 +406,9 @@ module.exports = {
     addAuditLog,
     deleteSession,
     initTicketStore,
+    // MongoDB backup + استعادة
+    initSessionModel,
+    syncSessionsToMongo,
+    loadSessionsFromMongo,
+    recoverTicketSession,
 };

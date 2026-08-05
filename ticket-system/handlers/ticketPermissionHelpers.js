@@ -62,7 +62,9 @@ async function applyLockPermissions(channel, panel, session) {
         .catch(() => {});
 
     // 2) صاحب التكت + الستاف + المستلم + الأعضاء المضافين -> منع الكتابة
-    await channel.permissionOverwrites.edit(session.openerId, { SendMessages: false }).catch(() => {});
+    if (session.openerId) {
+        await channel.permissionOverwrites.edit(session.openerId, { SendMessages: false }).catch(() => {});
+    }
     for (const roleId of panel.staffRoles) {
         await channel.permissionOverwrites.edit(roleId, { SendMessages: false }).catch(() => {});
     }
@@ -95,7 +97,9 @@ async function applyUnlockPermissions(channel, panel, session) {
         .edit(channel.guild.id, { SendMessages: true })
         .catch(() => {});
 
-    await channel.permissionOverwrites.edit(session.openerId, { SendMessages: true }).catch(() => {});
+    if (session.openerId) {
+        await channel.permissionOverwrites.edit(session.openerId, { SendMessages: true }).catch(() => {});
+    }
     for (const roleId of panel.staffRoles) {
         await channel.permissionOverwrites.edit(roleId, { SendMessages: true }).catch(() => {});
     }

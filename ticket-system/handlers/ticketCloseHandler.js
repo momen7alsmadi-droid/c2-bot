@@ -28,7 +28,7 @@ const {
 const { getPanelByName } = require('../database/panelsDB');
 const { reportError } = require('../../src/utils/errorLogger');
 const { safeDeferUpdate } = require('../utils/interactionGuard');
-const { getSession, updateSession, addAuditLog } = require('./ticketStore');
+const { getSession, updateSession, addAuditLog, recoverTicketSession } = require('./ticketStore');
 const { getTicketSettings } = require('../database/ticketSettingsDB');
 const { canUseRestrictedControls } = require('./permissionUtils');
 const { applyUnlockPermissions } = require('./ticketPermissionHelpers');
@@ -91,9 +91,13 @@ async function handleTicketCloseButton(interaction) {
     if (!RELEVANT_IDS.includes(interaction.customId)) return;
 
     try {
-        const session = getSession(interaction.channel.id);
+        let session = getSession(interaction.channel.id);
+        // استعادة تلقائية: إن فقدت الجلسة نعيد بناءها من رسالة التحكم
         if (!session) {
-            await interaction.reply({ content: '⚠️ هذا الروم ليس تذكرة فعّالة.', ephemeral: true });
+            session = await recoverTicketSession(interaction.channel).catch(() => null);
+        }
+        if (!session) {
+            await interaction.reply({ content: '⚠️ تعذّر العثور على بيانات هذه التذكرة — حاول مرة أخرى بعد لحظات.', ephemeral: true });
             return;
         }
 

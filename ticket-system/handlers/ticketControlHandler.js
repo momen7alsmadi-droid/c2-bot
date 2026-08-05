@@ -18,7 +18,7 @@
 const { getPanelByName } = require('../database/panelsDB');
 const { reportError } = require('../../src/utils/errorLogger');
 const { safeDeferUpdate } = require('../utils/interactionGuard');
-const { getSession, updateSession, getAllSessions, addAuditLog } = require('./ticketStore');
+const { getSession, updateSession, getAllSessions, addAuditLog, recoverTicketSession } = require('./ticketStore');
 const { commitTicketStats } = require('../database/ticketStatsStore');
 const { isStaff, isUpperManagement, canUseRestrictedControls, isAdmin } = require('./permissionUtils');
 const { getTicketSettings } = require('../database/ticketSettingsDB');
@@ -54,9 +54,14 @@ async function handleTicketControlButton(interaction) {
     if (!RELEVANT_IDS.includes(interaction.customId)) return;
 
     try {
-        const session = getSession(interaction.channel.id);
+        let session = getSession(interaction.channel.id);
+        // استعادة تلقائية: إن فقدت الجلسة (مسح القرص/إعادة تشغيل)
+        // نعيد بناءها من رسالة التحكم بدل عرض "ليست تذكرة فعالة"
         if (!session) {
-            await interaction.reply({ content: '⚠️ هذا الروم ليس تذكرة فعّالة.', ephemeral: true });
+            session = await recoverTicketSession(interaction.channel).catch(() => null);
+        }
+        if (!session) {
+            await interaction.reply({ content: '⚠️ تعذّر العثور على بيانات هذه التذكرة — حاول مرة أخرى بعد لحظات.', ephemeral: true });
             return;
         }
 

@@ -40,7 +40,7 @@ const { handleTicketSelectMenu } = require('../ticket-system/handlers/selectMenu
 const { handleTicketCreate } = require('../ticket-system/handlers/ticketCreateHandler');
 const { handleTicketControlButton } = require('../ticket-system/handlers/ticketControlHandler');
 const { handleTicketStaffMenu } = require('../ticket-system/handlers/ticketStaffMenuHandler');
-const { initTicketStore, getSession: getTicketSession, updateSession: updateTicketSession } = require('../ticket-system/handlers/ticketStore');
+const { initTicketStore, getSession: getTicketSession, updateSession: updateTicketSession, initSessionModel, syncSessionsToMongo, loadSessionsFromMongo } = require('../ticket-system/handlers/ticketStore');
 const { initTicketSettings } = require('../ticket-system/database/ticketSettingsDB');
 const { initCooldownStore } = require('../ticket-system/database/ticketCooldownStore');
 const { initCounterStore } = require('../ticket-system/database/ticketCounterStore');
@@ -237,6 +237,7 @@ async function initialize() {
   const admReady = initAdminModel();
   const panelsReady = initPanelsModel();
   const statsReady = initStatsModel();
+  const sessReady = initSessionModel();
   // استعادة جلسات التذاكر المفتوحة (حتى لا تفقد التذاكر حالتها بعد إعادة التشغيل)
   initTicketStore();
   // الإعدادات العامة للحدود/الكولداون + سجل آخر وقت فتح لكل عضو
@@ -256,6 +257,7 @@ async function initialize() {
   console.log(`   ${admReady ? '✅' : '⚠️'} Admin Storage`);
   console.log(`   ${panelsReady ? '✅' : '⚠️'} Ticket Panels Storage`);
   console.log(`   ${statsReady ? '✅' : '⚠️'} Ticket Stats Storage`);
+  console.log(`   ${sessReady ? '✅' : '⚠️'} Ticket Sessions Storage`);
   console.log('═══════════════════════════════════════\n');
 
   if (dbConnected) {
@@ -266,6 +268,9 @@ async function initialize() {
     // إحصائيات التكتات: استعادة أي إحصائيات فُقدت من القرص المؤقت
     await loadStatsFromMongo();
     await syncStatsToMongo();
+    // جلسات التكتات: استعادة أي جلسات فُقدت (حتى لا يظهر "ليست تذكرة فعالة")
+    await loadSessionsFromMongo();
+    await syncSessionsToMongo();
     await ensureConfigLoaded();
     console.log('📦 تم تحميل الإعدادات من MongoDB');
     await ensureReportsLoaded();
@@ -302,6 +307,8 @@ async function initialize() {
         await syncPanels();
         await loadStatsFromMongo();
         await syncStatsToMongo();
+        await loadSessionsFromMongo();
+        await syncSessionsToMongo();
       } else {
         try {
           const { connectDatabase } = require('./utils/database');
