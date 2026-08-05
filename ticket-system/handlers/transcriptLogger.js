@@ -102,6 +102,18 @@ function formatAuditLogField(auditLog) {
 }
 
 /**
+ * تحويل الملاحظات الداخلية (🧾) إلى نص جاهز لحقل الإيمبد
+ * @param {Array<{ text: String, by: String, at: Number }>} staffNotes
+ */
+function formatStaffNotesField(staffNotes) {
+    if (!staffNotes || staffNotes.length === 0) return 'لا توجد ملاحظات داخلية.';
+    const lines = staffNotes.map(n => `<t:${Math.floor(n.at / 1000)}:T> — <@${n.by}>: ${n.text}`);
+    let text = lines.join('\n');
+    if (text.length > 1024) text = text.slice(0, 1000) + '\n... (والمزيد)';
+    return text;
+}
+
+/**
  * توليد ملف الترانسكربت. يحاول استخدام discord-html-transcripts أولاً،
  * ويستخدم مولّداً بسيطاً احتياطياً إذا لم تكن المكتبة مثبتة.
  * @param {import('discord.js').TextChannel} channel
@@ -227,6 +239,7 @@ async function finalizeTicketDeletion(channel, panel) {
                 value: session?.deletedBy === 'AUTO' ? '🤖 البوت (حذف تلقائي)' : session?.deletedBy ? `<@${session.deletedBy}>` : 'غير معروف',
             },
             { name: '📋 سجل الأحداث', value: formatAuditLogField(session?.auditLog) },
+            { name: '🧾 ملاحظات الستاف الداخلية', value: formatStaffNotesField(session?.staffNotes) },
             { name: '💬 إحصائيات الرسائل', value: formatMessageStatsField(stats) }
         )
         .setFooter({ text: `البنل: ${panel.name}` })

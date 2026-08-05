@@ -43,6 +43,7 @@ const { handleTicketStaffMenu } = require('../ticket-system/handlers/ticketStaff
 const { initTicketStore, getSession: getTicketSession, updateSession: updateTicketSession } = require('../ticket-system/handlers/ticketStore');
 const { initTicketSettings } = require('../ticket-system/database/ticketSettingsDB');
 const { initCooldownStore } = require('../ticket-system/database/ticketCooldownStore');
+const { initCounterStore } = require('../ticket-system/database/ticketCounterStore');
 const { startTicketMaintenance } = require('../ticket-system/handlers/ticketAutoClose');
 const { handleUserSelectMenu } = require('../ticket-system/handlers/userSelectHandler');
 const { handleTicketCloseButton } = require('../ticket-system/handlers/ticketCloseHandler');
@@ -236,6 +237,7 @@ async function initialize() {
   // الإعدادات العامة للحدود/الكولداون + سجل آخر وقت فتح لكل عضو
   initTicketSettings();
   initCooldownStore();
+  initCounterStore();
 
   // تأكيد حالة التخزين
   console.log('\n═══════════════════════════════════════');
@@ -522,6 +524,7 @@ client.on('interactionCreate', async (interaction) => {
                  interaction.customId === 'settings_select_role_button' ||
                  interaction.customId === 'settings_select_role_btn_option' ||
                  interaction.customId === 'settings_select_role_btn_color' ||
+                 interaction.customId === 'ticket_settings_blacklist_remove' ||
                  interaction.customId.startsWith('ticket_role_opt:')) {
         await handleTicketSelectMenu(interaction);
       } else if (interaction.isRoleSelectMenu()) {

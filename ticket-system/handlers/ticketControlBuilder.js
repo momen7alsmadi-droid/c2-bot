@@ -115,6 +115,7 @@ function buildTicketControlRows(session, locked = false) {
             { label: 'إخراج عضو من التكت', value: 'remove_member', emoji: '➖' },
             { label: 'تحويل ملكية الاستلام', value: 'transfer', emoji: '🔄' },
             { label: 'التحويل للإدارة العليا', value: 'escalate', emoji: '📢' },
+            { label: 'إضافة ملاحظة داخلية', value: 'add_note', emoji: '🧾' },
             { label: 'إعادة تعيين القائمة', value: 'reload_menu', emoji: '♻️' } // شكلي فقط، آخر خيار
         );
 

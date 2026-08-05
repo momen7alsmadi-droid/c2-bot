@@ -32,7 +32,7 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder } = require('discord.js');
 const { reportError } = require('../../src/utils/errorLogger');
 const { safeDeferUpdate } = require('../utils/interactionGuard');
-const { buildMainDashboard, buildSubPanel, buildTicketSettingsPage } = require('./dashboardBuilder');
+const { buildMainDashboard, buildSubPanel, buildTicketSettingsPage, buildBlacklistPage } = require('./dashboardBuilder');
 const { buildPanelSettings } = require('./panelSettingsBuilder');
 const {
     buildCreatePanelModal,
@@ -44,6 +44,7 @@ const {
     buildActionMessageModal,
     buildRoleButtonColorModal,
     buildTicketSettingModal,
+    buildBlacklistAddModal,
 } = require('./modalsBuilder');
 const { getPanelByName, updatePanel, deletePanel } = require('../database/panelsDB');
 const { getTicketSettings, updateTicketSettings } = require('../database/ticketSettingsDB');
@@ -100,6 +101,14 @@ async function handleTicketButton(interaction) {
         'ticket_settings_archive',
         'ticket_settings_maintenance',
         'ticket_settings_maintenance_msg',
+        'ticket_settings_work_hours',
+        'ticket_settings_work_start',
+        'ticket_settings_work_end',
+        'ticket_settings_blacklist',
+        'ticket_settings_blacklist_add',
+        'ticket_settings_back',
+        'ticket_settings_max_age',
+        'ticket_settings_purge_locked',
         'settings_page_back',
         'settings_edit_name_desc',
         'settings_edit_welcome',
@@ -152,6 +161,10 @@ async function handleTicketButton(interaction) {
             ticket_settings_delete_countdown: 'deleteCountdownSeconds',
             ticket_settings_number_start: 'ticketNumberStart',
             ticket_settings_maintenance_msg: 'maintenanceMessage',
+            ticket_settings_work_start: 'workHoursStart',
+            ticket_settings_work_end: 'workHoursEnd',
+            ticket_settings_max_age: 'maxTicketAgeHours',
+            ticket_settings_purge_locked: 'autoPurgeLockedDays',
         };
         if (SETTINGS_KEY_MAP[interaction.customId]) {
             await interaction.showModal(buildTicketSettingModal(SETTINGS_KEY_MAP[interaction.customId]));
@@ -163,6 +176,7 @@ async function handleTicketButton(interaction) {
             ticket_settings_auto_close: 'autoCloseEnabled',
             ticket_settings_archive: 'archiveOnDelete',
             ticket_settings_maintenance: 'maintenanceEnabled',
+            ticket_settings_work_hours: 'workHoursEnabled',
         };
         if (TOGGLE_MAP[interaction.customId]) {
             if (!(await safeDeferUpdate(interaction))) return;
@@ -181,6 +195,22 @@ async function handleTicketButton(interaction) {
                 autoCloseAction: settings.autoCloseAction === 'delete' ? 'lock' : 'delete',
             });
             await interaction.editReply(buildTicketSettingsPage());
+            return;
+        }
+
+        // ---------------------------------------------------
+        // صفحة قائمة الحظر + الإضافة + الرجوع للإعدادات
+        // ---------------------------------------------------
+        if (interaction.customId === 'ticket_settings_blacklist') {
+            await interaction.update(buildBlacklistPage());
+            return;
+        }
+        if (interaction.customId === 'ticket_settings_blacklist_add') {
+            await interaction.showModal(buildBlacklistAddModal());
+            return;
+        }
+        if (interaction.customId === 'ticket_settings_back') {
+            await interaction.update(buildTicketSettingsPage());
             return;
         }
 

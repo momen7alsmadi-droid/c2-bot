@@ -573,6 +573,10 @@ function buildTicketSettingModal(key) {
         deleteCountdownSeconds: '⏱️ العد التنازلي قبل الحذف (ثوانٍ)',
         ticketNumberStart: '🔢 بداية رقم التذاكر',
         maintenanceMessage: '💬 رسالة وضع الصيانة',
+        workHoursStart: '🌅 ساعة بداية العمل (0-23)',
+        workHoursEnd: '🌇 ساعة نهاية العمل (0-23)',
+        maxTicketAgeHours: '⏱️ حد عمر التذكرة (ساعات)',
+        autoPurgeLockedDays: '🧹 تنظيف المقفلات (أيام)',
     };
     const HINTS = {
         maxOpenPerUser: 'كم تذكرة يفتحها العضو في نفس الوقت (0 = بدون حد)',
@@ -585,6 +589,10 @@ function buildTicketSettingModal(key) {
         deleteCountdownSeconds: 'مدة العد التنازلي قبل الحذف (3 - 60 ثانية)',
         ticketNumberStart: 'الرقم الذي يبدأ منه ترقيم التذاكر',
         maintenanceMessage: 'تظهر للعضو عند محاولة فتح تذكرة أثناء الصيانة',
+        workHoursStart: 'من أي ساعة يُسمح بالفتح؟ (0-23، مثال: 9)',
+        workHoursEnd: 'حتى أي ساعة يُسمح بالفتح؟ (0-23، مثال: 18)',
+        maxTicketAgeHours: 'مفتوحة أكثر من هذا القدر → قفل/حذف تلقائي (0 = معطّل)',
+        autoPurgeLockedDays: 'مقفلة أكثر من هذا القدر → حذف تلقائي مع أرشفة (0 = معطّل)',
     };
 
     const isText = key === 'maintenanceMessage';
@@ -606,6 +614,59 @@ function buildTicketSettingModal(key) {
     return modal;
 }
 
+/**
+ * Modal إضافة عضو إلى قائمة حظر فتح التذاكر
+ */
+function buildBlacklistAddModal() {
+    const modal = new ModalBuilder()
+        .setCustomId('modal_blacklist_add')
+        .setTitle('🚫 حظر عضو من فتح التذاكر');
+
+    const idInput = new TextInputBuilder()
+        .setCustomId('bl_user_id')
+        .setLabel('آيدي العضو (ID)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('123456789012345678')
+        .setMinLength(15)
+        .setMaxLength(20)
+        .setRequired(true);
+
+    const reasonInput = new TextInputBuilder()
+        .setCustomId('bl_reason')
+        .setLabel('سبب الحظر (يظهر للعضو)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('مثال: إساءة استخدام التذاكر')
+        .setMaxLength(200)
+        .setRequired(false);
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(idInput),
+        new ActionRowBuilder().addComponents(reasonInput)
+    );
+    return modal;
+}
+
+/**
+ * Modal إضافة ملاحظة داخلية (يستطيع الستاف فقط إضافتها — لا يراها
+ * صاحب التذكرة، وتظهر في أرشيف اللوق مع اسم من كتبها)
+ */
+function buildStaffNoteModal() {
+    const modal = new ModalBuilder()
+        .setCustomId('modal_staff_note')
+        .setTitle('🧾 ملاحظة داخلية');
+
+    const noteInput = new TextInputBuilder()
+        .setCustomId('staff_note_text')
+        .setLabel('نص الملاحظة (لا يراها صاحب التذكرة)')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('مثال: العضو ينتظر رداً من قسم الفواتير...')
+        .setMaxLength(1000)
+        .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(noteInput));
+    return modal;
+}
+
 module.exports = {
     buildCreatePanelModal,
     buildEditNameDescModal,
@@ -619,4 +680,6 @@ module.exports = {
     buildRoleButtonOptionModal,
     buildRoleButtonColorModal,
     buildTicketSettingModal,
+    buildBlacklistAddModal,
+    buildStaffNoteModal,
 };

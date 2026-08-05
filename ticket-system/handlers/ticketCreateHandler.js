@@ -80,8 +80,37 @@ async function handleTicketCreate(interaction) {
         // الإدارة (Administrator) لا يشملها أي حد أو كولداون،
         // والقيمة 0 تعني بدون حد.
         // ---------------------------------------------------
+        // نُجلب الإعدادات مرة واحدة (تُستخدم في الفحوصات وفي الترقيم لاحقاً)
+        const settings = getTicketSettings();
+
         if (!isAdmin(interaction.member)) {
-            const settings = getTicketSettings();
+            // 🌙 ساعات العمل: يُمنع الفتح خارج النطاق المحدد
+            if (settings.workHoursEnabled === 1) {
+                const now = new Date();
+                const currentHour = now.getHours();
+                let start = Math.max(0, Math.min(23, Math.floor(Number(settings.workHoursStart) || 0)));
+                let end = Math.max(0, Math.min(23, Math.floor(Number(settings.workHoursEnd) || 0)));
+                // إذا كانت البداية = النهاية فالنطاق ممتد 24 ساعة
+                const within = start === end ? true : start < end ? currentHour >= start && currentHour < end : currentHour >= start || currentHour < end;
+                if (!within) {
+                    await interaction.reply({
+                        content: `🌙 التذاكر تعمل من **${String(start).padStart(2, '0')}:00** إلى **${String(end).padStart(2, '0')}:00** فقط. حاول مجدداً في أوقات العمل.`,
+                        ephemeral: true,
+                    });
+                    return;
+                }
+            }
+
+            // 🚫 قائمة الحظر: أعضاء محظورون من فتح التذاكر
+            const blocked = (settings.blockedUsers || []).find(b => b.id === interaction.member.id);
+            if (blocked) {
+                await interaction.reply({
+                    content: `🚫 أنت محظور من فتح التذاكر${blocked.reason ? ' — السبب: **' + blocked.reason + '**' : ''}.`,
+                    ephemeral: true,
+                });
+                return;
+            }
+
             const myTickets = getAllSessions().filter(s => s.openerId === interaction.member.id);
 
             if (settings.maxOpenPerUser > 0 && myTickets.length >= settings.maxOpenPerUser) {
@@ -159,12 +188,15 @@ async function handleTicketCreate(interaction) {
             })),
         ];
 
+        // رقم التذكرة من العداد العام المستمر (يُحسب مرة واحدة فقط)
+        const ticketNumber = getNextTicketNumber(settings.ticketNumberStart);
+
         // اسم روم التذكرة: قالب مخصص يدعم المتغيرات (يُنظف تلقائياً)
         // الافتراضي: ticket-[username]
         const channelName = buildTicketChannelName(panel, {
             member: interaction.member,
             guild,
-            ticketNumber: settings.ticketNumberStart + category.children.cache.size,
+            ticketNumber,
             staffRoles: panel.staffRoles,
             pingRoles: panel.pingRoles,
         });
@@ -182,7 +214,7 @@ async function handleTicketCreate(interaction) {
             guild,
             channelName: ticketChannel.name,
             channelId: ticketChannel.id,
-            ticketNumber: settings.ticketNumberStart + category.children.cache.size,
+            ticketNumber,
             staffRoles: panel.staffRoles,
             pingRoles: panel.pingRoles,
             categoryName: category.name,

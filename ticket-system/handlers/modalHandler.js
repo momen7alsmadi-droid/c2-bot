@@ -33,9 +33,9 @@ const { sendActionMessage } = require('../utils/actionMessages');
 const { enrichActionContext } = require('../utils/ticketContext');
 const { addRoleButton, addRoleOption, setRoleButtonColor } = require('../utils/roleButtons');
 const { getTicketSettings, updateTicketSettings } = require('../database/ticketSettingsDB');
-const { buildTicketSettingsPage } = require('./dashboardBuilder');
+const { buildTicketSettingsPage, buildBlacklistPage } = require('./dashboardBuilder');
 
-const RELEVANT_IDS = ['modal_create_panel', 'modal_edit_name_desc', 'modal_welcome_message', 'modal_panel_message', 'modal_ticket_embed', 'modal_ticket_name', 'modal_action_message', 'modal_rename_ticket', 'modal_custom_role_btn'];
+const RELEVANT_IDS = ['modal_create_panel', 'modal_edit_name_desc', 'modal_welcome_message', 'modal_panel_message', 'modal_ticket_embed', 'modal_ticket_name', 'modal_action_message', 'modal_rename_ticket', 'modal_custom_role_btn', 'modal_blacklist_add', 'modal_staff_note'];
 
 /**
  * هل هذا الـ Modal من نظام أزرار الرتب؟ (customId يحمل btnId/optId)
@@ -109,6 +109,79 @@ async function handleTicketModal(interaction) {
     if (!RELEVANT_IDS.includes(interaction.customId) && !isRoleButtonModal(interaction.customId) && !interaction.customId.startsWith('modal_role_btn_color:') && !interaction.customId.startsWith('modal_ticket_settings:')) return;
 
     try {
+        // ---------------------------------------------------
+        // 0-أ) إضافة عضو لقائمة الحظر (من صفحة قائمة الحظر)
+        // ---------------------------------------------------
+        if (interaction.customId === 'modal_blacklist_add') {
+            const rawId = interaction.fields.getTextInputValue('bl_user_id').trim();
+            const reason = interaction.fields.getTextInputValue('bl_reason').trim();
+
+            if (!/^\d{15,20}$/.test(rawId)) {
+                await interaction.reply({
+                    content: '❌ آيدي العضو غير صالح (يجب أن يكون 15-20 رقماً).',
+                    ephemeral: true,
+                });
+                return;
+            }
+
+            // التحقق أن العضو موجود فعلاً في السيرفر
+            const target = await interaction.guild.members.fetch(rawId).catch(() => null);
+            if (!target) {
+                await interaction.reply({
+                    content: '❌ لم يتم العثور على عضو بهذا الآيدي في السيرفر.',
+                    ephemeral: true,
+                });
+                return;
+            }
+
+            const current = getTicketSettings().blockedUsers || [];
+            if (current.some(b => b.id === rawId)) {
+                await interaction.reply({
+                    content: 'ℹ️ هذا العضو محظور بالفعل.',
+                    ephemeral: true,
+                });
+                return;
+            }
+
+            updateTicketSettings({
+                blockedUsers: [...current, { id: rawId, reason: reason || 'بدون سبب', at: Date.now() }],
+            });
+
+            // نُحدّث صفحة قائمة الحظر نفسها ونُثبت الحظر برسالة مخفية
+            await interaction.update(buildBlacklistPage());
+            await interaction
+                .followUp({
+                    content: `✅ تم حظر <@${rawId}> من فتح التذاكر${reason ? ' — السبب: ' + reason : ''}.`,
+                    ephemeral: true,
+                })
+                .catch(() => {});
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 0-ب) ملاحظة داخلية من الستاف (لا يراها صاحب التذكرة)
+        // ---------------------------------------------------
+        if (interaction.customId === 'modal_staff_note') {
+            const text = interaction.fields.getTextInputValue('staff_note_text').trim();
+            const ticketSess = getTicketSession(interaction.channel.id);
+            if (!ticketSess) {
+                await interaction.reply({ content: '⚠️ هذا الروم ليس تذكرة فعّالة.', ephemeral: true });
+                return;
+            }
+
+            const notes = Array.isArray(ticketSess.staffNotes) ? ticketSess.staffNotes : [];
+            const updated = [...notes, { text, by: interaction.member.id, at: Date.now() }].slice(-50);
+            const { updateSession: updateTicketSession } = require('./ticketStore');
+            updateTicketSession(interaction.channel.id, { staffNotes: updated });
+
+            addAuditLog(interaction.channel.id, `🧾 <@${interaction.member.id}> أضاف ملاحظة داخلية`);
+            await interaction.reply({
+                content: '✅ تم حفظ الملاحظة الداخلية — ستظهر في أرشيف التذكرة.',
+                ephemeral: true,
+            });
+            return;
+        }
+
         // ---------------------------------------------------
         // 0) الإعدادات العامة: حدود فتح/استلام التذاكر + الكولداون
         //    (0 = بدون حد — الإدارة Administrator غير مشمولة)

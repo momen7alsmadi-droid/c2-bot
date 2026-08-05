@@ -31,10 +31,11 @@ const {
     ButtonStyle,
 } = require('discord.js');
 const { buildPanelSettings } = require('./panelSettingsBuilder');
-const { buildSubPanel, buildMainDashboard } = require('./dashboardBuilder');
+const { buildSubPanel, buildMainDashboard, buildBlacklistPage } = require('./dashboardBuilder');
 const { reportError } = require('../../src/utils/errorLogger');
 const { safeDeferUpdate } = require('../utils/interactionGuard');
 const { getPanelByName, updatePanel } = require('../database/panelsDB');
+const { getTicketSettings, updateTicketSettings } = require('../database/ticketSettingsDB');
 const { setSession, getSession, clearSession } = require('./sessionStore');
 const { buildPublicPanelMessage } = require('./publicPanelBuilder');
 const { resolveSession } = require('../utils/panelResolver');
@@ -69,9 +70,25 @@ async function handleTicketSelectMenu(interaction) {
         customId === 'settings_select_role_button' ||
         customId === 'settings_select_role_btn_option' ||
         customId === 'settings_select_role_btn_color' ||
-        customId.startsWith('ticket_role_opt:');
+        customId.startsWith('ticket_role_opt:') ||
+        customId === 'ticket_settings_blacklist_remove';
 
     if (!isRelevant) return;
+
+    // ---------------------------------------------------
+    // إزالة محظور من قائمة الحظر (من صفحة قائمة الحظر)
+    // ---------------------------------------------------
+    if (customId === 'ticket_settings_blacklist_remove') {
+        const targetId = interaction.values[0];
+        const settings = getTicketSettings();
+        const remaining = (settings.blockedUsers || []).filter(b => b.id !== targetId);
+        updateTicketSettings({ blockedUsers: remaining });
+        await interaction.update(buildBlacklistPage());
+        await interaction
+            .followUp({ content: `✅ تمت إزالة <@${targetId}> من قائمة الحظر.`, ephemeral: true })
+            .catch(() => {});
+        return;
+    }
 
     /**
      * تحديث رسالة إعدادات البنل بأمان:

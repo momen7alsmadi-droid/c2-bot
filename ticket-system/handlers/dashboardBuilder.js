@@ -144,6 +144,23 @@ function buildTicketSettingsPage() {
                 value:
                     `الحالة: ${onoff(s.maintenanceEnabled)}\n💬 الرسالة: ${s.maintenanceMessage ? '\n' + String(s.maintenanceMessage).slice(0, 150) : 'افتراضية'}`,
                 inline: true,
+            },
+            {
+                name: '🌙 ساعات العمل',
+                value:
+                    `الحالة: ${onoff(s.workHoursEnabled)}\n⏰ من **${String(s.workHoursStart).padStart(2, '0')}:00** إلى **${String(s.workHoursEnd).padStart(2, '0')}:00**\n   (خارجها يُمْنع الفتح)`,
+                inline: true,
+            },
+            {
+                name: '🚫 قائمة الحظر',
+                value: `عدد المحظورين: **${(s.blockedUsers || []).length}**\nاضغط [قائمة الحظر] للعرض/الإضافة/الإزالة`,
+                inline: true,
+            },
+            {
+                name: '⏱️ حد عمر التذكرة',
+                value:
+                    `بعد **${s.maxTicketAgeHours > 0 ? s.maxTicketAgeHours + ' ساعة' : 'معطّل (0)'}** مفتوحة → ${s.autoCloseAction === 'delete' ? '🗑️ حذف' : '🔒 قفل'} تلقائي\n🧹 تنظيف المقفلات: ${s.autoPurgeLockedDays > 0 ? 'بعد **' + s.autoPurgeLockedDays + ' يوم** → حذف' : 'معطّل (0)'}`,
+                inline: true,
             }
         )
         .setFooter({ text: `الإصدار: ${version}` })
@@ -185,10 +202,82 @@ function buildTicketSettingsPage() {
             .setLabel(`🛠️ وضع الصيانة: ${onoff(s.maintenanceEnabled)}`)
             .setStyle(toggleStyle(s.maintenanceEnabled)),
         new ButtonBuilder().setCustomId('ticket_settings_maintenance_msg').setLabel('💬 رسالة الصيانة').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('ticket_settings_blacklist').setLabel('🚫 قائمة الحظر').setStyle(ButtonStyle.Danger)
+    );
+
+    const row4 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('ticket_settings_work_hours')
+            .setLabel(`🌙 ساعات العمل: ${onoff(s.workHoursEnabled)}`)
+            .setStyle(toggleStyle(s.workHoursEnabled)),
+        new ButtonBuilder().setCustomId('ticket_settings_work_start').setLabel('🌅 ساعة البداية').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('ticket_settings_work_end').setLabel('🌇 ساعة النهاية').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('ticket_settings_max_age').setLabel('⏱️ حد عمر التذكرة').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('ticket_settings_purge_locked').setLabel('🧹 تنظيف المقفلات').setStyle(ButtonStyle.Primary)
+    );
+
+    const row5 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('ticket_back').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary)
     );
 
-    return { embeds: [embed], components: [row1, row2, row3] };
+    return { embeds: [embed], components: [row1, row2, row3, row4, row5] };
+}
+
+/**
+ * بناء صفحة "🚫 قائمة الحظر" — منع أعضاء محددين من فتح التذاكر:
+ *   - عرض المحظورين (آيدي + السبب + التاريخ)
+ *   - زر ➕ إضافة عضو (Modal: آيدي + سبب)
+ *   - قائمة منسدلة لإزالة محظور
+ * @returns {{ embeds: EmbedBuilder[], components: ActionRowBuilder[] }}
+ */
+function buildBlacklistPage() {
+    const s = getTicketSettings();
+    const blocked = (s.blockedUsers || []).slice(0, 20);
+
+    let description;
+    if (blocked.length === 0) {
+        description = 'لا يوجد أعضاء محظورون حالياً.\nاستخدم **[➕ إضافة عضو]** لحظر شخص من فتح التذاكر.';
+    } else {
+        description = blocked
+            .map(
+                (b, i) =>
+                    `${i + 1}. <@${b.id}> (\`${b.id}\`) — ${b.reason}\n   منذ <t:${Math.floor(b.at / 1000)}:R>`
+            )
+            .join('\n')
+            .slice(0, 1024);
+    }
+
+    const embed = new EmbedBuilder()
+        .setColor(COLORS.main)
+        .setTitle('🚫 قائمة حظر فتح التذاكر')
+        .setDescription(description)
+        .setFooter({ text: `الإصدار: ${version} | المحظورون لا يستطيعون فتح أي تذكرة` })
+        .setTimestamp();
+
+    const removeSelect = new StringSelectMenuBuilder()
+        .setCustomId('ticket_settings_blacklist_remove')
+        .setPlaceholder('🗑️ اختر محظوراً لإزالته...')
+        .setMaxValues(1);
+
+    if (blocked.length === 0) {
+        removeSelect.addOptions({ label: 'لا يوجد محظورون', value: 'none', emoji: '❌' }).setDisabled(true);
+    } else {
+        removeSelect.addOptions(
+            ...blocked.slice(0, 25).map(b => ({
+                label: String(b.reason || b.id).slice(0, 80),
+                value: b.id,
+                description: `<@${b.id}> — ${b.reason}`.slice(0, 100),
+            }))
+        );
+    }
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('ticket_settings_blacklist_add').setLabel('➕ إضافة عضو').setStyle(ButtonStyle.Success),
+        removeSelect,
+        new ButtonBuilder().setCustomId('ticket_settings_back').setLabel('🔙 رجوع للإعدادات').setStyle(ButtonStyle.Secondary)
+    );
+
+    return { embeds: [embed], components: [row] };
 }
 
 /**
@@ -262,4 +351,5 @@ module.exports = {
     buildMainDashboard,
     buildSubPanel,
     buildTicketSettingsPage,
+    buildBlacklistPage,
 };

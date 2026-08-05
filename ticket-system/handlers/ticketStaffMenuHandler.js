@@ -18,7 +18,7 @@ const { safeDeferUpdate } = require('../utils/interactionGuard');
 const { getPanelByName } = require('../database/panelsDB');
 const { getSession, updateSession, addAuditLog } = require('./ticketStore');
 const { canUseRestrictedControls } = require('./permissionUtils');
-const { buildRenameTicketModal } = require('./modalsBuilder');
+const { buildRenameTicketModal, buildStaffNoteModal } = require('./modalsBuilder');
 const { applyEscalatePermissions } = require('./ticketPermissionHelpers');
 const { sendActionMessage } = require('../utils/actionMessages');
 const { enrichActionContext } = require('../utils/ticketContext');
@@ -69,6 +69,14 @@ async function handleTicketStaffMenu(interaction) {
         }
 
         const choice = interaction.values[0];
+
+        // ---------------------------------------------------
+        // 1أ) إضافة ملاحظة داخلية -> Modal (لا يراها صاحب التذكرة)
+        // ---------------------------------------------------
+        if (choice === 'add_note') {
+            await interaction.showModal(buildStaffNoteModal());
+            return;
+        }
 
         // ---------------------------------------------------
         // 1) تغيير اسم التكت -> Modal (بدون defer قبله)

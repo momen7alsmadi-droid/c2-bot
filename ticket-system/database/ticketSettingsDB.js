@@ -45,6 +45,16 @@ const DEFAULT_SETTINGS = {
     maintenanceMessage: '', // رسالة تظهر للعضو أثناء الصيانة
     // مهلة رد الستاف (SLA)
     claimSlaMinutes: 0, // دقائق بلا رد → إلغاء استلام تلقائي (0 = معطّل)
+    // ساعات العمل
+    workHoursEnabled: 0, // تقييد الفتح بأوقات محددة
+    workHoursStart: 9, // ساعة البداية (0-23)
+    workHoursEnd: 18, // ساعة النهاية (0-23)
+    // قائمة الحظر
+    blockedUsers: [], // [{ id, reason, at }]
+    // حد عمر التذكرة
+    maxTicketAgeHours: 0, // تذكرة مفتوحة أكثر من هذا → إجراء الخمول (0 = معطّل)
+    // تنظيف المقفلات
+    autoPurgeLockedDays: 0, // مقفلة أكثر من هذا → حذف تلقائي (0 = معطّل)
 };
 
 // ---------- MongoDB Schema ----------
@@ -65,6 +75,12 @@ const ticketSettingsSchema = new mongoose.Schema(
         maintenanceEnabled: { type: Number, default: 0 },
         maintenanceMessage: { type: String, default: '' },
         claimSlaMinutes: { type: Number, default: 0 },
+        workHoursEnabled: { type: Number, default: 0 },
+        workHoursStart: { type: Number, default: 9 },
+        workHoursEnd: { type: Number, default: 18 },
+        blockedUsers: { type: mongoose.Schema.Types.Mixed, default: [] },
+        maxTicketAgeHours: { type: Number, default: 0 },
+        autoPurgeLockedDays: { type: Number, default: 0 },
     },
     { collection: 'ticketsettings', versionKey: false }
 );
@@ -133,6 +149,10 @@ const NUMERIC_KEYS = [
     'deleteCountdownSeconds',
     'ticketNumberStart',
     'claimSlaMinutes',
+    'workHoursStart',
+    'workHoursEnd',
+    'maxTicketAgeHours',
+    'autoPurgeLockedDays',
 ];
 // المفاتيح المنطقية (0/1)
 const BOOLEAN_KEYS = ['autoCloseEnabled', 'archiveOnDelete', 'maintenanceEnabled'];
@@ -157,6 +177,17 @@ function updateTicketSettings(partial = {}) {
             next[key] = ['lock', 'delete'].includes(partial[key]) ? partial[key] : 'lock';
         } else if (key === 'maintenanceMessage') {
             next[key] = String(partial[key] || '').slice(0, 500);
+        } else if (key === 'blockedUsers') {
+            // قائمة الحظر: [{ id, reason, at }] — نتجاهل المداخل غير الصالحة
+            const arr = Array.isArray(partial[key]) ? partial[key] : [];
+            next[key] = arr
+                .filter(b => b && typeof b.id === 'string' && b.id.trim())
+                .map(b => ({
+                    id: b.id.trim(),
+                    reason: String(b.reason || 'بدون سبب').slice(0, 200),
+                    at: typeof b.at === 'number' ? b.at : Date.now(),
+                }))
+                .slice(0, 100);
         }
     }
     writeDB(next);

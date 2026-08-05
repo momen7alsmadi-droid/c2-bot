@@ -52,13 +52,18 @@ async function runTicketMaintenance(client) {
 
     for (const session of getAllSessions()) {
         try {
-            // تخطي التذاكر المقفلة (حالتها نهائية بانتظار فتح/حذف يدوي)
-            if (session.lockedAt) continue;
-
             const channel = await client.channels.fetch(session.channelId).catch(() => null);
             if (!channel) continue;
             const panel = getPanelByName(session.panelName);
             if (!panel) continue;
+
+            // ---------- التذاكر المقفلة: تنظيف تلقائي (إن فُعّل) ----------
+            if (session.lockedAt) {
+                if (settings.autoPurgeLockedDays > 0 && now - session.lockedAt >= settings.autoPurgeLockedDays * 86400000) {
+                    await autoDelete(client, channel, panel, session, settings, 'purge');
+                }
+                continue;
+            }
 
             // ---------- مهلة رد الستاف (SLA) ----------
             if (settings.claimSlaMinutes > 0 && session.claimedBy) {
@@ -92,6 +97,19 @@ async function runTicketMaintenance(client) {
                     await sendIdleWarning(channel, panel, session);
                 }
             }
+
+            // ---------- حد عمر التذكرة (حتى مع وجود رسائل) ----------
+            if (settings.maxTicketAgeHours > 0) {
+                const ageMs = now - (session.openedAt || 0);
+                if (ageMs >= settings.maxTicketAgeHours * 3600000) {
+                    if (settings.autoCloseAction === 'delete') {
+                        await autoDelete(client, channel, panel, session, settings, 'age');
+                    } else {
+                        await autoLock(client, channel, panel, session, 'age');
+                    }
+                    continue;
+                }
+            }
         } catch (err) {
             console.error('[ticketMaintenance] خطأ في معالجة جلسة:', err.message);
             reportError('TICKET_MAINTENANCE', session?.channelId || '?', err);
@@ -105,15 +123,30 @@ async function runTicketMaintenance(client) {
 
 /**
  * قفل التذكرة تلقائياً (إجراء الخمول = lock)
+ * @param {String} reason - سبب الإغلاق: 'idle' (خمول) | 'age' (حد العمر)
  */
-async function autoLock(client, channel, panel, session) {
+async function autoLock(client, channel, panel, session, reason = 'idle') {
     const { applyLockPermissions } = require('./ticketPermissionHelpers');
     const { sendClosedStateMessage } = require('./ticketCloseHandler');
     const { buildTicketControlRows } = require('./ticketControlBuilder');
 
+    const TEXTS = {
+        idle: {
+            audit: '🤖 تم قفل التذكرة تلقائياً بسبب الخمول (بواسطة البوت)',
+            desc: 'لم يحدث أي نشاط في هذه التذكرة منذ مدة، فقام **البوت** بقفلها تلقائياً.\nيمكنك فتحها أو حذفها من الأزرار أدناه.',
+            log: 'قام البوت بقفل التذكرة تلقائياً بسبب الخمول.',
+        },
+        age: {
+            audit: '🤖 تم قفل التذكرة تلقائياً لتجاوز حد العمر (بواسطة البوت)',
+            desc: 'تجاوزت هذه التذكرة الحد الأقصى لعمرها المفتوح، فقام **البوت** بقفلها تلقائياً.\nيمكنك فتحها أو حذفها من الأزرار أدناه.',
+            log: 'قام البوت بقفل التذكرة تلقائياً لتجاوز حد العمر المحدد.',
+        },
+    };
+    const t = TEXTS[reason] || TEXTS.idle;
+
     await applyLockPermissions(channel, panel, session);
     const updated = updateSession(session.channelId, { lockedAt: Date.now() });
-    addAuditLog(session.channelId, '🤖 تم قفل التذكرة تلقائياً بسبب الخمول (بواسطة البوت)');
+    addAuditLog(session.channelId, t.audit);
 
     // تحديث رسالة التحكم الرئيسية
     if (updated.controlMessageId) {
@@ -126,9 +159,7 @@ async function autoLock(client, channel, panel, session) {
             new EmbedBuilder()
                 .setColor(0xed4245)
                 .setTitle('🔒 تم قفل التذكرة تلقائياً')
-                .setDescription(
-                    `لم يحدث أي نشاط في هذه التذكرة منذ مدة، فقام **البوت** بقفلها تلقائياً.\nيمكنك فتحها أو حذفها من الأزرار أدناه.`
-                )
+                .setDescription(t.desc)
                 .setFooter({ text: '🤖 إجراء تلقائي من البوت' })
                 .setTimestamp(),
         ],
@@ -137,25 +168,43 @@ async function autoLock(client, channel, panel, session) {
     // رسالة الإغلاق (زر فتح + زر حذف)
     await sendClosedStateMessage(channel);
 
-    await sendBotLog(client, channel, panel, session, '🔒 قفل تلقائي', 'قام البوت بقفل التذكرة تلقائياً بسبب الخمول.');
+    await sendBotLog(client, channel, panel, session, '🔒 قفل تلقائي', t.log);
 }
 
 /**
- * حذف التذكرة نهائياً تلقائياً (إجراء الخمول = delete):
+ * حذف التذكرة نهائياً تلقائياً (إجراء الخمول = delete أو تنظيف المقفلات):
  * عد تنازلي قابل للإلغاء (مدة من الإعدادات) ثم أرشفة وحذف نهائي
+ * @param {String} reason - 'idle' (خمول) | 'age' (حد العمر) | 'purge' (تنظيف مقفلات)
  */
-async function autoDelete(client, channel, panel, session, settings) {
-    addAuditLog(session.channelId, '🤖 بدء الحذف التلقائي للتذكرة (الخمول) — بواسطة البوت');
+async function autoDelete(client, channel, panel, session, settings, reason = 'idle') {
+    const TEXTS = {
+        idle: {
+            audit: '🤖 بدء الحذف التلقائي للتذكرة (الخمول) — بواسطة البوت',
+            desc: 'لم يحدث أي نشاط في هذه التذكرة منذ مدة، فسيقوم **البوت** بحذفها نهائياً.\nاضغط [إلغاء الحذف] إذا أردت إبقاءها.',
+            log: 'قام البوت بحذف التذكرة نهائياً بسبب الخمول (بعد عد تنازلي).',
+        },
+        age: {
+            audit: '🤖 بدء الحذف التلقائي للتذكرة (تجاوز حد العمر) — بواسطة البوت',
+            desc: 'تجاوزت هذه التذكرة الحد الأقصى لعمرها المفتوح، فسيقوم **البوت** بحذفها نهائياً.\nاضغط [إلغاء الحذف] إذا أردت إبقاءها.',
+            log: 'قام البوت بحذف التذكرة نهائياً لتجاوز حد العمر (بعد عد تنازلي).',
+        },
+        purge: {
+            audit: '🤖 بدء الحذف التلقائي للتذكرة المقفلة (تنظيف) — بواسطة البوت',
+            desc: 'مضى على قفل هذه التذكرة مدة طويلة، فسيقوم **البوت** بحذفها نهائياً (تنظيف تلقائي).\nاضغط [إلغاء الحذف] إذا أردت إبقاءها.',
+            log: 'حذف البوت تذكرة مقفلة منذ مدة طويلة (تنظيف تلقائي).',
+        },
+    };
+    const t = TEXTS[reason] || TEXTS.idle;
+
+    addAuditLog(session.channelId, t.audit);
     updateSession(session.channelId, { deletedBy: 'AUTO' });
 
     await channel.send({
         embeds: [
             new EmbedBuilder()
                 .setColor(0xed4245)
-                .setTitle('🗑️ حذف تلقائي')
-                .setDescription(
-                    `لم يحدث أي نشاط في هذه التذكرة منذ مدة، فسيقوم **البوت** بحذفها نهائياً.\nاضغط [إلغاء الحذف] إذا أردت إبقاءها.`
-                )
+                .setTitle(reason === 'purge' ? '🗑️ تنظيف تلقائي' : '🗑️ حذف تلقائي')
+                .setDescription(t.desc)
                 .setFooter({ text: '🤖 إجراء تلقائي من البوت' })
                 .setTimestamp(),
         ],
@@ -213,7 +262,7 @@ async function autoDelete(client, channel, panel, session, settings) {
     }, 1000);
 
     updateSession(session.channelId, { deleteTimer: timer, deleteCountdown: secondsLeft });
-    await sendBotLog(client, channel, panel, session, '🗑️ حذف تلقائي', 'قام البوت بحذف التذكرة نهائياً بسبب الخمول (بعد عد تنازلي).');
+    await sendBotLog(client, channel, panel, session, reason === 'purge' ? '🗑️ تنظيف تلقائي' : '🗑️ حذف تلقائي', t.log);
 }
 
 /**
