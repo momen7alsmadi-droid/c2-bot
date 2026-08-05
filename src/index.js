@@ -41,7 +41,7 @@ const { handleTicketCreate } = require('../ticket-system/handlers/ticketCreateHa
 const { handleTicketControlButton } = require('../ticket-system/handlers/ticketControlHandler');
 const { handleTicketStaffMenu } = require('../ticket-system/handlers/ticketStaffMenuHandler');
 const { initTicketStore, getSession: getTicketSession, updateSession: updateTicketSession, initSessionModel, syncSessionsToMongo, loadSessionsFromMongo } = require('../ticket-system/handlers/ticketStore');
-const { initTicketSettings } = require('../ticket-system/database/ticketSettingsDB');
+const { initTicketSettings, loadSettingsFromMongo, setTicketSettingsClient, restoreSettingsFromChannel } = require('../ticket-system/database/ticketSettingsDB');
 const { initCooldownStore } = require('../ticket-system/database/ticketCooldownStore');
 const { initCounterStore } = require('../ticket-system/database/ticketCounterStore');
 const { initStatsStore, loadStatsFromMongo, syncStatsToMongo } = require('../ticket-system/database/ticketStatsStore');
@@ -309,6 +309,8 @@ async function initialize() {
         await syncStatsToMongo();
         await loadSessionsFromMongo();
         await syncSessionsToMongo();
+        // إعدادات التذاكر: استعادة من MongoDB إن تأخر الاتصال (كانت تُفقد)
+        await loadSettingsFromMongo();
       } else {
         try {
           const { connectDatabase } = require('./utils/database');
@@ -370,6 +372,13 @@ ID: ${guild.id}
         console.error('❌ فشل تشغيل إشعار التحديث:', e.message);
       }
     }, 5000);
+
+    // إعدادات التذاكر: ربط الـ client + استعادة من نسخة ديسكورد الاحتياطية
+    // (حماية من مسح القرص حتى بدون MongoDB — مثل علامة إصدارات التحديث)
+    setTicketSettingsClient(client);
+    setTimeout(() => {
+      restoreSettingsFromChannel().catch(() => {});
+    }, 3000);
 
     // تسجيل الأوامر فوراً عند دخول سيرفر جديد (بدون انتظار إعادة تشغيل)
     client.on('guildCreate', async (guild) => {

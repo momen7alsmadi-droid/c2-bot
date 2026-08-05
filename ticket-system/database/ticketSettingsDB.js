@@ -22,6 +22,7 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 const { reportError } = require('../../src/utils/errorLogger');
+const { getConfig } = require('../../src/utils/storage');
 
 const { SECOND_MS, MINUTE_MS, HOUR_MS, DAY_MS } = require('../utils/durationParser');
 
@@ -217,8 +218,88 @@ function updateTicketSettings(partial = {}) {
         }
     }
     writeDB(next);
-    writeSettingsToMongo(next); // مرآة (غير متزامنة — لا ننتظرها)
+    writeSettingsToMongo(next); // مرآة MongoDB (غير متزامنة — لا ننتظرها)
+    backupSettingsToChannel(next); // نسخة ديسكورد (حماية حتى بدون MongoDB)
     return next;
+}
+
+// ---------- نسخة ديسكورد الاحتياطية (حماية من مسح القرص حتى بدون MongoDB) ----------
+// كل تغيير في الإعدادات يُحفظ أيضاً في رسالة داخل روم الإشعارات
+// (بنفس فكرة علامة إصدارات التحديث) — الرسالة محفوظة في ديسكورد
+// نفسه فتبقى سليمة بعد كل إعادة نشر على Railway.
+const BACKUP_PREFIX = '⚙️ نسخة احتياطية للإعدادات: ';
+
+let clientRef = null;
+
+/** ربط الـ client (يُستدعى من src/index.js عند الجاهزية) */
+function setTicketSettingsClient(client) {
+    clientRef = client;
+}
+
+/** روم النسخة الاحتياطية: روم الإشعارات أولاً ثم روم الأخطاء */
+function getBackupChannelId() {
+    try {
+        const cfg = getConfig();
+        return cfg.updateChannelId || cfg.errorLogChannelId || null;
+    } catch {
+        return null;
+    }
+}
+
+/** البحث عن رسالة النسخة الاحتياطية في الروم (آخر 20 رسالة) */
+async function findBackupMessage(channel) {
+    try {
+        const messages = await channel.messages.fetch({ limit: 20 }).catch(() => null);
+        if (!messages) return null;
+        for (const msg of messages.values()) {
+            const isOwn = !msg.client ? true : msg.author?.id === msg.client?.user?.id;
+            if (isOwn && String(msg.content || '').startsWith(BACKUP_PREFIX)) return msg;
+        }
+    } catch {
+        /* تجاهل */
+    }
+    return null;
+}
+
+/** حفظ الإعدادات في رسالة ديسكورد (إنشاء أو تحديث — بلا تكرار) */
+async function backupSettingsToChannel(settings) {
+    const client = clientRef;
+    const channelId = getBackupChannelId();
+    if (!client || !channelId) return;
+    try {
+        const channel = await client.channels.fetch(channelId).catch(() => null);
+        if (!channel) return;
+        const content = BACKUP_PREFIX + JSON.stringify(settings).slice(0, 1800);
+        const existing = await findBackupMessage(channel);
+        if (existing) {
+            await existing.edit({ content }).catch(() => {});
+        } else {
+            await channel.send({ content }).catch(() => {});
+        }
+    } catch (e) {
+        console.error('❌ ticketSettings backup:', e.message);
+    }
+}
+
+/** استعادة الإعدادات من رسالة ديسكورد الاحتياطية (إن فُقد الملف المحلي) */
+async function restoreSettingsFromChannel() {
+    const client = clientRef;
+    const channelId = getBackupChannelId();
+    if (!client || !channelId) return;
+    try {
+        const channel = await client.channels.fetch(channelId).catch(() => null);
+        if (!channel) return;
+        const backup = await findBackupMessage(channel);
+        if (!backup) return;
+        const json = String(backup.content || '').slice(BACKUP_PREFIX.length);
+        const parsed = JSON.parse(json);
+        if (parsed && typeof parsed === 'object' && parsed.ratingChannelId !== undefined) {
+            writeDB({ ...DEFAULT_SETTINGS, ...parsed });
+            console.log('⚙️ ticketSettings: تمت استعادة الإعدادات من نسخة ديسكورد الاحتياطية');
+        }
+    } catch (e) {
+        console.error('❌ ticketSettings channel restore:', e.message);
+    }
 }
 
 // ---------- MongoDB helpers ----------
@@ -250,19 +331,31 @@ async function loadSettingsFromMongo() {
     }
 }
 
-/** تهيئة (تُستدعى عند التشغيل) — يستعيد من Mongo فقط إذا كان الملف افتراضياً */
-function initTicketSettings() {
+/** تهيئة (تُستدعى عند التشغيل) — يستعيد من Mongo أولاً ثم من نسخة ديسكورد */
+async function initTicketSettings() {
+    let mongoReady = false;
     if (isMongoReady()) {
+        mongoReady = true;
         console.log('📦 ticketSettings → ✅ MongoDB');
-        const current = readDB();
-        const isFresh = Object.keys(DEFAULT_SETTINGS).every(
-            k => current[k] === DEFAULT_SETTINGS[k]
-        );
-        if (isFresh) loadSettingsFromMongo();
-        return true;
+        await loadSettingsFromMongo();
+    } else {
+        console.log('📦 ticketSettings → ⚠️ JSON فقط');
     }
-    console.log('📦 ticketSettings → ⚠️ JSON فقط');
-    return false;
+
+    // إن ما زال الملف افتراضياً (لا Mongo أو لا يوجد مستند فيها)
+    // نستعيد من نسخة ديسكورد الاحتياطية (تنجو من مسح القرص)
+    const current = readDB();
+    const isFresh = Object.keys(DEFAULT_SETTINGS).every(k => current[k] === DEFAULT_SETTINGS[k]);
+    if (isFresh) await restoreSettingsFromChannel();
+    return mongoReady;
 }
 
-module.exports = { getTicketSettings, updateTicketSettings, initTicketSettings, DURATION_SETTINGS };
+module.exports = {
+    getTicketSettings,
+    updateTicketSettings,
+    initTicketSettings,
+    DURATION_SETTINGS,
+    setTicketSettingsClient,
+    backupSettingsToChannel,
+    restoreSettingsFromChannel,
+};
