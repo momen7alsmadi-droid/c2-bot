@@ -35,6 +35,13 @@ function decodeTicketName(parts) {
     return parts.slice(3).join(':') || 'تذكرة';
 }
 
+/**
+ * حماية من التقييم المزدوج: معرفات رسائل التقييم التي تم تقييمها
+ * (تُحفظ في الذاكرة أثناء التشغيل — والأزرار تُزال من الرسالة نفسها
+ * فلا يبقى أي زر لضغطه بعد ذلك حتى بعد إعادة تشغيل البوت)
+ */
+const ratedMessages = new Set();
+
 // =========================================================
 // إرسال رسالة التقييم الخاصة لصاحب التذكرة عند الحذف
 // =========================================================
@@ -113,6 +120,16 @@ async function handleRatingButton(interaction) {
         const ticketName = decodeTicketName(parts);
         const openerId = interaction.user.id;
 
+        // حماية: هذه الرسالة قُيّمت من قبل (منع التقييم أكثر من مرة)
+        if (interaction.message?.id && ratedMessages.has(interaction.message.id)) {
+            await interaction.reply({
+                content: 'ℹ️ لقد قيّمت هذه التذكرة من قبل ✅ — لا يمكن التقييم أكثر من مرة.',
+                ephemeral: true,
+            });
+            return;
+        }
+        if (interaction.message?.id) ratedMessages.add(interaction.message.id);
+
         // تسجيل التقييم في إحصائيات الستاف (نقاط)
         recordRating(claimerId, stars);
 
@@ -159,6 +176,21 @@ async function handleRatingButton(interaction) {
             content: `✅ شكراً لتقييمك! أعطيت **${stars} ${stars === 1 ? 'نجمة' : 'نجوم'}** 🌟`,
             ephemeral: true,
         });
+
+        // إزالة أزرار التقييم نهائياً من الرسالة (لا يمكن التقييم مرة أخرى)
+        // وتحديث الإيمبد برسالة تأكيد أن الاستمارة أُغلقت
+        if (interaction.message?.id) {
+            try {
+                const updatedEmbed = EmbedBuilder.from(interaction.message.embeds?.[0])
+                    .setDescription(
+                        `✅ **تم تسجيل تقييمك: ${'⭐'.repeat(stars)} (${stars}/5)**\n\n` +
+                        'شكراً لك! تم إغلاق استمارة التقييم — لن تتمكن من التقييم مرة أخرى.'
+                    );
+                await interaction.message.edit({ embeds: [updatedEmbed], components: [] }).catch(() => {});
+            } catch {
+                /* الرسالة حُذفت أو تعذّر التعديل — نكتفي بالحماية في الذاكرة */
+            }
+        }
     } catch (err) {
         console.error('[ticketRating] خطأ في معالجة زر التقييم:', err.message);
         reportError('TICKET_RATING_BTN', interaction.customId || '?', err);
