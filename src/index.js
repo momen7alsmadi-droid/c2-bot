@@ -44,7 +44,7 @@ const { initTicketStore, getSession: getTicketSession, updateSession: updateTick
 const { initTicketSettings } = require('../ticket-system/database/ticketSettingsDB');
 const { initCooldownStore } = require('../ticket-system/database/ticketCooldownStore');
 const { initCounterStore } = require('../ticket-system/database/ticketCounterStore');
-const { initStatsStore, recordMessage } = require('../ticket-system/database/ticketStatsStore');
+const { initStatsStore } = require('../ticket-system/database/ticketStatsStore');
 const { startTicketMaintenance } = require('../ticket-system/handlers/ticketAutoClose');
 const { handleUserSelectMenu } = require('../ticket-system/handlers/userSelectHandler');
 const { handleStatsUserSelect } = require('../ticket-system/handlers/ticketStatsBuilder');
@@ -408,13 +408,14 @@ ID: ${guild.id}
       return;
     }
     try {
-      // تحديث نشاط التذكرة (لدعم الإغلاق التلقائي للخمول ومهلة رد الستاف)
-      // — أي رسالة بشرية داخل روم تذكرة تحدّث وقت آخر نشاط + تُحسب في الإحصائيات
+      // تحديث نشاط التذكرة + عدّ رسائل المشاركين في الذاكرة فقط
+      // (لا تُكتب الإحصائيات على القرص إلا عند قفل التذكرة لتقليل الضغط)
       if (!message.author.bot) {
         const ticketSess = getTicketSession(message.channel?.id);
         if (ticketSess) {
-          updateTicketSession(message.channel.id, { lastActivityAt: Date.now() });
-          recordMessage(message.author.id);
+          const counts = ticketSess.messageCounts || {};
+          counts[message.author.id] = (counts[message.author.id] || 0) + 1;
+          updateTicketSession(message.channel.id, { lastActivityAt: Date.now(), messageCounts: counts });
         }
       }
 

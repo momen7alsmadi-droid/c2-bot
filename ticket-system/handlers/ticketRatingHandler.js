@@ -21,7 +21,8 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const { version } = require('../../package.json');
 const { getTicketSettings, updateTicketSettings } = require('../database/ticketSettingsDB');
-const { recordRating } = require('../database/ticketStatsStore');
+const { recordRating, getUserStats } = require('../database/ticketStatsStore');
+const { formatClaimSpeed } = require('./ticketStatsBuilder');
 const { reportError } = require('../../src/utils/errorLogger');
 
 const COLORS = { main: 0x5865F2 };
@@ -52,6 +53,13 @@ async function sendRatingDM(channel, session, panel) {
         const ticketName = channel.name;
         const claimerId = session.claimedBy;
 
+        // إحصائيات الستاف المستلم (من المخزن — مُلتزمة عند قفل التذكرة)
+        const claimerStats = getUserStats(claimerId);
+        const statsLine =
+            `🎫 ${claimerStats.ticketsClaimed} تكتات | 📥 ${claimerStats.ticketsClosed} مغلقة | ` +
+            `💬 ${claimerStats.messagesSent} رسالة | 🏆 **${claimerStats.points.total} نقطة** | ` +
+            `⚡ سرعة الاستلام: ${formatClaimSpeed(claimerStats.avgClaimTimeMs)}`;
+
         const embed = new EmbedBuilder()
             .setColor(COLORS.main)
             .setTitle('⭐ تقييم تذكرتك')
@@ -59,6 +67,12 @@ async function sendRatingDM(channel, session, panel) {
                 `شكراً لاستخدامك تذاكر **${channel.guild.name}**! 🎫\n` +
                 `كيف كانت خدمة <@${claimerId}> في تذكرتك **${ticketName}**؟\n` +
                 `اضغط على عدد النجوم التي تستحقها، أو أضف ملاحظة (اختياري).`
+            )
+            .addFields(
+                { name: '🎫 التذكرة', value: `\`${ticketName}\``, inline: true },
+                { name: '📁 البنل', value: panel?.name || '—', inline: true },
+                { name: '👥 الستاف المستلم', value: `<@${claimerId}>`, inline: true },
+                { name: '📊 إحصائيات الستاف', value: statsLine, inline: false }
             )
             .setFooter({ text: `الإصدار: ${version}` })
             .setTimestamp();
@@ -102,6 +116,13 @@ async function handleRatingButton(interaction) {
         // تسجيل التقييم في إحصائيات الستاف (نقاط)
         recordRating(claimerId, stars);
 
+        // إحصائيات الستاف المستلم لعرضها مع التقييم
+        const claimerStats = getUserStats(claimerId);
+        const statsLine =
+            `🎫 ${claimerStats.ticketsClaimed} تكتات | 📥 ${claimerStats.ticketsClosed} مغلقة | ` +
+            `💬 ${claimerStats.messagesSent} رسالة | 🏆 **${claimerStats.points.total} نقطة** | ` +
+            `⚡ سرعة الاستلام: ${formatClaimSpeed(claimerStats.avgClaimTimeMs)}`;
+
         // إرسال التقييم إلى روم الاستقبال المحدد في الإعدادات العامة
         const settings = getTicketSettings();
         if (settings.ratingChannelId) {
@@ -120,6 +141,7 @@ async function handleRatingButton(interaction) {
                                     { name: '🌟 التقييم', value: `${'⭐'.repeat(stars)} (${stars}/5)`, inline: true },
                                     { name: '👤 بواسطة', value: `<@${openerId}>`, inline: true },
                                     { name: '👥 لصالح', value: `<@${claimerId}>`, inline: true },
+                                    { name: '📊 إحصائيات الستاف', value: statsLine, inline: false },
                                     { name: '🕐 الوقت', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
                                 )
                                 .setFooter({ text: `الإصدار: ${version}` })

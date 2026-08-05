@@ -26,7 +26,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 const { getPanelByName } = require('../database/panelsDB');
 const { getTicketSettings } = require('../database/ticketSettingsDB');
 const { getAllSessions, updateSession, addAuditLog } = require('./ticketStore');
-const { recordClose } = require('../database/ticketStatsStore');
+const { commitTicketStats } = require('../database/ticketStatsStore');
 const { reportError } = require('../../src/utils/errorLogger');
 
 let maintenanceTimer = null;
@@ -148,8 +148,8 @@ async function autoLock(client, channel, panel, session, reason = 'idle') {
     await applyLockPermissions(channel, panel, session);
     const updated = updateSession(session.channelId, { lockedAt: Date.now() });
     addAuditLog(session.channelId, t.audit);
-    // نقطة إغلاق: آخر مستلم للتذكرة يحصل على نقطة حتى عند الإغلاق التلقائي
-    if (session.claimedBy) recordClose(session.claimedBy);
+    // التزام إحصائيات التذكرة (رسائل + استلام + نقطة إغلاق + سرعة الاستلام)
+    commitTicketStats(updated);
 
     // تحديث رسالة التحكم الرئيسية
     if (updated.controlMessageId) {

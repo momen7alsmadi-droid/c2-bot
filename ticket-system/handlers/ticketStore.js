@@ -55,6 +55,8 @@ const SERIALIZABLE_KEYS = [
     'deletedBy',
     'idleWarningSent',
     'staffNotes',
+    'messageCounts',
+    'statsCommitted',
     'auditLog',
 ];
 
@@ -117,6 +119,8 @@ function sanitizeLoadedSession(raw) {
         deletedBy: typeof raw.deletedBy === 'string' ? raw.deletedBy : null,
         idleWarningSent: !!raw.idleWarningSent,
         staffNotes: Array.isArray(raw.staffNotes) ? raw.staffNotes : [],
+        messageCounts: raw.messageCounts && typeof raw.messageCounts === 'object' ? raw.messageCounts : {},
+        statsCommitted: !!raw.statsCommitted,
         auditLog: Array.isArray(raw.auditLog) ? raw.auditLog : [],
     };
 }
@@ -172,6 +176,8 @@ function createSession(channelId, data) {
         deletedBy: null,
         idleWarningSent: false,
         staffNotes: [],
+        messageCounts: {},
+        statsCommitted: false,
         auditLog: [],
         ...data,
         channelId, // نحفظ المفتاح داخل الجلسة لاستعادته من القرص

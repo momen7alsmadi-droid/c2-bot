@@ -62,7 +62,7 @@ function initStatsStore() {
 
 function ensureUser(userId) {
     if (!state.users[userId]) {
-        state.users[userId] = { ticketsClaimed: 0, ticketsClosed: 0, messagesSent: 0, ratings: [] };
+        state.users[userId] = { ticketsClaimed: 0, ticketsClosed: 0, messagesSent: 0, ratings: [], claimTimes: [] };
     }
     return state.users[userId];
 }
@@ -86,6 +86,54 @@ function recordMessage(userId) {
     if (!userId) return;
     ensureUser(userId).messagesSent += 1;
     persist();
+}
+
+/** تسجيل دفعة رسائل دفعة واحدة (تُستدعى عند قفل التذكرة — لتقليل الضغط) */
+function recordMessages(userId, count) {
+    if (!userId || !count || count <= 0) return;
+    ensureUser(userId).messagesSent += count;
+    persist();
+}
+
+/** تسجيل سرعة استلام: الوقت من فتح التذكرة حتى استلامها (بالمللي ثانية) */
+function recordClaimSpeed(userId, ms) {
+    if (!userId || !ms || ms <= 0) return;
+    const u = ensureUser(userId);
+    if (!Array.isArray(u.claimTimes)) u.claimTimes = [];
+    u.claimTimes.push(Math.floor(ms));
+    if (u.claimTimes.length > 100) u.claimTimes = u.claimTimes.slice(-100); // نحتفظ بآخر 100
+    persist();
+}
+
+/**
+ * التزام إحصائيات التذكرة عند قفلها/حذفها (بدل التحديث مع كل رسالة):
+ *   - رسائل كل المشاركين (دفعة واحدة)
+ *   - الاستلام + نقطة الإغلاق (إن كانت مقفلة) + سرعة الاستلام
+ * ملاحظة: تستدعى من معالجي القفل/الحذف — علامة statsCommitted تمنع التكرار
+ */
+function commitTicketStats(session) {
+    if (!session || session.statsCommitted) return;
+
+    const claimer = session.claimedBy;
+    const counts = session.messageCounts || {};
+
+    // 1) رسائل كل المشاركين في التذكرة (دفعة واحدة)
+    for (const [uid, count] of Object.entries(counts)) {
+        if (count > 0) recordMessages(uid, count);
+    }
+
+    // 2) الاستلام + نقطة الإغلاق + سرعة الاستلام (لآخر مستلم)
+    if (claimer) {
+        recordClaim(claimer);
+        if (session.lockedAt) recordClose(claimer);
+        const claimedAt = session.claimedAt || 0;
+        const openedAt = session.openedAt || 0;
+        if (claimedAt > openedAt) recordClaimSpeed(claimer, claimedAt - openedAt);
+    }
+
+    // 3) تعليم الجلسة كملتزمة + مسح عدّادات الرسائل
+    const { updateSession } = require('../handlers/ticketStore');
+    updateSession(session.channelId, { statsCommitted: true, messageCounts: {} });
 }
 
 /** تسجيل تقييم نجمي (1-5) */
@@ -124,6 +172,11 @@ function getUserStats(userId) {
         ratings,
         ratingCount,
         avgRating,
+        claimTimes: Array.isArray(raw.claimTimes) ? raw.claimTimes : [],
+        avgClaimTimeMs:
+            Array.isArray(raw.claimTimes) && raw.claimTimes.length > 0
+                ? raw.claimTimes.reduce((s, t) => s + t, 0) / raw.claimTimes.length
+                : null,
         messagesPerTicket: raw.ticketsClaimed > 0 ? raw.messagesSent / raw.ticketsClaimed : 0,
         points,
     };
@@ -150,7 +203,10 @@ module.exports = {
     recordClaim,
     recordClose,
     recordMessage,
+    recordMessages,
+    recordClaimSpeed,
     recordRating,
+    commitTicketStats,
     getUserStats,
     getAllStats,
     getTotalClaims,

@@ -49,6 +49,18 @@ function getRoleName(member) {
     return role ? `${role}` : '—';
 }
 
+/** تنسيق مدة الاستلام (متوسط سرعة الاستلام) */
+function formatClaimSpeed(ms) {
+    if (!ms || ms <= 0) return '—';
+    if (ms < 60000) {
+        const s = Math.round(ms / 1000);
+        return `${s} ثانية`;
+    }
+    const m = Math.floor(ms / 60000);
+    const s = Math.round((ms % 60000) / 1000);
+    return s > 0 ? `${m} دقيقة و ${s} ثانية` : `${m} دقيقة`;
+}
+
 /** حقل تفصيل النقاط */
 function buildPointsBreakdownField(stats) {
     const { messagePoints, closePoints, ratingPoints } = stats.points;
@@ -78,6 +90,7 @@ function buildUserStatsEmbed(targetUser, guild, options = {}) {
             { name: '📥 تكتات مغلقة (كآخر مستلم)', value: `${stats.ticketsClosed}`, inline: true },
             { name: '💬 رسائله في كل التكتات', value: `${stats.messagesSent}`, inline: true },
             { name: '📊 معدل الرسائل لكل تكت', value: `${stats.messagesPerTicket.toFixed(2)}`, inline: true },
+            { name: '⚡ سرعة الاستلام (متوسط)', value: formatClaimSpeed(stats.avgClaimTimeMs), inline: true },
             { name: '⭐ عدد نجوم التقييم', value: `${stats.ratingCount}`, inline: true },
             { name: '🌟 معدل التقييم', value: stats.ratingCount > 0 ? `${stats.avgRating.toFixed(2)} / 5` : 'لا توجد تقييمات بعد', inline: true },
             { name: '🎯 معدل الاستلام', value: `${claimRate}% من إجمالي **${totalClaims}** استلام بالسيرفر`, inline: true },
@@ -221,4 +234,5 @@ module.exports = {
     handleTopNav,
     handlePickPerson,
     handleStatsUserSelect,
+    formatClaimSpeed,
 };
