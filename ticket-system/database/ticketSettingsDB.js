@@ -23,6 +23,23 @@ const path = require('path');
 const mongoose = require('mongoose');
 const { reportError } = require('../../src/utils/errorLogger');
 
+const { SECOND_MS, MINUTE_MS, HOUR_MS, DAY_MS } = require('../utils/durationParser');
+
+/**
+ * الإعدادات الزمنية (المدة) ووحدتها الأصلية للتخزين:
+ * يُدخل المستخدم مدة مرنة مثل "1h 30m 5s" (s m h d) وتُخزَّن
+ * محوّلة إلى وحدة الإعداد الأصلية (أرقام عشرية مسموحة).
+ */
+const DURATION_SETTINGS = {
+    openCooldownMinutes: MINUTE_MS,
+    claimSlaMinutes: MINUTE_MS,
+    autoCloseIdleHours: HOUR_MS,
+    autoCloseGraceHours: HOUR_MS,
+    maxTicketAgeHours: HOUR_MS,
+    deleteCountdownSeconds: SECOND_MS,
+    autoPurgeLockedDays: DAY_MS,
+};
+
 const DB_PATH = path.join(__dirname, '..', 'data', 'ticket-settings.json');
 
 const DEFAULT_SETTINGS = {
@@ -247,4 +264,4 @@ function initTicketSettings() {
     return false;
 }
 
-module.exports = { getTicketSettings, updateTicketSettings, initTicketSettings };
+module.exports = { getTicketSettings, updateTicketSettings, initTicketSettings, DURATION_SETTINGS };

@@ -159,7 +159,7 @@ async function handleTicketCloseButton(interaction) {
             addAuditLog(interaction.channel.id, `<@${interaction.member.id}> قام بحذف التذكرة`);
 
             // مدة العد التنازلي من الإعدادات العامة (افتراضياً 10 ثوانٍ)
-            let secondsLeft = Math.max(3, Math.min(60, getTicketSettings().deleteCountdownSeconds || 10));
+            let secondsLeft = Math.max(3, Math.min(3600, getTicketSettings().deleteCountdownSeconds || 10));
             const message = interaction.message; // مرجع الرسالة لتعديلها كل ثانية
 
             await message.edit(buildDeleteCountdownView(secondsLeft)).catch(() => {});

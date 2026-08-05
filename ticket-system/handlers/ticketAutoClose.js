@@ -23,6 +23,7 @@
  */
 
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { formatDuration, HOUR_MS } = require('../utils/durationParser');
 const { getPanelByName } = require('../database/panelsDB');
 const { getTicketSettings } = require('../database/ticketSettingsDB');
 const { getAllSessions, updateSession, addAuditLog } = require('./ticketStore');
@@ -214,7 +215,8 @@ async function autoDelete(client, channel, panel, session, settings, reason = 'i
     }).catch(() => {});
 
     // رسالة العد التنازلي (قابلة للإلغاء عبر زر ticket_delete_cancel)
-    const secondsTotal = Math.max(3, Math.min(60, settings.deleteCountdownSeconds || 10));
+    // مدة مرنة من الإعدادات (مثال: 1m = 60 ثانية) مع سقف أعلى ساعة حمايةً
+    const secondsTotal = Math.max(3, Math.min(3600, settings.deleteCountdownSeconds || 10));
     let secondsLeft = secondsTotal;
 
     const countdownMessage = await channel.send({
@@ -316,8 +318,8 @@ async function sendIdleWarning(channel, panel, session) {
                 .setColor(0xfee75c)
                 .setTitle('⏳ تنبيه: خمول التذكرة')
                 .setDescription(
-                    `لم يحدث أي نشاط في هذه التذكرة منذ **${settings.autoCloseIdleHours} ساعة**.\n` +
-                    `إن استمر الخمول **${settings.autoCloseGraceHours} ساعة** إضافية سيقوم البوت ${
+                    `لم يحدث أي نشاط في هذه التذكرة منذ **${formatDuration(settings.autoCloseIdleHours * HOUR_MS)}**.\n` +
+                    `إن استمر الخمول **${formatDuration(settings.autoCloseGraceHours * HOUR_MS)}** إضافية سيقوم البوت ${
                         settings.autoCloseAction === 'delete' ? 'بحذفها نهائياً 🗑️' : 'بقفلها 🔒'
                     }.\nأرسل رسالة لإبقائها نشطة.`
                 )
@@ -332,7 +334,7 @@ async function sendIdleWarning(channel, panel, session) {
         panel,
         session,
         '⏳ تنبيه خمول',
-        `نبه البوت إلى خمول التذكرة (${settings.autoCloseIdleHours} ساعة) — سيتم ${settings.autoCloseAction === 'delete' ? 'الحذف' : 'القفل'} بعد ${settings.autoCloseGraceHours} ساعة إضافية.`
+        `نبه البوت إلى خمول التذكرة (${formatDuration(settings.autoCloseIdleHours * HOUR_MS)}) — سيتم ${settings.autoCloseAction === 'delete' ? 'الحذف' : 'القفل'} بعد ${formatDuration(settings.autoCloseGraceHours * HOUR_MS)} إضافية.`
     );
 }
 

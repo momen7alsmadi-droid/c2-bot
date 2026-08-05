@@ -33,6 +33,7 @@ const { getLastOpen, setLastOpen } = require('../database/ticketCooldownStore');
 const { buildTicketControlRows } = require('./ticketControlBuilder');
 const { buildTicketEmbed, sendWelcomeMessage } = require('./ticketEmbedBuilder');
 const { buildTicketChannelName } = require('../utils/ticketChannelName');
+const { formatDuration } = require('../utils/durationParser');
 
 /**
  * @param {import('discord.js').ButtonInteraction | import('discord.js').StringSelectMenuInteraction} interaction
@@ -139,7 +140,7 @@ async function handleTicketCreate(interaction) {
                     if (remainingMs > 0) {
                         const mins = Math.ceil(remainingMs / 60000);
                         await interaction.reply({
-                            content: `⏱️ عليك الانتظار **${mins} ${mins === 1 ? 'دقيقة' : 'دقائق'}** قبل فتح تذكرة جديدة (الكولداون: ${settings.openCooldownMinutes} دقيقة).`,
+                            content: `⏱️ عليك الانتظار **${mins} ${mins === 1 ? 'دقيقة' : 'دقائق'}** قبل فتح تذكرة جديدة (الكولداون: ${formatDuration(settings.openCooldownMinutes * 60000)}).`,
                             ephemeral: true,
                         });
                         return;

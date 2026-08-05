@@ -30,6 +30,7 @@ const {
 const { getAllPanels } = require('../database/panelsDB');
 const { getTicketSettings } = require('../database/ticketSettingsDB');
 const { safeEmoji } = require('../utils/emoji');
+const { formatDuration, SECOND_MS, MINUTE_MS, HOUR_MS, DAY_MS } = require('../utils/durationParser');
 const { version } = require('../../package.json');
 const { buildRatingSettingsPage } = require('./ticketRatingHandler');
 const { appendDecorativeOption } = require('../../src/utils/decorativeReset');
@@ -152,8 +153,8 @@ function buildTicketSettingsPage() {
         )
         .addFields(
             { name: '🎫 حدود الفتح والاستلام', value: '👤 العضو • 📁 البنل • ⏱️ الكولداون • 👥 حد الستاف • ⏳ مهلة الرد', inline: true },
-            { name: '🤖 الإغلاق التلقائي', value: '⏰ ساعات الخمول • 🕰️ السماح • 🔒/🗑️ الإجراء • ⏱️ حد العمر', inline: true },
-            { name: '🗑️ الحذف والأرشفة', value: '⏱️ ثواني الحذف • 📜 الأرشيف • 🧹 تنظيف المقفلات', inline: true },
+            { name: '🤖 الإغلاق التلقائي', value: '⏰ مدة الخمول • 🕰️ السماح • 🔒/🗑️ الإجراء • ⏱️ حد العمر', inline: true },
+            { name: '🗑️ الحذف والأرشفة', value: '⏱️ مدة الحذف • 📜 الأرشيف • 🧹 تنظيف المقفلات', inline: true },
             { name: '🛠️ الصيانة والترقيم', value: '🛠️ وضع الصيانة • 💬 رسالته • 🔢 بداية الترقيم', inline: true },
             { name: '🌙 ساعات العمل', value: 'تشغيل/إيقاف • 🌅 البداية • 🌇 النهاية', inline: true },
             { name: '🚫 قائمة الحظر', value: `عدد المحظورين: **${(s.blockedUsers || []).length}**`, inline: true },
@@ -195,7 +196,7 @@ function buildTicketSettingsCategory(catId) {
 
     const num = v => (v > 0 ? `**${v}**` : 'بدون حد');
     const onoff = v => (v ? '✅ مفعّل' : '❌ معطّل');
-    const mins = v => (v > 0 ? `**${v}** دقيقة` : 'بدون');
+    const dur = (v, unitMs, zero) => `**${formatDuration(v * unitMs, zero)}**`;
     const toggleStyle = v => (v ? ButtonStyle.Success : ButtonStyle.Secondary);
 
     const back = new ActionRowBuilder().addComponents(
@@ -210,9 +211,9 @@ function buildTicketSettingsCategory(catId) {
             .addFields(
                 { name: '👤 تذاكر متزامنة للعضو', value: `${num(s.maxOpenPerUser)}`, inline: true },
                 { name: '📁 من نفس البنل', value: `${num(s.maxOpenPerPanelPerUser)}`, inline: true },
-                { name: '⏱️ كولداون الفتح', value: `${mins(s.openCooldownMinutes)}`, inline: true },
+                { name: '⏱️ كولداون الفتح', value: `${dur(s.openCooldownMinutes, MINUTE_MS, 'بدون')}`, inline: true },
                 { name: '👥 حد استلام الستاف', value: `${num(s.maxClaimsPerStaff)}`, inline: true },
-                { name: '⏳ مهلة رد الستاف (SLA)', value: `${mins(s.claimSlaMinutes)}\n(بلا رد = إلغاء استلام تلقائي)`, inline: true }
+                { name: '⏳ مهلة رد الستاف (SLA)', value: `${dur(s.claimSlaMinutes, MINUTE_MS, 'بدون')}\n(بلا رد = إلغاء استلام تلقائي)`, inline: true }
             )
             .setFooter({ text: `الإصدار: ${version}` })
             .setTimestamp();
@@ -234,10 +235,10 @@ function buildTicketSettingsCategory(catId) {
             .setDescription('الخمول: تنبيه بعد الساعات المحددة ثم تنفيذ الإجراء بعد فترة السماح.\nحد العمر: مفتوحة أكثر من المدة → نفس الإجراء حتى مع وجود رسائل.')
             .addFields(
                 { name: '🔄 الحالة', value: `${onoff(s.autoCloseEnabled)}`, inline: true },
-                { name: '⏰ تنبيه بعد خمول', value: `**${s.autoCloseIdleHours} ساعة**`, inline: true },
-                { name: '🕰️ سماح إضافي', value: `**${s.autoCloseGraceHours} ساعة**`, inline: true },
+                { name: '⏰ تنبيه بعد خمول', value: `${dur(s.autoCloseIdleHours, HOUR_MS, 'بدون')}`, inline: true },
+                { name: '🕰️ سماح إضافي', value: `${dur(s.autoCloseGraceHours, HOUR_MS, 'بدون')}`, inline: true },
                 { name: '🔒/🗑️ إجراء التنفيذ', value: s.autoCloseAction === 'delete' ? '🗑️ حذف نهائي' : '🔒 قفل فقط', inline: true },
-                { name: '⏱️ حد عمر التذكرة', value: s.maxTicketAgeHours > 0 ? `**${s.maxTicketAgeHours} ساعة**` : 'معطّل (0)', inline: true }
+                { name: '⏱️ حد عمر التذكرة', value: `${dur(s.maxTicketAgeHours, HOUR_MS, 'معطّل (0)')}`, inline: true }
             )
             .setFooter({ text: `الإصدار: ${version}` })
             .setTimestamp();
@@ -247,8 +248,8 @@ function buildTicketSettingsCategory(catId) {
                 .setCustomId('ticket_settings_auto_close')
                 .setLabel(`🤖 تفعيل الخمول: ${onoff(s.autoCloseEnabled)}`)
                 .setStyle(toggleStyle(s.autoCloseEnabled)),
-            new ButtonBuilder().setCustomId('ticket_settings_auto_close_idle').setLabel('⏰ ساعات الخمول').setStyle(ButtonStyle.Primary),
-            new ButtonBuilder().setCustomId('ticket_settings_auto_close_grace').setLabel('🕰️ سماح التنبيه').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('ticket_settings_auto_close_idle').setLabel('⏰ مدة الخمول').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('ticket_settings_auto_close_grace').setLabel('🕰️ مهلة السماح').setStyle(ButtonStyle.Primary),
             new ButtonBuilder()
                 .setCustomId('ticket_settings_auto_close_action')
                 .setLabel(s.autoCloseAction === 'delete' ? '🗑️ إجراء الخمول: حذف' : '🔒 إجراء الخمول: قفل')
@@ -264,15 +265,15 @@ function buildTicketSettingsCategory(catId) {
             .setTitle('🗑️ الحذف والأرشفة والتنظيف')
             .setDescription('الإعدادات الخاصة بحذف التذاكر وأرشفتها وتنظيف المقفلات تلقائياً.')
             .addFields(
-                { name: '⏱️ العد التنازلي قبل الحذف', value: `**${s.deleteCountdownSeconds} ثانية**`, inline: true },
+                { name: '⏱️ العد التنازلي قبل الحذف', value: `${dur(s.deleteCountdownSeconds, SECOND_MS, '0')}`, inline: true },
                 { name: '📜 أرشيف HTML عند الحذف', value: `${onoff(s.archiveOnDelete)}`, inline: true },
-                { name: '🧹 تنظيف المقفلات', value: s.autoPurgeLockedDays > 0 ? `بعد **${s.autoPurgeLockedDays} يوم** → حذف` : 'معطّل (0)', inline: true }
+                { name: '🧹 تنظيف المقفلات', value: `${dur(s.autoPurgeLockedDays, DAY_MS, 'معطّل (0)')}\n(بعد القفل → حذف تلقائي)`, inline: true }
             )
             .setFooter({ text: `الإصدار: ${version}` })
             .setTimestamp();
 
         const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('ticket_settings_delete_countdown').setLabel('⏱️ ثواني الحذف').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('ticket_settings_delete_countdown').setLabel('⏱️ مدة الحذف').setStyle(ButtonStyle.Primary),
             new ButtonBuilder()
                 .setCustomId('ticket_settings_archive')
                 .setLabel(`📜 الأرشيف: ${onoff(s.archiveOnDelete)}`)

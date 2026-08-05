@@ -32,7 +32,8 @@ const { resolveSession } = require('../utils/panelResolver');
 const { sendActionMessage } = require('../utils/actionMessages');
 const { enrichActionContext } = require('../utils/ticketContext');
 const { addRoleButton, addRoleOption, setRoleButtonColor } = require('../utils/roleButtons');
-const { getTicketSettings, updateTicketSettings } = require('../database/ticketSettingsDB');
+const { getTicketSettings, updateTicketSettings, DURATION_SETTINGS } = require('../database/ticketSettingsDB');
+const { parseDuration, toUnit } = require('../utils/durationParser');
 const { buildTicketSettingsPage, buildBlacklistPage, buildPageForSettings } = require('./dashboardBuilder');
 
 const RELEVANT_IDS = ['modal_create_panel', 'modal_edit_name_desc', 'modal_welcome_message', 'modal_panel_message', 'modal_ticket_embed', 'modal_ticket_name', 'modal_action_message', 'modal_rename_ticket', 'modal_custom_role_btn', 'modal_blacklist_add', 'modal_staff_note'];
@@ -193,6 +194,22 @@ async function handleTicketModal(interaction) {
             if (key === 'maintenanceMessage') {
                 const text = interaction.fields.getTextInputValue('setting_value').trim();
                 updateTicketSettings({ maintenanceMessage: text });
+                await interaction.update(buildPageForSettings([key]));
+                return;
+            }
+
+            // الإعدادات الزمنية: مدة مرنة (1h 30m 5s) → تُخزَّن بوحدة الإعداد الأصلية
+            if (DURATION_SETTINGS[key]) {
+                const raw = interaction.fields.getTextInputValue('setting_value').trim();
+                const res = parseDuration(raw, DURATION_SETTINGS[key]);
+                if (!res.ok) {
+                    await interaction.reply({
+                        content: `❌ ${res.error}`,
+                        ephemeral: true,
+                    });
+                    return;
+                }
+                updateTicketSettings({ [key]: toUnit(res.ms, DURATION_SETTINGS[key]) });
                 await interaction.update(buildPageForSettings([key]));
                 return;
             }

@@ -14,7 +14,8 @@ const {
     ActionRowBuilder,
 } = require('discord.js');
 const { SUPPORTED_VARIABLES } = require('../utils/messageVariables');
-const { getTicketSettings } = require('../database/ticketSettingsDB');
+const { getTicketSettings, DURATION_SETTINGS } = require('../database/ticketSettingsDB');
+const { formatDuration } = require('../utils/durationParser');
 
 // قائمة كل المتغيرات المدعومة — كل متغير في سطر مستقل مع شرح بسيط
 // (تظهر داخل نافذة التخصيص في حقل "📋 كل المتغيرات المدعومة")
@@ -565,37 +566,38 @@ function buildTicketSettingModal(key) {
     const TITLES = {
         maxOpenPerUser: '👤 حد تذاكر العضو المتزامنة',
         maxOpenPerPanelPerUser: '📁 حد تذاكر العضو من نفس البنل',
-        openCooldownMinutes: '⏱️ كولداون فتح التذكرة (دقائق)',
+        openCooldownMinutes: '⏱️ كولداون فتح التذكرة',
         maxClaimsPerStaff: '👥 حد استلام الستاف المتزامن',
-        claimSlaMinutes: '⏳ مهلة رد الستاف (دقائق)',
-        autoCloseIdleHours: '⏰ خمول التذاكر قبل التنبيه (ساعات)',
-        autoCloseGraceHours: '🕰️ السماح بعد التنبيه (ساعات)',
-        deleteCountdownSeconds: '⏱️ العد التنازلي قبل الحذف (ثوانٍ)',
+        claimSlaMinutes: '⏳ مهلة رد الستاف (SLA)',
+        autoCloseIdleHours: '⏰ خمول التذاكر قبل التنبيه',
+        autoCloseGraceHours: '🕰️ السماح بعد التنبيه',
+        deleteCountdownSeconds: '⏱️ العد التنازلي قبل الحذف',
         ticketNumberStart: '🔢 بداية رقم التذاكر',
         maintenanceMessage: '💬 رسالة وضع الصيانة',
         workHoursStart: '🌅 ساعة بداية العمل (0-23)',
         workHoursEnd: '🌇 ساعة نهاية العمل (0-23)',
-        maxTicketAgeHours: '⏱️ حد عمر التذكرة (ساعات)',
-        autoPurgeLockedDays: '🧹 تنظيف المقفلات (أيام)',
+        maxTicketAgeHours: '⏱️ حد عمر التذكرة',
+        autoPurgeLockedDays: '🧹 تنظيف المقفلات',
     };
     const HINTS = {
         maxOpenPerUser: 'كم تذكرة يفتحها العضو في نفس الوقت (0 = بدون حد)',
         maxOpenPerPanelPerUser: 'كم تذكرة يفتحها العضو من نفس البنل (0 = بدون حد)',
-        openCooldownMinutes: 'مدة الانتظار بين فتح تذكرة وأخرى بالدقائق (0 = بدون)',
+        openCooldownMinutes: 'مدة الانتظار بين فتح تذكرة وأخرى — مثال: 1h 30m (0 = بدون)',
         maxClaimsPerStaff: 'كم تذكرة يستلمها الستاف في نفس الوقت (0 = بدون حد)',
-        claimSlaMinutes: 'بلا أي رد خلال هذه المدة → إلغاء استلام تلقائي (0 = معطّل)',
-        autoCloseIdleHours: 'بعد هذا القدر بلا رسائل → تنبيه (0 = معطّل)',
-        autoCloseGraceHours: 'إن استمر الخمول هذا القدر بعد التنبيه → تنفيذ الإجراء',
-        deleteCountdownSeconds: 'مدة العد التنازلي قبل الحذف (3 - 60 ثانية)',
+        claimSlaMinutes: 'بلا أي رد خلال هذه المدة → إلغاء استلام — مثال: 45m (0 = معطّل)',
+        autoCloseIdleHours: 'بعد هذا القدر بلا رسائل → تنبيه — مثال: 24h (0 = معطّل)',
+        autoCloseGraceHours: 'إن استمر الخمول هذا القدر بعد التنبيه → تنفيذ الإجراء — مثال: 2h',
+        deleteCountdownSeconds: 'مدة العد التنازلي قبل الحذف — مثال: 10s أو 1m',
         ticketNumberStart: 'الرقم الذي يبدأ منه ترقيم التذاكر',
         maintenanceMessage: 'تظهر للعضو عند محاولة فتح تذكرة أثناء الصيانة',
         workHoursStart: 'من أي ساعة يُسمح بالفتح؟ (0-23، مثال: 9)',
         workHoursEnd: 'حتى أي ساعة يُسمح بالفتح؟ (0-23، مثال: 18)',
-        maxTicketAgeHours: 'مفتوحة أكثر من هذا القدر → قفل/حذف تلقائي (0 = معطّل)',
-        autoPurgeLockedDays: 'مقفلة أكثر من هذا القدر → حذف تلقائي مع أرشفة (0 = معطّل)',
+        maxTicketAgeHours: 'مفتوحة أكثر من هذا القدر → قفل/حذف — مثال: 7d (0 = معطّل)',
+        autoPurgeLockedDays: 'مقفلة أكثر من هذا القدر → حذف مع أرشفة — مثال: 30d (0 = معطّل)',
     };
 
     const isText = key === 'maintenanceMessage';
+    const isDuration = !!DURATION_SETTINGS[key];
 
     const modal = new ModalBuilder()
         .setCustomId(`modal_ticket_settings:${key}`)
@@ -603,11 +605,23 @@ function buildTicketSettingModal(key) {
 
     const valueInput = new TextInputBuilder()
         .setCustomId('setting_value')
-        .setLabel(isText ? 'نص الرسالة (فارغ = رسالة افتراضية)' : 'القيمة (0 = بدون حد)')
+        .setLabel(
+            isText
+                ? 'نص الرسالة (فارغ = رسالة افتراضية)'
+                : isDuration
+                  ? 'المدة (0 = بدون) — مثال: 1h 30m 5s'
+                  : 'القيمة (0 = بدون حد)'
+        )
         .setStyle(isText ? TextInputStyle.Paragraph : TextInputStyle.Short)
-        .setValue(String(getTicketSettings()[key] ?? (isText ? '' : 0)))
-        .setPlaceholder(HINTS[key] || 'مثال: 2')
-        .setMaxLength(isText ? 500 : 4)
+        .setValue(
+            String(
+                isDuration
+                    ? formatDuration(getTicketSettings()[key] * DURATION_SETTINGS[key])
+                    : getTicketSettings()[key] ?? (isText ? '' : 0)
+            )
+        )
+        .setPlaceholder(isDuration ? 'مثال: 1h 30m 5s أو 2d — الوحدات: s m h d' : HINTS[key] || 'مثال: 2')
+        .setMaxLength(isText ? 500 : isDuration ? 30 : 4)
         .setRequired(isText ? false : true);
 
     modal.addComponents(new ActionRowBuilder().addComponents(valueInput));
