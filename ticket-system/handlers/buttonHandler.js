@@ -52,6 +52,8 @@ const { getRoleButton, toggleRoleButtonEnabled, toggleRoleButtonExclusive } = re
 const { canUseRoleButton, canUseExclusiveRoleButton } = require('./permissionUtils');
 const { getSession: getTicketSession } = require('./ticketStore');
 const { appendDecorativeOption } = require('../../src/utils/decorativeReset');
+const { applyMessageVariables } = require('../utils/messageVariables');
+const { enrichActionContext } = require('../utils/ticketContext');
 
 // خريطة تربط كل customId (الجزء الأول) بنوع اللوحة الفرعية المطلوب بناؤها
 const SUB_PANEL_MAP = {
@@ -450,16 +452,26 @@ async function handleTicketButton(interaction) {
                 return;
             }
 
+            // سياق المتغيرات: من ضغط الزر + بيانات التذكرة (الفاتح/المستلم/الكاتيجوري)
+            // [user]/[actor] = من ضغط الزر • [member] = صاحب التكت (المستلم للرتبة)
+            const context = await enrichActionContext(interaction, {
+                member: interaction.member,
+                guild: interaction.guild,
+                channelName: interaction.channel?.name,
+                channelId: interaction.channel?.id,
+                targetMention: ticketSession.openerId ? `<@${ticketSession.openerId}>` : undefined,
+            });
+
             const menu = new StringSelectMenuBuilder()
                 .setCustomId(`ticket_role_opt:${btnId}`)
                 .setPlaceholder('اختر رتبة...')
                 .setMaxValues(1)
                 .addOptions(
                     options.slice(0, 25).map(o => ({
-                        label: String(o.label || 'خيار').slice(0, 100),
+                        label: String(applyMessageVariables(o.label, context) || 'خيار').slice(0, 100),
                         value: o.id,
                         emoji: '🎖️',
-                        description: String(o.description || '').slice(0, 100) || undefined,
+                        description: String(applyMessageVariables(o.description || '', context)).slice(0, 100) || undefined,
                     }))
                 );
 
@@ -469,7 +481,7 @@ async function handleTicketButton(interaction) {
 
             const embed = new EmbedBuilder()
                 .setColor(pickerColor)
-                .setTitle(String(button.label || '🎖️ اختر رتبة').slice(0, 256))
+                .setTitle(String(applyMessageVariables(button.label, context) || '🎖️ اختر رتبة').slice(0, 256))
                 .setDescription('اختر خياراً من القائمة المنسدلة بالأسفل — ستحصل على الرتبة المحددة له.')
                 .setFooter({ text: `الوضع: ${button.exclusive ? 'حصري (رتبة واحدة فقط)' : 'متعدد (أكثر من رتبة)'}` })
                 .setTimestamp();

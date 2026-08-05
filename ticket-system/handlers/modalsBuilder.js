@@ -13,6 +13,11 @@ const {
     TextInputStyle,
     ActionRowBuilder,
 } = require('discord.js');
+const { SUPPORTED_VARIABLES } = require('../utils/messageVariables');
+
+// قائمة كل المتغيرات المدعومة — كل متغير في سطر مستقل مع شرح بسيط
+// (تظهر داخل نافذة التخصيص في حقل "📋 كل المتغيرات المدعومة")
+const VARIABLES_HINT = SUPPORTED_VARIABLES.split(' • ').join('\n');
 
 /**
  * Modal إنشاء بنل جديد (يُفتح عند الضغط على زر "إضافة تكت")
@@ -46,10 +51,18 @@ function buildCreatePanelModal() {
         .setMaxLength(10)
         .setRequired(false);
 
+    const hintInput = new TextInputBuilder()
+        .setCustomId('panel_create_hint')
+        .setLabel('📋 كل المتغيرات المدعومة (متغير + شرح بسيط)')
+        .setStyle(TextInputStyle.Paragraph)
+        .setValue(VARIABLES_HINT)
+        .setRequired(false);
+
     modal.addComponents(
         new ActionRowBuilder().addComponents(nameInput),
         new ActionRowBuilder().addComponents(descInput),
-        new ActionRowBuilder().addComponents(emojiInput)
+        new ActionRowBuilder().addComponents(emojiInput),
+        new ActionRowBuilder().addComponents(hintInput)
     );
 
     return modal;
@@ -89,10 +102,18 @@ function buildEditNameDescModal(panel) {
         .setMaxLength(10)
         .setRequired(false);
 
+    const hintInput = new TextInputBuilder()
+        .setCustomId('panel_edit_hint')
+        .setLabel('📋 كل المتغيرات المدعومة (متغير + شرح بسيط)')
+        .setStyle(TextInputStyle.Paragraph)
+        .setValue(VARIABLES_HINT)
+        .setRequired(false);
+
     modal.addComponents(
         new ActionRowBuilder().addComponents(nameInput),
         new ActionRowBuilder().addComponents(descInput),
-        new ActionRowBuilder().addComponents(emojiInput)
+        new ActionRowBuilder().addComponents(emojiInput),
+        new ActionRowBuilder().addComponents(hintInput)
     );
 
     return modal;
@@ -156,12 +177,19 @@ function buildWelcomeMessageModal(panel) {
         .setMaxLength(500)
         .setRequired(false);
 
+    const hintInput = new TextInputBuilder()
+        .setCustomId('welcome_hint')
+        .setLabel('📋 كل المتغيرات المدعومة (متغير + شرح بسيط)')
+        .setStyle(TextInputStyle.Paragraph)
+        .setValue(VARIABLES_HINT)
+        .setRequired(false);
+
     modal.addComponents(
         new ActionRowBuilder().addComponents(contentInput),
         new ActionRowBuilder().addComponents(titleInput),
         new ActionRowBuilder().addComponents(descInput),
-        new ActionRowBuilder().addComponents(colorInput),
-        new ActionRowBuilder().addComponents(imageInput)
+        new ActionRowBuilder().addComponents(colorInput, imageInput),
+        new ActionRowBuilder().addComponents(hintInput)
     );
 
     return modal;
@@ -225,12 +253,19 @@ function buildPanelMessageModal(panel) {
         .setMaxLength(500)
         .setRequired(false);
 
+    const hintInput = new TextInputBuilder()
+        .setCustomId('panel_message_hint')
+        .setLabel('📋 كل المتغيرات المدعومة (متغير + شرح بسيط)')
+        .setStyle(TextInputStyle.Paragraph)
+        .setValue(VARIABLES_HINT)
+        .setRequired(false);
+
     modal.addComponents(
         new ActionRowBuilder().addComponents(titleInput),
         new ActionRowBuilder().addComponents(descInput),
-        new ActionRowBuilder().addComponents(footerInput),
-        new ActionRowBuilder().addComponents(colorInput),
-        new ActionRowBuilder().addComponents(imageInput)
+        new ActionRowBuilder().addComponents(footerInput, colorInput),
+        new ActionRowBuilder().addComponents(imageInput),
+        new ActionRowBuilder().addComponents(hintInput)
     );
 
     return modal;
@@ -287,11 +322,19 @@ function buildTicketEmbedModal(panel) {
         .setMaxLength(20)
         .setRequired(false);
 
+    const hintInput = new TextInputBuilder()
+        .setCustomId('ticket_embed_hint')
+        .setLabel('📋 كل المتغيرات المدعومة (متغير + شرح بسيط)')
+        .setStyle(TextInputStyle.Paragraph)
+        .setValue(VARIABLES_HINT)
+        .setRequired(false);
+
     modal.addComponents(
         new ActionRowBuilder().addComponents(titleInput),
         new ActionRowBuilder().addComponents(descInput),
         new ActionRowBuilder().addComponents(imageInput),
-        new ActionRowBuilder().addComponents(colorInput)
+        new ActionRowBuilder().addComponents(colorInput),
+        new ActionRowBuilder().addComponents(hintInput)
     );
 
     return modal;
@@ -375,9 +418,9 @@ function buildActionMessageModal(panel, actionKey) {
 
     const hintInput = new TextInputBuilder()
         .setCustomId('action_hint')
-        .setLabel('المتغيرات المدعومة')
+        .setLabel('📋 كل المتغيرات المدعومة (متغير + شرح بسيط)')
         .setStyle(TextInputStyle.Paragraph)
-        .setValue('[actor] من ضغط الزر • [actor_name] اسمه • [actor_id] آيديه • [actor_role] رتبته • [member] العضو المستهدف • [opener] فاتح التذكرة • [claimed_by] المستلم • [ticket_created] تاريخ الفتح • [category] الكاتيجوري • [username] • [server] • [ticket_name] • [ticket_number] • [member_count] • [time] • [date] • [day] • [year] • [month]')
+        .setValue(VARIABLES_HINT)
         .setRequired(false);
 
     modal.addComponents(
@@ -432,7 +475,17 @@ function buildRoleButtonModal(panel, btnId = null) {
         .setMaxLength(80)
         .setRequired(true);
 
-    modal.addComponents(new ActionRowBuilder().addComponents(nameInput));
+    const hintInput = new TextInputBuilder()
+        .setCustomId('role_btn_hint')
+        .setLabel('📋 كل المتغيرات المدعومة (متغير + شرح بسيط)')
+        .setStyle(TextInputStyle.Paragraph)
+        .setValue(VARIABLES_HINT)
+        .setRequired(false);
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(nameInput),
+        new ActionRowBuilder().addComponents(hintInput)
+    );
     return modal;
 }
 
@@ -464,9 +517,17 @@ function buildRoleButtonOptionModal(btnId, option = null) {
         .setMaxLength(100)
         .setRequired(false);
 
+    const hintInput = new TextInputBuilder()
+        .setCustomId('role_opt_hint')
+        .setLabel('📋 كل المتغيرات المدعومة (متغير + شرح بسيط)')
+        .setStyle(TextInputStyle.Paragraph)
+        .setValue(VARIABLES_HINT)
+        .setRequired(false);
+
     modal.addComponents(
         new ActionRowBuilder().addComponents(nameInput),
-        new ActionRowBuilder().addComponents(descInput)
+        new ActionRowBuilder().addComponents(descInput),
+        new ActionRowBuilder().addComponents(hintInput)
     );
     return modal;
 }

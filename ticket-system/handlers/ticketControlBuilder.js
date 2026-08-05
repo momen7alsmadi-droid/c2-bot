@@ -18,6 +18,7 @@ const {
 } = require('discord.js');
 const { getPanelByName } = require('../database/panelsDB');
 const { appendDecorativeOption } = require('../../src/utils/decorativeReset');
+const { applyMessageVariables } = require('../utils/messageVariables');
 
 /**
  * بناء صف أزرار الرتب المخصصة (من إعدادات البنل):
@@ -40,6 +41,15 @@ function buildCustomRoleButtonRows(session) {
     //  داخل التكت — ديسكورد لا يدعم ألوان Hex على الأزرار نفسها)
     const visible = buttons.slice(0, 3);
 
+    // سياق المتغيرات المتاح من الجلسة (الفاتح/المستلم/رقم التكت):
+    // المتغيرات التي لا يتوفر سياقها (مثل [user]) تبقى نصاً حرفياً
+    const context = {
+        openerId: session.openerId,
+        claimedBy: session.claimedBy,
+        ticketCreatedAt: session.openedAt,
+        ticketNumber: session.ticketNumber,
+    };
+
     const rows = [];
     for (let i = 0; i < visible.length; i += 1) {
         const b = visible[i];
@@ -47,7 +57,7 @@ function buildCustomRoleButtonRows(session) {
             new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
                     .setCustomId(`ticket_role_btn:${b.id}`)
-                    .setLabel(String(b.label || '🎖️ رتبة').slice(0, 80))
+                    .setLabel(String(applyMessageVariables(b.label, context) || '🎖️ رتبة').slice(0, 80))
                     .setStyle(ButtonStyle.Primary)
             )
         );
