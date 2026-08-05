@@ -109,6 +109,7 @@ commands.push(
   new SlashCommandBuilder()
     .setName('لوحة_الإدارة')
     .setDescription('🛡️ لوحة الإدارة - الترقية والتنزيل وتوب الإدارة')
+    .setDefaultMemberPermissions(8)
     .toJSON(),
   // أمر تغيير اسم البوت (للمطور فقط)
   new SlashCommandBuilder()
