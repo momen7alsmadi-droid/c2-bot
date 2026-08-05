@@ -85,67 +85,110 @@ function buildMainDashboard() {
 }
 
 /**
- * بناء صفحة "⚙️ إعدادات عامة" لنظام التذاكر:
- *   - حد التذاكر المتزامنة لكل عضو
- *   - حد التذاكر من نفس البنل لكل عضو
- *   - كولداون فتح التذكرة (بالدقائق)
- *   - حد الاستلام المتزامن لكل ستاف
+ * بناء صفحة "⚙️ إعدادات عامة" لنظام التذاكر — مرتبة ومجمّعة:
+ *   🎫 حدود الفتح • 👥 الاستلام • 🤖 الإغلاق التلقائي • 🗑️ الحذف • 🔢 الترقيم • 🛠️ الصيانة
  *
- * ملاحظات:
+ * القواعد:
  *   - الإدارة (Administrator) لا يشملها أي حد أو كولداون.
- *   - القيمة 0 = بدون حد / لا نهائي.
+ *   - القيمة 0 = بدون حد / معطّل.
  * @returns {{ embeds: EmbedBuilder[], components: ActionRowBuilder[] }}
  */
 function buildTicketSettingsPage() {
     const s = getTicketSettings();
+    const version = require('../../package.json').version;
 
-    const fmt = v => (v > 0 ? `**${v}** تذكرة` : '**بدون حد (0)**');
+    const num = v => (v > 0 ? `**${v}**` : 'بدون حد');
+    const onoff = v => (v ? '✅ مفعّل' : '❌ معطّل');
+    const mins = v => (v > 0 ? `**${v}** دقيقة` : 'بدون');
 
     const embed = new EmbedBuilder()
         .setColor(COLORS.main)
         .setTitle('⚙️ إعدادات عامة لنظام التذاكر')
         .setDescription(
-            'تحكّم بالحدود العامة لفتح واستلام التذاكر.\n' +
             '👑 **الإدارة (Administrator) لا يشملها أي حد أو كولداون.**\n' +
-            '• القيمة **0** = بدون حد (لا نهائي).'
+            '• القيمة **0** = بدون حد / معطّل.\n' +
+            '• **كل إجراء تلقائي من البوت يُسجَّل في روم اللوق.**'
         )
         .addFields(
-            { name: '👤 حد تذاكر العضو المتزامنة', value: fmt(s.maxOpenPerUser), inline: false },
-            { name: '📁 حد تذاكر العضو من نفس البنل', value: fmt(s.maxOpenPerPanelPerUser), inline: false },
             {
-                name: '⏱️ كولداون فتح التذكرة (بالدقائق)',
-                value: s.openCooldownMinutes > 0 ? `**${s.openCooldownMinutes}** دقيقة` : '**بدون (0)**',
-                inline: false,
+                name: '🎫 حدود الفتح',
+                value: `👤 تذاكر متزامنة للعضو: ${num(s.maxOpenPerUser)}\n📁 من نفس البنل: ${num(s.maxOpenPerPanelPerUser)}\n⏱️ كولداون الفتح: ${mins(s.openCooldownMinutes)}`,
+                inline: true,
             },
-            { name: '👥 حد استلام الستاف المتزامن', value: fmt(s.maxClaimsPerStaff), inline: false },
+            {
+                name: '👥 الاستلام',
+                value: `👥 حد الاستلام المتزامن للستاف: ${num(s.maxClaimsPerStaff)}\n⏳ مهلة رد الستاف (SLA): ${mins(s.claimSlaMinutes)}\n   (بلا رد = إلغاء استلام تلقائي)`,
+                inline: true,
+            },
+            {
+                name: '🤖 الإغلاق التلقائي (الخمول)',
+                value:
+                    `الحالة: ${onoff(s.autoCloseEnabled)}\n` +
+                    `⏰ تنبيه بعد خمول: **${s.autoCloseIdleHours} ساعة**\n` +
+                    `🕰️ ثم سماح: **${s.autoCloseGraceHours} ساعة**\n` +
+                    `الإجراء عند التنفيذ: ${s.autoCloseAction === 'delete' ? '🗑️ حذف نهائي' : '🔒 قفل فقط'}`,
+                inline: true,
+            },
+            {
+                name: '🗑️ الحذف والأرشفة',
+                value: `⏱️ العد التنازلي قبل الحذف: **${s.deleteCountdownSeconds} ثانية**\n📜 أرشيف HTML في اللوق عند الحذف: ${onoff(s.archiveOnDelete)}`,
+                inline: true,
+            },
+            {
+                name: '🔢 الترقيم',
+                value: `🔢 بداية رقم التذاكر: **${s.ticketNumberStart}**`,
+                inline: true,
+            },
+            {
+                name: '🛠️ وضع الصيانة',
+                value:
+                    `الحالة: ${onoff(s.maintenanceEnabled)}\n💬 الرسالة: ${s.maintenanceMessage ? '\n' + String(s.maintenanceMessage).slice(0, 150) : 'افتراضية'}`,
+                inline: true,
+            }
         )
         .setFooter({ text: `الإصدار: ${version}` })
         .setTimestamp();
 
-    const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId('ticket_settings_max_open')
-            .setLabel('👤 حد تذاكر العضو')
-            .setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-            .setCustomId('ticket_settings_max_panel')
-            .setLabel('📁 حد تذاكر البنل')
-            .setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-            .setCustomId('ticket_settings_cooldown')
-            .setLabel('⏱️ كولداون الفتح')
-            .setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-            .setCustomId('ticket_settings_max_claims')
-            .setLabel('👥 حد استلام الستاف')
-            .setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-            .setCustomId('ticket_back')
-            .setLabel('🔙 رجوع للرئيسية')
-            .setStyle(ButtonStyle.Secondary),
+    // ---------- الأزرار (3 صفوف × 5) ----------
+    const toggleStyle = v => (v ? ButtonStyle.Success : ButtonStyle.Secondary);
+
+    const row1 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('ticket_settings_max_open').setLabel('👤 حد تذاكر العضو').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('ticket_settings_max_panel').setLabel('📁 حد تذاكر البنل').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('ticket_settings_cooldown').setLabel('⏱️ كولداون الفتح').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('ticket_settings_max_claims').setLabel('👥 حد استلام الستاف').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('ticket_settings_claim_sla').setLabel('⏳ مهلة رد الستاف').setStyle(ButtonStyle.Primary)
     );
 
-    return { embeds: [embed], components: [row] };
+    const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('ticket_settings_auto_close')
+            .setLabel(`🤖 إغلاق الخمول: ${onoff(s.autoCloseEnabled)}`)
+            .setStyle(toggleStyle(s.autoCloseEnabled)),
+        new ButtonBuilder().setCustomId('ticket_settings_auto_close_idle').setLabel('⏰ ساعات الخمول').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('ticket_settings_auto_close_grace').setLabel('🕰️ سماح التنبيه').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+            .setCustomId('ticket_settings_auto_close_action')
+            .setLabel(s.autoCloseAction === 'delete' ? '🗑️ إجراء الخمول: حذف' : '🔒 إجراء الخمول: قفل')
+            .setStyle(s.autoCloseAction === 'delete' ? ButtonStyle.Danger : ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('ticket_settings_delete_countdown').setLabel('⏱️ ثواني الحذف').setStyle(ButtonStyle.Primary)
+    );
+
+    const row3 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('ticket_settings_number_start').setLabel('🔢 بداية الترقيم').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+            .setCustomId('ticket_settings_archive')
+            .setLabel(`📜 أرشيف عند الحذف: ${onoff(s.archiveOnDelete)}`)
+            .setStyle(toggleStyle(s.archiveOnDelete)),
+        new ButtonBuilder()
+            .setCustomId('ticket_settings_maintenance')
+            .setLabel(`🛠️ وضع الصيانة: ${onoff(s.maintenanceEnabled)}`)
+            .setStyle(toggleStyle(s.maintenanceEnabled)),
+        new ButtonBuilder().setCustomId('ticket_settings_maintenance_msg').setLabel('💬 رسالة الصيانة').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('ticket_back').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary)
+    );
+
+    return { embeds: [embed], components: [row1, row2, row3] };
 }
 
 /**

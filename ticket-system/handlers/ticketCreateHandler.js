@@ -164,7 +164,7 @@ async function handleTicketCreate(interaction) {
         const channelName = buildTicketChannelName(panel, {
             member: interaction.member,
             guild,
-            ticketNumber: category.children.cache.size,
+            ticketNumber: settings.ticketNumberStart + category.children.cache.size,
             staffRoles: panel.staffRoles,
             pingRoles: panel.pingRoles,
         });
@@ -182,7 +182,7 @@ async function handleTicketCreate(interaction) {
             guild,
             channelName: ticketChannel.name,
             channelId: ticketChannel.id,
-            ticketNumber: category.children.cache.size,
+            ticketNumber: settings.ticketNumberStart + category.children.cache.size,
             staffRoles: panel.staffRoles,
             pingRoles: panel.pingRoles,
             categoryName: category.name,

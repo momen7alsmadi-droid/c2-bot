@@ -46,6 +46,7 @@ const {
     buildTicketSettingModal,
 } = require('./modalsBuilder');
 const { getPanelByName, updatePanel, deletePanel } = require('../database/panelsDB');
+const { getTicketSettings, updateTicketSettings } = require('../database/ticketSettingsDB');
 const { getSession, setSession, clearSession } = require('./sessionStore');
 const { resolvePanel, resolveSession } = require('../utils/panelResolver');
 const { getActionMessage } = require('../utils/actionMessages');
@@ -89,6 +90,16 @@ async function handleTicketButton(interaction) {
         'ticket_settings_max_panel',
         'ticket_settings_cooldown',
         'ticket_settings_max_claims',
+        'ticket_settings_claim_sla',
+        'ticket_settings_auto_close',
+        'ticket_settings_auto_close_idle',
+        'ticket_settings_auto_close_grace',
+        'ticket_settings_auto_close_action',
+        'ticket_settings_delete_countdown',
+        'ticket_settings_number_start',
+        'ticket_settings_archive',
+        'ticket_settings_maintenance',
+        'ticket_settings_maintenance_msg',
         'settings_page_back',
         'settings_edit_name_desc',
         'settings_edit_welcome',
@@ -135,9 +146,41 @@ async function handleTicketButton(interaction) {
             ticket_settings_max_panel: 'maxOpenPerPanelPerUser',
             ticket_settings_cooldown: 'openCooldownMinutes',
             ticket_settings_max_claims: 'maxClaimsPerStaff',
+            ticket_settings_claim_sla: 'claimSlaMinutes',
+            ticket_settings_auto_close_idle: 'autoCloseIdleHours',
+            ticket_settings_auto_close_grace: 'autoCloseGraceHours',
+            ticket_settings_delete_countdown: 'deleteCountdownSeconds',
+            ticket_settings_number_start: 'ticketNumberStart',
+            ticket_settings_maintenance_msg: 'maintenanceMessage',
         };
         if (SETTINGS_KEY_MAP[interaction.customId]) {
             await interaction.showModal(buildTicketSettingModal(SETTINGS_KEY_MAP[interaction.customId]));
+            return;
+        }
+
+        // أزرار التشغيل/الإيقاف (Toggle) للإعدادات المنطقية
+        const TOGGLE_MAP = {
+            ticket_settings_auto_close: 'autoCloseEnabled',
+            ticket_settings_archive: 'archiveOnDelete',
+            ticket_settings_maintenance: 'maintenanceEnabled',
+        };
+        if (TOGGLE_MAP[interaction.customId]) {
+            if (!(await safeDeferUpdate(interaction))) return;
+            const settings = getTicketSettings();
+            const key = TOGGLE_MAP[interaction.customId];
+            updateTicketSettings({ [key]: settings[key] ? 0 : 1 });
+            await interaction.editReply(buildTicketSettingsPage());
+            return;
+        }
+
+        // زر تبديل إجراء الخمول: قفل ↔ حذف نهائي
+        if (interaction.customId === 'ticket_settings_auto_close_action') {
+            if (!(await safeDeferUpdate(interaction))) return;
+            const settings = getTicketSettings();
+            updateTicketSettings({
+                autoCloseAction: settings.autoCloseAction === 'delete' ? 'lock' : 'delete',
+            });
+            await interaction.editReply(buildTicketSettingsPage());
             return;
         }
 

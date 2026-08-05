@@ -40,9 +40,10 @@ const { handleTicketSelectMenu } = require('../ticket-system/handlers/selectMenu
 const { handleTicketCreate } = require('../ticket-system/handlers/ticketCreateHandler');
 const { handleTicketControlButton } = require('../ticket-system/handlers/ticketControlHandler');
 const { handleTicketStaffMenu } = require('../ticket-system/handlers/ticketStaffMenuHandler');
-const { initTicketStore } = require('../ticket-system/handlers/ticketStore');
+const { initTicketStore, getSession: getTicketSession, updateSession: updateTicketSession } = require('../ticket-system/handlers/ticketStore');
 const { initTicketSettings } = require('../ticket-system/database/ticketSettingsDB');
 const { initCooldownStore } = require('../ticket-system/database/ticketCooldownStore');
+const { startTicketMaintenance } = require('../ticket-system/handlers/ticketAutoClose');
 const { handleUserSelectMenu } = require('../ticket-system/handlers/userSelectHandler');
 const { handleTicketCloseButton } = require('../ticket-system/handlers/ticketCloseHandler');
 const { handleRoleSelectMenu } = require('../ticket-system/handlers/roleSelectHandler');
@@ -334,6 +335,9 @@ ID: ${guild.id}
       if (added > 0) console.log(`🖼️ أُعيد بناء مكتبة الصور: +${added} صورة`);
     }, 3000);
 
+    // تشغيل الصيانة التلقائية للتذاكر (إغلاق الخمول + مهلة الستاف + الحذف التلقائي)
+    startTicketMaintenance(client);
+
     // تسجيل الأوامر فوراً عند دخول سيرفر جديد (بدون انتظار إعادة تشغيل)
     client.on('guildCreate', async (guild) => {
       try {
@@ -398,6 +402,13 @@ ID: ${guild.id}
       return;
     }
     try {
+      // تحديث نشاط التذكرة (لدعم الإغلاق التلقائي للخمول ومهلة رد الستاف)
+      // — أي رسالة بشرية داخل روم تذكرة تحدّث وقت آخر نشاط
+      if (!message.author.bot) {
+        const ticketSess = getTicketSession(message.channel?.id);
+        if (ticketSess) updateTicketSession(message.channel.id, { lastActivityAt: Date.now() });
+      }
+
       console.log('📨 رسالة جديدة:', message.id, 'channel:', message.channel?.id, 'author:', message.author?.tag);
       await handleMessage(message);
       await handleTicketBoardTrigger(message);

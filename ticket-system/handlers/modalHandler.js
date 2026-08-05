@@ -115,6 +115,16 @@ async function handleTicketModal(interaction) {
         // ---------------------------------------------------
         if (interaction.customId.startsWith('modal_ticket_settings:')) {
             const key = interaction.customId.split(':')[1];
+
+            // رسالة الصيانة: نص حر (غير رقمي)
+            if (key === 'maintenanceMessage') {
+                const text = interaction.fields.getTextInputValue('setting_value').trim();
+                updateTicketSettings({ maintenanceMessage: text });
+                await interaction.update(buildTicketSettingsPage());
+                return;
+            }
+
+            // باقي الإعدادات: قيم رقمية 0..9999 (0 = بدون حد)
             const raw = interaction.fields.getTextInputValue('setting_value').trim();
             const value = Math.floor(Number(raw));
             if (!Number.isFinite(value) || value < 0 || value > 9999) {

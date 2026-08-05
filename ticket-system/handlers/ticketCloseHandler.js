@@ -29,13 +29,12 @@ const { getPanelByName } = require('../database/panelsDB');
 const { reportError } = require('../../src/utils/errorLogger');
 const { safeDeferUpdate } = require('../utils/interactionGuard');
 const { getSession, updateSession, addAuditLog } = require('./ticketStore');
+const { getTicketSettings } = require('../database/ticketSettingsDB');
 const { canUseRestrictedControls } = require('./permissionUtils');
 const { applyUnlockPermissions } = require('./ticketPermissionHelpers');
 const { buildTicketControlRows } = require('./ticketControlBuilder');
 const { sendActionMessage } = require('../utils/actionMessages');
 const { enrichActionContext } = require('../utils/ticketContext');
-
-const DELETE_COUNTDOWN_SECONDS = 10;
 
 /**
  * بناء إيمبد ومكونات "حالة الإغلاق" العادية (قبل بدء عد الحذف)
@@ -159,7 +158,8 @@ async function handleTicketCloseButton(interaction) {
             updateSession(interaction.channel.id, { deletedBy: interaction.member.id });
             addAuditLog(interaction.channel.id, `<@${interaction.member.id}> قام بحذف التذكرة`);
 
-            let secondsLeft = DELETE_COUNTDOWN_SECONDS;
+            // مدة العد التنازلي من الإعدادات العامة (افتراضياً 10 ثوانٍ)
+            let secondsLeft = Math.max(3, Math.min(60, getTicketSettings().deleteCountdownSeconds || 10));
             const message = interaction.message; // مرجع الرسالة لتعديلها كل ثانية
 
             await message.edit(buildDeleteCountdownView(secondsLeft)).catch(() => {});
@@ -211,7 +211,24 @@ async function handleTicketCloseButton(interaction) {
             if (session.deleteTimer) clearInterval(session.deleteTimer);
             updateSession(interaction.channel.id, { deleteTimer: null, deleteCountdown: 0, deletedBy: null });
 
-            await interaction.message.edit(buildClosedStateView()).catch(() => {});
+            // إن كانت التذكرة مقفلة → نعود لحالة الإغلاق (فتح/حذف)
+            // وإن لم تكن مقفلة (حذف تلقائي من البوت) → نؤكد الإلغاء فقط
+            if (session.lockedAt) {
+                await interaction.message.edit(buildClosedStateView()).catch(() => {});
+            } else {
+                await interaction.message
+                    .edit({
+                        embeds: [
+                            new EmbedBuilder()
+                                .setColor(0x2ecc71)
+                                .setTitle('✅ تم إلغاء الحذف التلقائي')
+                                .setDescription('بقيت التذكرة مفتوحة — لن يحذفها البوت.')
+                                .setTimestamp(),
+                        ],
+                        components: [],
+                    })
+                    .catch(() => {});
+            }
             return;
         }
     } catch (error) {

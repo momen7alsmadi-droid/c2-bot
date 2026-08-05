@@ -96,7 +96,11 @@ async function handleTicketControlButton(interaction) {
                 if (!(await safeDeferUpdate(interaction))) return;
                 await applyClaimPermissions(interaction.channel, panel, interaction.member.id);
 
-                const updated = updateSession(interaction.channel.id, { claimedBy: interaction.member.id });
+                const updated = updateSession(interaction.channel.id, {
+                    claimedBy: interaction.member.id,
+                    claimedAt: Date.now(),
+                    lastActivityAt: Date.now(),
+                });
                 addAuditLog(interaction.channel.id, `<@${interaction.member.id}> قام باستلام التذكرة`);
 
                 const rows = buildTicketControlRows(updated, !!updated.lockedAt);
@@ -120,7 +124,11 @@ async function handleTicketControlButton(interaction) {
             const previousClaimer = session.claimedBy;
             await revertClaimPermissions(interaction.channel, panel, previousClaimer, session.openerId);
 
-            const updated = updateSession(interaction.channel.id, { claimedBy: null });
+            const updated = updateSession(interaction.channel.id, {
+                claimedBy: null,
+                claimedAt: null,
+                lastActivityAt: Date.now(),
+            });
             addAuditLog(interaction.channel.id, `<@${interaction.member.id}> قام بإلغاء استلام التذكرة`);
 
             const rows = buildTicketControlRows(updated, !!updated.lockedAt);

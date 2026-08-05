@@ -30,6 +30,21 @@ const DEFAULT_SETTINGS = {
     maxOpenPerPanelPerUser: 0,
     openCooldownMinutes: 0,
     maxClaimsPerStaff: 0,
+    // إغلاق تلقائي للخمول
+    autoCloseEnabled: 0, // 1 = مفعّل
+    autoCloseIdleHours: 24, // ساعات الخمول قبل التنبيه
+    autoCloseGraceHours: 2, // ساعات السماح بعد التنبيه قبل التنفيذ
+    autoCloseAction: 'lock', // 'lock' = قفل فقط | 'delete' = حذف نهائي
+    // الحذف والأرشفة
+    deleteCountdownSeconds: 10, // العد التنازلي قبل الحذف (ثوانٍ)
+    archiveOnDelete: 1, // إرسال أرشيف HTML للوق عند الحذف
+    // الترقيم
+    ticketNumberStart: 1, // بداية رقم التذاكر
+    // وضع الصيانة
+    maintenanceEnabled: 0,
+    maintenanceMessage: '', // رسالة تظهر للعضو أثناء الصيانة
+    // مهلة رد الستاف (SLA)
+    claimSlaMinutes: 0, // دقائق بلا رد → إلغاء استلام تلقائي (0 = معطّل)
 };
 
 // ---------- MongoDB Schema ----------
@@ -40,6 +55,16 @@ const ticketSettingsSchema = new mongoose.Schema(
         maxOpenPerPanelPerUser: { type: Number, default: 0 },
         openCooldownMinutes: { type: Number, default: 0 },
         maxClaimsPerStaff: { type: Number, default: 0 },
+        autoCloseEnabled: { type: Number, default: 0 },
+        autoCloseIdleHours: { type: Number, default: 24 },
+        autoCloseGraceHours: { type: Number, default: 2 },
+        autoCloseAction: { type: String, default: 'lock' },
+        deleteCountdownSeconds: { type: Number, default: 10 },
+        archiveOnDelete: { type: Number, default: 1 },
+        ticketNumberStart: { type: Number, default: 1 },
+        maintenanceEnabled: { type: Number, default: 0 },
+        maintenanceMessage: { type: String, default: '' },
+        claimSlaMinutes: { type: Number, default: 0 },
     },
     { collection: 'ticketsettings', versionKey: false }
 );
@@ -97,8 +122,23 @@ function getTicketSettings() {
     return readDB();
 }
 
+// المفاتيح الرقمية (0..9999) — تُطبَّع عبر Math.max/min
+const NUMERIC_KEYS = [
+    'maxOpenPerUser',
+    'maxOpenPerPanelPerUser',
+    'openCooldownMinutes',
+    'maxClaimsPerStaff',
+    'autoCloseIdleHours',
+    'autoCloseGraceHours',
+    'deleteCountdownSeconds',
+    'ticketNumberStart',
+    'claimSlaMinutes',
+];
+// المفاتيح المنطقية (0/1)
+const BOOLEAN_KEYS = ['autoCloseEnabled', 'archiveOnDelete', 'maintenanceEnabled'];
+
 /**
- * تحديث الإعدادات العامة (تطبيع: 0..9999، أي قيمة خاطئة = 0)
+ * تحديث الإعدادات العامة (تطبيع تلقائي لكل نوع)
  * @param {Object} partial - مفاتيح من DEFAULT_SETTINGS فقط
  * @returns {Object} الإعدادات بعد التحديث
  */
@@ -106,9 +146,17 @@ function updateTicketSettings(partial = {}) {
     const current = readDB();
     const next = { ...current };
     for (const key of Object.keys(DEFAULT_SETTINGS)) {
-        if (partial[key] !== undefined) {
+        if (partial[key] === undefined) continue;
+
+        if (NUMERIC_KEYS.includes(key)) {
             const n = Math.floor(Number(partial[key]));
             next[key] = Number.isFinite(n) ? Math.max(0, Math.min(9999, n)) : 0;
+        } else if (BOOLEAN_KEYS.includes(key)) {
+            next[key] = partial[key] ? 1 : 0;
+        } else if (key === 'autoCloseAction') {
+            next[key] = ['lock', 'delete'].includes(partial[key]) ? partial[key] : 'lock';
+        } else if (key === 'maintenanceMessage') {
+            next[key] = String(partial[key] || '').slice(0, 500);
         }
     }
     writeDB(next);

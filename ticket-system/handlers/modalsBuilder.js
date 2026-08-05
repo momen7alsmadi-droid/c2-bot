@@ -556,8 +556,9 @@ function buildRoleButtonColorModal(btnId) {
 }
 
 /**
- * Modal إدخال قيمة لإحدى الإعدادات العامة (حدود فتح/استلام + الكولداون)
- * القيمة 0 = بدون حد / لا نهائي
+ * Modal إدخال قيمة لإحدى الإعدادات العامة (حدود فتح/استلام + الكولداون
+ * + الخمول التلقائي + الترقيم). القيمة 0 = بدون حد / معطّل.
+ * رسالة الصيانة (maintenanceMessage) تُدخل كنص حر (Paragraph).
  * @param {String} key - من مفاتيح DEFAULT_SETTINGS في ticketSettingsDB
  */
 function buildTicketSettingModal(key) {
@@ -566,13 +567,27 @@ function buildTicketSettingModal(key) {
         maxOpenPerPanelPerUser: '📁 حد تذاكر العضو من نفس البنل',
         openCooldownMinutes: '⏱️ كولداون فتح التذكرة (دقائق)',
         maxClaimsPerStaff: '👥 حد استلام الستاف المتزامن',
+        claimSlaMinutes: '⏳ مهلة رد الستاف (دقائق)',
+        autoCloseIdleHours: '⏰ خمول التذاكر قبل التنبيه (ساعات)',
+        autoCloseGraceHours: '🕰️ السماح بعد التنبيه (ساعات)',
+        deleteCountdownSeconds: '⏱️ العد التنازلي قبل الحذف (ثوانٍ)',
+        ticketNumberStart: '🔢 بداية رقم التذاكر',
+        maintenanceMessage: '💬 رسالة وضع الصيانة',
     };
     const HINTS = {
         maxOpenPerUser: 'كم تذكرة يفتحها العضو في نفس الوقت (0 = بدون حد)',
         maxOpenPerPanelPerUser: 'كم تذكرة يفتحها العضو من نفس البنل (0 = بدون حد)',
         openCooldownMinutes: 'مدة الانتظار بين فتح تذكرة وأخرى بالدقائق (0 = بدون)',
         maxClaimsPerStaff: 'كم تذكرة يستلمها الستاف في نفس الوقت (0 = بدون حد)',
+        claimSlaMinutes: 'بلا أي رد خلال هذه المدة → إلغاء استلام تلقائي (0 = معطّل)',
+        autoCloseIdleHours: 'بعد هذا القدر بلا رسائل → تنبيه (0 = معطّل)',
+        autoCloseGraceHours: 'إن استمر الخمول هذا القدر بعد التنبيه → تنفيذ الإجراء',
+        deleteCountdownSeconds: 'مدة العد التنازلي قبل الحذف (3 - 60 ثانية)',
+        ticketNumberStart: 'الرقم الذي يبدأ منه ترقيم التذاكر',
+        maintenanceMessage: 'تظهر للعضو عند محاولة فتح تذكرة أثناء الصيانة',
     };
+
+    const isText = key === 'maintenanceMessage';
 
     const modal = new ModalBuilder()
         .setCustomId(`modal_ticket_settings:${key}`)
@@ -580,13 +595,12 @@ function buildTicketSettingModal(key) {
 
     const valueInput = new TextInputBuilder()
         .setCustomId('setting_value')
-        .setLabel('القيمة (0 = بدون حد)')
-        .setStyle(TextInputStyle.Short)
-        .setValue(String(getTicketSettings()[key] ?? 0))
+        .setLabel(isText ? 'نص الرسالة (فارغ = رسالة افتراضية)' : 'القيمة (0 = بدون حد)')
+        .setStyle(isText ? TextInputStyle.Paragraph : TextInputStyle.Short)
+        .setValue(String(getTicketSettings()[key] ?? (isText ? '' : 0)))
         .setPlaceholder(HINTS[key] || 'مثال: 2')
-        .setMinLength(1)
-        .setMaxLength(4)
-        .setRequired(true);
+        .setMaxLength(isText ? 500 : 4)
+        .setRequired(isText ? false : true);
 
     modal.addComponents(new ActionRowBuilder().addComponents(valueInput));
     return modal;

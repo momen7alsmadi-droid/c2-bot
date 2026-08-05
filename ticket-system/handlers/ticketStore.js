@@ -43,6 +43,8 @@ const SERIALIZABLE_KEYS = [
     'panelName',
     'openerId',
     'claimedBy',
+    'claimedAt',
+    'lastActivityAt',
     'addedMembers',
     'escalated',
     'openedAt',
@@ -51,6 +53,7 @@ const SERIALIZABLE_KEYS = [
     'closeMessageId',
     'deleteCountdown',
     'deletedBy',
+    'idleWarningSent',
     'auditLog',
 ];
 
@@ -100,6 +103,8 @@ function sanitizeLoadedSession(raw) {
         panelName: typeof raw.panelName === 'string' ? raw.panelName : null,
         openerId: typeof raw.openerId === 'string' ? raw.openerId : '',
         claimedBy: typeof raw.claimedBy === 'string' ? raw.claimedBy : null,
+        claimedAt: typeof raw.claimedAt === 'number' ? raw.claimedAt : null,
+        lastActivityAt: typeof raw.lastActivityAt === 'number' ? raw.lastActivityAt : Date.now(),
         addedMembers: Array.isArray(raw.addedMembers) ? raw.addedMembers : [],
         escalated: !!raw.escalated,
         openedAt: typeof raw.openedAt === 'number' ? raw.openedAt : Date.now(),
@@ -109,6 +114,7 @@ function sanitizeLoadedSession(raw) {
         deleteTimer: null,
         deleteCountdown: 0,
         deletedBy: typeof raw.deletedBy === 'string' ? raw.deletedBy : null,
+        idleWarningSent: !!raw.idleWarningSent,
         auditLog: Array.isArray(raw.auditLog) ? raw.auditLog : [],
     };
 }
@@ -151,6 +157,8 @@ function createSession(channelId, data) {
         panelName: data.panelName,
         openerId: data.openerId,
         claimedBy: null,
+        claimedAt: null,
+        lastActivityAt: Date.now(),
         addedMembers: [],
         escalated: false,
         openedAt: Date.now(),
@@ -160,6 +168,7 @@ function createSession(channelId, data) {
         deleteTimer: null,
         deleteCountdown: 0,
         deletedBy: null,
+        idleWarningSent: false,
         auditLog: [],
         ...data,
         channelId, // نحفظ المفتاح داخل الجلسة لاستعادته من القرص

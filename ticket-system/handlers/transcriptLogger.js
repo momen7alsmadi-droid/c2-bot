@@ -19,6 +19,7 @@
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { reportError } = require('../../src/utils/errorLogger');
 const { getSession, deleteSession } = require('./ticketStore');
+const { getTicketSettings } = require('../database/ticketSettingsDB');
 
 const MAX_MESSAGES_TO_FETCH = 1000; // سقف احترازي لتجنب حلقة جلب لا نهائية في تذاكر ضخمة جداً
 
@@ -171,6 +172,19 @@ async function finalizeTicketDeletion(channel, panel) {
     const deletedAt = Date.now();
 
     // ---------------------------------------------------
+    // الإعدادات العامة: إذا كان الأرشيف معطّلاً (archiveOnDelete = 0)
+    // نتخطى الجلب والترانسكربت واللوق ونحذف القناة فقط
+    // ---------------------------------------------------
+    if (getTicketSettings().archiveOnDelete === 0) {
+        deleteSession(channel.id);
+        await channel.delete().catch(err => {
+            console.error('[transcriptLogger] فشل حذف القناة:', err);
+            reportError('TICKET_CHANNEL_DELETE', channel.id, err);
+        });
+        return;
+    }
+
+    // ---------------------------------------------------
     // 1) جلب الرسائل وحساب الإحصائيات (قبل حذف القناة كما طُلب)
     // ---------------------------------------------------
     const messages = await fetchAllMessages(channel);
@@ -210,7 +224,7 @@ async function finalizeTicketDeletion(channel, panel) {
             },
             {
                 name: '🗑️ حذف بواسطة',
-                value: session?.deletedBy ? `<@${session.deletedBy}>` : 'غير معروف',
+                value: session?.deletedBy === 'AUTO' ? '🤖 البوت (حذف تلقائي)' : session?.deletedBy ? `<@${session.deletedBy}>` : 'غير معروف',
             },
             { name: '📋 سجل الأحداث', value: formatAuditLogField(session?.auditLog) },
             { name: '💬 إحصائيات الرسائل', value: formatMessageStatsField(stats) }
