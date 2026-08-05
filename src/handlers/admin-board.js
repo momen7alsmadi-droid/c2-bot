@@ -24,6 +24,38 @@ function setState(userId, state) {
 function clearState(userId) { paginationState.delete(userId); }
 
 // ---------- دالة مساعدة ----------
+/**
+ * تأكيد زر بأمان مع محاولة إضافية (يبتلع الخطأ الشائع "تفاعل مؤكد مسبقاً")
+ * ويعيد true إذا أصبح التفاعل مؤكداً (deferred/replied) مهما كانت الظروف.
+ */
+async function ackBoardButton(interaction) {
+  if (interaction.replied || interaction.deferred) return true;
+  try {
+    await interaction.deferUpdate();
+    return true;
+  } catch (e) {
+    // أخطاء شبكة عابرة: محاولة ثانية بعد لحظة قصيرة
+    await new Promise(r => setTimeout(r, 300));
+    if (interaction.replied || interaction.deferred) return true;
+    try {
+      await interaction.deferUpdate();
+      return true;
+    } catch {}
+    return interaction.replied || interaction.deferred;
+  }
+}
+
+/**
+ * تسليم آمن: followUp إذا كان التفاعل مؤكداً، وإلا reply مباشر
+ * (يبطل خطأ InteractionNotReplied حتى لو فشل التأكيد نفسه).
+ */
+function deliverFollowUp(interaction, payload) {
+  if (interaction.deferred || interaction.replied) {
+    return interaction.followUp(payload).catch(() => {});
+  }
+  return interaction.reply(payload).catch(() => {});
+}
+
 async function respondOrUpdate(interaction, payload) {
   // ===== إضافة الزر الشكلي 'إعادة تعيين' في نهاية الرسائل التي تحتوي قوائم منسدلة =====
   const { appendDecorativeOption } = require('../utils/decorativeReset');
@@ -476,15 +508,15 @@ async function handleBoardMain(interaction) {
 // ================== ترقية / تنزيل / سحب — قائمة منسدلة مع pagination ==================
 
 async function showMemberSelector(interaction, action) {
-  // نأكد فوراً للزر (بدون تعديل اللوحة)، ثم نرسل كلشي كـ followUp مخفي
-  await interaction.deferUpdate().catch(() => {});
+  // نأكد فوراً للزر (بدون تعديل اللوحة) بأمان، ثم نرسل كلشي كـ followUp مخفي
+  await ackBoardButton(interaction);
 
   const cfg = getAdminConfig();
   const guild = interaction.guild;
   const member = interaction.member;
 
   if (!isHighAdmin(member, cfg)) {
-    return interaction.followUp({ content: '❌ ليس لديك صلاحية الإدارة العليا لاستخدام هذا الزر.', ephemeral: true }).catch(() => {});
+    return deliverFollowUp(interaction, { content: '❌ ليس لديك صلاحية الإدارة العليا لاستخدام هذا الزر.', ephemeral: true });
   }
 
   // استبعد الإدارة العليا من نظام الترقية/التنزيل/السحب
@@ -494,7 +526,7 @@ async function showMemberSelector(interaction, action) {
     admins = admins.filter(m => !highRoles.some(roleId => m.roles.cache.has(roleId)));
   }
   if (admins.length === 0) {
-    return interaction.followUp({ content: '⚠️ لا يوجد أعضاء إدارة للاختيار منهم.', ephemeral: true }).catch(() => {});
+    return deliverFollowUp(interaction, { content: '⚠️ لا يوجد أعضاء إدارة للاختيار منهم.', ephemeral: true });
   }
 
   const totalPages = Math.ceil(admins.length / 25);
@@ -506,7 +538,7 @@ async function showMemberSelector(interaction, action) {
   setState(interaction.user.id, state);
 
   const firstPage = renderMemberPageContent(state);
-  return interaction.followUp({ embeds: [firstPage.embed], components: firstPage.components, ephemeral: true });
+  return deliverFollowUp(interaction, { embeds: [firstPage.embed], components: firstPage.components, ephemeral: true });
 }
 
 function renderMemberPageContent(state) {
@@ -703,8 +735,8 @@ async function executeAction(interaction, action, targetId) {
 // ================== توب الإدارة ==================
 
 async function showTopAdmins(interaction) {
-  // تأكيد فوري للزر قبل العملية الطويلة
-  await interaction.deferUpdate().catch(() => {});
+  // تأكيد فوري للزر قبل العملية الطويلة — بأمان
+  await ackBoardButton(interaction);
 
   const cfg = getAdminConfig();
   const guild = interaction.guild;
@@ -712,7 +744,7 @@ async function showTopAdmins(interaction) {
 
   const admins = await getAdminMembers(guild, cfg);
   if (admins.length === 0) {
-    return interaction.followUp({ content: '⚠️ لا يوجد أعضاء إدارة.', ephemeral: true }).catch(() => {});
+    return deliverFollowUp(interaction, { content: '⚠️ لا يوجد أعضاء إدارة.', ephemeral: true });
   }
 
   // صاحب السيرفر دائماً الأول مهما كانت رتبته
@@ -736,7 +768,7 @@ async function showTopAdmins(interaction) {
   // إرسال التوب بشكل مخفي (خاص) لكل مستخدم
   const embed = buildTopEmbed(state);
   const navRow = buildTopNavRow(state);
-  return interaction.followUp({ embeds: [embed], components: [navRow], ephemeral: true }).catch(() => {});
+  return deliverFollowUp(interaction, { embeds: [embed], components: [navRow], ephemeral: true });
 }
 
 function buildTopEmbed(state) {
