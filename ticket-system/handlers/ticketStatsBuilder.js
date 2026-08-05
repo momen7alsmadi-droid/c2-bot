@@ -11,7 +11,7 @@
  *
  * الأزرار: ticket_stats_me | ticket_stats_top | ticket_stats_top_prev
  *          ticket_stats_top_next | ticket_stats_pick | ticket_stats_user_select
- *          ticket_stats_speed | ticket_stats_speed_prev | ticket_stats_speed_next
+ *          ticket_stats_detail | ticket_stats_detail:<userId>
  * =========================================================
  */
 
@@ -114,7 +114,6 @@ async function handleMyStats(interaction) {
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('ticket_stats_detail').setLabel('📊 إحصائياتي المفصلة').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('ticket_stats_top').setLabel('🏆 توب نقاط').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId('ticket_stats_speed').setLabel('🏎️ توب سرعة الاستلام').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Secondary),
     );
 
@@ -178,12 +177,7 @@ function buildTopNavRow(state) {
     navRow.addComponents(new ButtonBuilder().setCustomId('ticket_stats_pick').setLabel('🔍 اختيار شخص').setStyle(ButtonStyle.Primary));
     navRow.addComponents(new ButtonBuilder().setCustomId('ticket_stats_me').setLabel('📊 احصائياتي').setStyle(ButtonStyle.Success));
     navRow.addComponents(new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Secondary));
-
-    // صف إضافي للتبديل إلى توب سرعة الاستلام
-    const switchRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('ticket_stats_speed').setLabel('🏎️ توب سرعة الاستلام').setStyle(ButtonStyle.Success),
-    );
-    return [navRow, switchRow];
+    return [navRow];
 }
 
 /** التنقل بين صفحات التوب */
@@ -198,81 +192,6 @@ async function handleTopNav(interaction, direction) {
     setState(interaction.member.id, state);
     const embed = buildTopEmbed(state, interaction.guild);
     const row = buildTopNavRow(state);
-    return respondOrUpdate(interaction, { embeds: [embed], components: row });
-}
-
-// ================== 🏎️ توب سرعة الاستلام ==================
-async function handleSpeedStats(interaction) {
-    await interaction.deferUpdate().catch(() => {});
-    const all = getAllStats();
-    // فقط من لديهم زمن استلام مسجل — الأسرع أولاً (متوسط زمن الاستلام تصاعدياً)
-    const ranked = all.filter(u => u.stats.avgClaimTimeMs > 0).sort((a, b) => a.stats.avgClaimTimeMs - b.stats.avgClaimTimeMs);
-    if (ranked.length === 0) {
-        return interaction.followUp({
-            content: '🏎️ لا توجد بيانات سرعة استلام بعد — أسرع بالرد على التكتات لتظهر سرعتك في القائمة!',
-            ephemeral: true,
-        }).catch(() => {});
-    }
-    const totalPages = Math.ceil(ranked.length / PER_PAGE);
-    const state = { type: 'stats_speed', page: 0, totalPages, ranked, userId: interaction.member.id };
-    setState(interaction.member.id, state);
-
-    const embed = buildSpeedEmbed(state, interaction.guild);
-    const row = buildSpeedNavRow(state);
-    return interaction.followUp({ embeds: [embed], components: row, ephemeral: true }).catch(() => {});
-}
-
-function buildSpeedEmbed(state, guild) {
-    const { page, totalPages, ranked, userId } = state;
-    const start = page * PER_PAGE;
-    const pageRanked = ranked.slice(start, start + PER_PAGE);
-
-    const lines = pageRanked.map((entry, i) => {
-        const rank = start + i + 1;
-        const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}.`;
-        const member = guild?.members.cache.get(entry.id);
-        const roleName = member ? getRoleName(member) : '—';
-        return `${medal} <@${entry.id}> — ${roleName}\n   ⚡ **${formatClaimSpeed(entry.stats.avgClaimTimeMs)}** | 🎫 ${entry.stats.ticketsClaimed} تكتات`;
-    });
-
-    let description = lines.join('\n\n');
-
-    // ترتيب المستخدم نفسه إن لم يكن ضمن هذه الصفحة
-    const userRank = ranked.findIndex(r => r.id === userId) + 1;
-    if (userRank > 0 && !pageRanked.some(r => r.id === userId)) {
-        description += `\n\n━━━━━━━━━━━━━━━━━━\n📌 **ترتيبك:** #${userRank} من ${ranked.length} — <@${userId}> — ⚡ ${formatClaimSpeed(ranked[userRank - 1].stats.avgClaimTimeMs)}`;
-    }
-
-    return new EmbedBuilder()
-        .setColor(COLORS.green)
-        .setTitle('🏎️ توب سرعة استلام التكتات')
-        .setDescription(description + '\n\n*الترتيب: الأسرع أولاً — متوسط الزمن بين فتح التكت والضغط على زر الاستلام.*')
-        .setFooter({ text: `الصفحة ${page + 1} من ${totalPages} | الإصدار: ${version}` })
-        .setTimestamp();
-}
-
-function buildSpeedNavRow(state) {
-    const { page, totalPages } = state;
-    const navRow = new ActionRowBuilder();
-    if (page > 0) navRow.addComponents(new ButtonBuilder().setCustomId('ticket_stats_speed_prev').setLabel('◀️ السابق').setStyle(ButtonStyle.Secondary));
-    if (page < totalPages - 1) navRow.addComponents(new ButtonBuilder().setCustomId('ticket_stats_speed_next').setLabel('التالي ▶️').setStyle(ButtonStyle.Secondary));
-    navRow.addComponents(new ButtonBuilder().setCustomId('ticket_stats_top').setLabel('🏆 توب نقاط').setStyle(ButtonStyle.Primary));
-    navRow.addComponents(new ButtonBuilder().setCustomId('ticket_stats_me').setLabel('📊 احصائياتي').setStyle(ButtonStyle.Success));
-    navRow.addComponents(new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Secondary));
-    return [navRow];
-}
-
-/** التنقل بين صفحات توب السرعة */
-async function handleSpeedNav(interaction, direction) {
-    let state = getState(interaction.member.id);
-    if (!state || state.type !== 'stats_speed') {
-        await interaction.deferUpdate().catch(() => {});
-        return handleSpeedStats(interaction);
-    }
-    state.page = direction === 'prev' ? Math.max(0, state.page - 1) : Math.min(state.totalPages - 1, state.page + 1);
-    setState(interaction.member.id, state);
-    const embed = buildSpeedEmbed(state, interaction.guild);
-    const row = buildSpeedNavRow(state);
     return respondOrUpdate(interaction, { embeds: [embed], components: row });
 }
 
@@ -350,8 +269,6 @@ function buildDetailedStatsEmbed(targetUser, guild, detail) {
             { name: '📢 عدد المنشنات (@)', value: `**${detail.mentionsCount}**`, inline: true },
             { name: '📎 عدد المرفقات', value: `**${detail.attachmentsCount}**`, inline: true },
             { name: '👥 رسائل أعضاء رد عليها', value: `**${detail.repliedToMembers}**`, inline: true },
-            { name: '⚡ استخدام الردود الجاهزة', value: `**${detail.quickRepliesUsed}**`, inline: true },
-            { name: '💖 عدد الشكر من الأعضاء', value: `**${detail.thanksReceived}**`, inline: true },
             // ⭐ التقييمات
             { name: '🌟 تقييمات 5 نجوم', value: `**${detail.fiveStarRatings}**`, inline: true },
             { name: '💔 التقييمات السلبية (1-2★)', value: `**${detail.negativeRatings}**`, inline: true },
@@ -362,7 +279,7 @@ function buildDetailedStatsEmbed(targetUser, guild, detail) {
             { name: '🏆 المركز بالسيرفر', value: `**#${detail.xpRank || '—'}** من ${detail.xpTotal || '—'}`, inline: true },
             { name: '\u200b', value: '\u200b', inline: true },
         )
-        .setFooter({ text: `الإصدار: ${version} | ملاحظة: الردود الجاهزة تُحتسب عند تفعيل ميزة الردود الجاهزة` })
+        .setFooter({ text: `الإصدار: ${version}` })
         .setTimestamp();
 }
 
@@ -390,8 +307,6 @@ module.exports = {
     handleTopNav,
     handlePickPerson,
     handleStatsUserSelect,
-    handleSpeedStats,
-    handleSpeedNav,
     handleDetailStats,
     formatClaimSpeed,
 };

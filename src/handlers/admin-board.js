@@ -9,7 +9,7 @@ const {
 const { version } = require('../../package.json');
 const { getAdminConfig } = require('../utils/adminStorage');
 const { sendLog } = require('../utils/helpers');
-const { handleMyStats, handleTopStats, handleTopNav, handlePickPerson, handleSpeedStats, handleSpeedNav, handleDetailStats } = require('../../ticket-system/handlers/ticketStatsBuilder');
+const { handleMyStats, handleTopStats, handleTopNav, handlePickPerson, handleDetailStats } = require('../../ticket-system/handlers/ticketStatsBuilder');
 
 // ---------- حالة pagination لكل مستخدم ----------
 const paginationState = new Map();
@@ -229,7 +229,6 @@ function buildMainPanelComponents(isHigh) {
   const row3 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('ticket_stats_me').setLabel('📊 احصائياتي').setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId('ticket_stats_top').setLabel('🏆 توب نقاط').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('ticket_stats_speed').setLabel('🏎️ توب سرعة').setStyle(ButtonStyle.Secondary),
   );
   const row4 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('adm_board_refresh').setLabel('🔄 تحديث اللوحة').setStyle(ButtonStyle.Secondary),
@@ -810,9 +809,6 @@ async function handleBoardInteraction(interaction) {
   if (id === 'ticket_stats_top_next') return handleTopNav(interaction, 'next');
   if (id === 'ticket_stats_pick') return handlePickPerson(interaction);
   if (id.startsWith('ticket_stats_detail')) return handleDetailStats(interaction);
-  if (id === 'ticket_stats_speed') return handleSpeedStats(interaction);
-  if (id === 'ticket_stats_speed_prev') return handleSpeedNav(interaction, 'prev');
-  if (id === 'ticket_stats_speed_next') return handleSpeedNav(interaction, 'next');
 
   // Pagination - نمرر getState بعد الأزرار الرئيسية عشان نضمن state محدث
   const state = getState(interaction.user.id);

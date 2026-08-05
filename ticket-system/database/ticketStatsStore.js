@@ -77,8 +77,6 @@ function ensureUser(userId) {
             mentionsCount: 0, // عدد المنشنات @
             attachmentsCount: 0, // عدد المرفقات
             repliedToMembers: 0, // رسائل الأعضاء التي رد عليها
-            thanksReceived: 0, // مرات شكر الأعضاء له
-            quickRepliesUsed: 0, // استخدام الردود الجاهزة
             sessionDurations: [], // مدد الجلسات (استلام → قفل/حذف)
             daily: {}, // { 'YYYY-MM-DD': عدد الرسائل }
             lastActivityAt: 0, // آخر تواجد له في أي تكت
@@ -118,13 +116,6 @@ function recordTransfer(fromId, toId) {
 function recordTicketDeleted(userId) {
     if (!userId) return;
     ensureUser(userId).ticketsDeleted += 1;
-    persist();
-}
-
-/** تسجيل استخدام رد جاهز (يُفعَّل عند إضافة ميزة الردود الجاهزة) */
-function recordQuickReply(userId) {
-    if (!userId) return;
-    ensureUser(userId).quickRepliesUsed += 1;
     persist();
 }
 
@@ -189,8 +180,6 @@ function commitTicketStats(session) {
         raw.mentionsCount = (raw.mentionsCount || 0) + (act.mentions || 0);
         raw.attachmentsCount = (raw.attachmentsCount || 0) + (act.attachments || 0);
         raw.repliedToMembers = (raw.repliedToMembers || 0) + (act.repliedTo || 0);
-        raw.thanksReceived = (raw.thanksReceived || 0) + (act.thanks || 0);
-        raw.quickRepliesUsed = (raw.quickRepliesUsed || 0) + (act.quickReplies || 0);
     }
 
     // 3) الاستلام + نقطة الإغلاق + سرعة الاستلام + مدة الجلسة (لآخر مستلم)
@@ -282,7 +271,7 @@ function getTotalClaims() {
 /**
  * نقاط الخبرة (XP) — نظام منفصل عن نقاط الترتيب:
  *   رسالة = 1 | استلام = 5 | إغلاق = 10 | تحويل = 2 | استلام من غيره = 2
- *   حذف = 5 | شكر = 5 | رد جاهز = 1 | كل نجمة تقييم = 10
+ *   حذف = 5 | كل نجمة تقييم = 10
  * المستوى: كل 200 XP مستوى واحد.
  */
 function calculateXP(raw) {
@@ -295,8 +284,6 @@ function calculateXP(raw) {
         (raw.transferredAway || 0) * 2 +
         (raw.receivedFromOthers || 0) * 2 +
         (raw.ticketsDeleted || 0) * 5 +
-        (raw.thanksReceived || 0) * 5 +
-        (raw.quickRepliesUsed || 0) * 1 +
         ratingXp;
     return { xp, level: Math.floor(xp / 200) + 1 };
 }
@@ -357,8 +344,6 @@ function getDetailedStats(userId, sessions = []) {
         mentionsCount: raw.mentionsCount || 0,
         attachmentsCount: raw.attachmentsCount || 0,
         repliedToMembers: raw.repliedToMembers || 0,
-        quickRepliesUsed: raw.quickRepliesUsed || 0,
-        thanksReceived: raw.thanksReceived || 0,
         // ⭐ التقييم
         fiveStarRatings: stats.ratings.filter(r => r.value === 5).length,
         negativeRatings: stats.ratings.filter(r => r.value <= 2).length,
@@ -380,7 +365,6 @@ module.exports = {
     recordRating,
     recordTransfer,
     recordTicketDeleted,
-    recordQuickReply,
     commitTicketStats,
     getUserStats,
     getAllStats,
