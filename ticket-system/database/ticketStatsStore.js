@@ -296,19 +296,34 @@ function getXPLeaderboard() {
         .sort((a, b) => b.xp - a.xp);
 }
 
-/** هل اسم البنل يخص الشكاوى؟ */
-function isComplaintsPanel(panelName) {
-    return /شكوى|شكاوى|complaint|مشكل|بلاغ/i.test(String(panelName || ''));
+/**
+ * نظام المستويات — يعتمد على النقاط (نقاط الترتيب) بمنحنى صعب:
+ *   مطلوب للمستوى L: 5·L·(L+1) − 10 نقطة تراكمية
+ *   المستوى 1 = 0 نقطة | 2 = 20 | 3 = 50 | 4 = 90 | 5 = 140
+ *   6 = 200 | 7 = 270 | 8 = 350 | 9 = 440 | 10 = 540 ...
+ * أي أن الفجوة بين كل مستوىين تكبر تدريجياً، فلا يرتفع المستوى بسهولة.
+ */
+function pointsForLevel(level) {
+    return 5 * level * (level + 1) - 10;
 }
 
-/** هل اسم البنل يخص الدعم الفني؟ */
-function isSupportPanel(panelName) {
-    return /دعم|فني|support|tech|مساعدة/i.test(String(panelName || ''));
+/** المستوى من النقاط (حل عكسي للمعادلة التربيعية) */
+function levelFromPoints(points) {
+    if (!points || points < 0) return 1;
+    return Math.floor((Math.sqrt(225 + 20 * points) - 5) / 10) || 1;
+}
+
+/** معلومات مستوى: رقمه + النقاط المكتسبة داخله + المطلوب للمستوى التالي */
+function getLevelInfo(points) {
+    const level = levelFromPoints(points);
+    const base = pointsForLevel(level);
+    const next = pointsForLevel(level + 1);
+    return { level, inLevel: points - base, nextLevelAt: next - base };
 }
 
 /**
  * الإحصائيات المفصلة للإداري (المطلوبة في إيمبد "إحصائياتي المفصلة"):
- * تعتمد على بيانات المخزن + الجلسات الحية (قيد المعالجة/الشكاوى/الدعم)
+ * تعتمد على بيانات المخزن + الجلسات الحية (قيد المعالجة)
  * @param {String} userId
  * @param {Array} sessions - getAllSessions() من ticketStore
  */
@@ -330,8 +345,6 @@ function getDetailedStats(userId, sessions = []) {
         transferredAway: raw.transferredAway || 0,
         receivedFromOthers: raw.receivedFromOthers || 0,
         ticketsDeleted: raw.ticketsDeleted || 0,
-        complaintsClaimed: mySessions.filter(s => isComplaintsPanel(s.panelName)).length,
-        supportClaimed: mySessions.filter(s => isSupportPanel(s.panelName)).length,
         // ⏱️ المدد والأداء
         longestSessionMs: raw.longestSessionMs || null,
         fastestClaimMs: stats.claimTimes.length > 0 ? Math.min(...stats.claimTimes) : null,
@@ -347,9 +360,9 @@ function getDetailedStats(userId, sessions = []) {
         // ⭐ التقييم
         fiveStarRatings: stats.ratings.filter(r => r.value === 5).length,
         negativeRatings: stats.ratings.filter(r => r.value <= 2).length,
-        // 🏆 الخبرة والمركز
+        // 🏆 المستوى والمركز
         xp: xpInfo.xp,
-        level: xpInfo.level,
+        level: levelFromPoints(stats.points.total),
         xpRank,
         xpTotal: lb.length,
     };
@@ -373,6 +386,9 @@ module.exports = {
     calculatePoints,
     calculateXP,
     getXPLeaderboard,
+    pointsForLevel,
+    levelFromPoints,
+    getLevelInfo,
     RATING_POINTS,
     MESSAGES_PER_POINT,
 };

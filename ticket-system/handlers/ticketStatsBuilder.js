@@ -17,7 +17,7 @@
 
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, UserSelectMenuBuilder } = require('discord.js');
 const { version } = require('../../package.json');
-const { getUserStats, getAllStats, getTotalClaims, getDetailedStats, MESSAGES_PER_POINT } = require('../database/ticketStatsStore');
+const { getUserStats, getAllStats, getTotalClaims, getDetailedStats, getLevelInfo, MESSAGES_PER_POINT } = require('../database/ticketStatsStore');
 const { getAllSessions } = require('./ticketStore');
 
 const COLORS = { main: 0x5865F2, gold: 0xF1C40F, green: 0x2ECC71 };
@@ -73,12 +73,23 @@ function buildPointsBreakdownField(stats) {
     ].join('\n');
 }
 
+/** شريط تقدم من 10 خانات لمسار المستوى */
+function buildProgressBar(ratio) {
+    const filled = Math.max(0, Math.min(10, Math.round(ratio * 10)));
+    return '▰'.repeat(filled) + '▱'.repeat(10 - filled);
+}
+
 /** إيمبد إحصائيات كاملة لعضو (تُستخدم لـ"احصائياتي" ولعرض إحصائيات شخص) */
 function buildUserStatsEmbed(targetUser, guild, options = {}) {
     const stats = getUserStats(targetUser.id);
     const totalClaims = getTotalClaims();
     const claimRate = totalClaims > 0 ? Math.round((stats.ticketsClaimed / totalClaims) * 100) : 0;
     const member = guild?.members.cache.get(targetUser.id) || null;
+    const levelInfo = getLevelInfo(stats.points.total);
+    const progressBar = buildProgressBar(levelInfo.inLevel / levelInfo.nextLevelAt);
+    const levelText =
+        `**المستوى ${levelInfo.level}**\n` +
+        `🎯 ${progressBar} \`${levelInfo.inLevel}/${levelInfo.nextLevelAt}\` نقطة للمستوى ${levelInfo.level + 1}`;
 
     const embed = new EmbedBuilder()
         .setColor(options.color || COLORS.main)
@@ -87,6 +98,7 @@ function buildUserStatsEmbed(targetUser, guild, options = {}) {
         .addFields(
             { name: '🎖️ رتبته', value: member ? getRoleName(member) : '—', inline: false },
             { name: '🏆 النقاط الإجمالية', value: `**${stats.points.total} نقطة**`, inline: false },
+            { name: '📊 المستوى', value: levelText, inline: false },
             { name: '🧮 تفاصيل النقاط', value: buildPointsBreakdownField(stats), inline: false },
             { name: '🎫 تكتات استلمها', value: `${stats.ticketsClaimed}`, inline: true },
             { name: '📥 تكتات مغلقة (كآخر مستلم)', value: `${stats.ticketsClosed}`, inline: true },
@@ -255,8 +267,6 @@ function buildDetailedStatsEmbed(targetUser, guild, detail) {
             { name: '🔀 حوّلها لغيره', value: `**${detail.transferredAway}**`, inline: true },
             { name: '📥 استلمها من غيره', value: `**${detail.receivedFromOthers}**`, inline: true },
             { name: '🗑️ حذفها نهائياً', value: `**${detail.ticketsDeleted}**`, inline: true },
-            { name: '⚠️ تكتات شكاوى مستلمة', value: `**${detail.complaintsClaimed}**`, inline: true },
-            { name: '🛠️ تكتات دعم فني مستلمة', value: `**${detail.supportClaimed}**`, inline: true },
             // ⏱️ المدد والأداء
             { name: '🚀 أسرع استلام', value: `**${fmtDur(detail.fastestClaimMs)}**`, inline: true },
             { name: '🏃‍♂️ أسرع إغلاق', value: `**${fmtDur(detail.fastestCloseMs)}**`, inline: true },
