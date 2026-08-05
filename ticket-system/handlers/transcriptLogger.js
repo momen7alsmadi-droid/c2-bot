@@ -187,8 +187,13 @@ async function finalizeTicketDeletion(channel, panel) {
     // التزام إحصائيات التذكرة إن لم تُلتزم عند القفل (مثل الحذف التلقائي
     // بدون قفل) — رسائل المشاركين + استلام + سرعة الاستلام
     // ---------------------------------------------------
-    const { commitTicketStats } = require('../database/ticketStatsStore');
+    const { commitTicketStats, recordTicketDeleted } = require('../database/ticketStatsStore');
     commitTicketStats(session);
+
+    // 📊 تسجيل الحذف النهائي (على يد عضو — وليس البوت التلقائي)
+    if (session && session.deletedBy && session.deletedBy !== 'AUTO') {
+        recordTicketDeleted(session.deletedBy);
+    }
 
     // ---------------------------------------------------
     // نظام التقييم: رسالة خاصة لصاحب التذكرة (أزرار نجوم + ملاحظة)

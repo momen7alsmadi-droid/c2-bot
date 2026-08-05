@@ -62,7 +62,27 @@ function initStatsStore() {
 
 function ensureUser(userId) {
     if (!state.users[userId]) {
-        state.users[userId] = { ticketsClaimed: 0, ticketsClosed: 0, messagesSent: 0, ratings: [], claimTimes: [] };
+        state.users[userId] = {
+            ticketsClaimed: 0,
+            ticketsClosed: 0,
+            messagesSent: 0,
+            ratings: [],
+            claimTimes: [],
+            // حقول الإحصائيات المفصلة:
+            transferredAway: 0, // تكتات حوّلها لغيره (خرجت من استلامه)
+            receivedFromOthers: 0, // تكتات استلمها من غيره
+            ticketsDeleted: 0, // تكتات حذفها نهائياً
+            longestSessionMs: 0, // أطول مدة جلس فيها بتكت
+            maxMessagesInTicket: 0, // أكثر عدد رسائله في تكت واحد
+            mentionsCount: 0, // عدد المنشنات @
+            attachmentsCount: 0, // عدد المرفقات
+            repliedToMembers: 0, // رسائل الأعضاء التي رد عليها
+            thanksReceived: 0, // مرات شكر الأعضاء له
+            quickRepliesUsed: 0, // استخدام الردود الجاهزة
+            sessionDurations: [], // مدد الجلسات (استلام → قفل/حذف)
+            daily: {}, // { 'YYYY-MM-DD': عدد الرسائل }
+            lastActivityAt: 0, // آخر تواجد له في أي تكت
+        };
     }
     return state.users[userId];
 }
@@ -78,6 +98,33 @@ function recordClaim(userId) {
 function recordClose(userId) {
     if (!userId) return;
     ensureUser(userId).ticketsClosed += 1;
+    persist();
+}
+
+
+/**
+ * تسجيل تحويل ملكية استلام:
+ *   fromId = صاحب الاستلام السابق (خرجت من يده → transferredAway)
+ *   toId   = المستلم الجديد (وصلت إليه → receivedFromOthers)
+ */
+function recordTransfer(fromId, toId) {
+    if (!fromId && !toId) return;
+    if (fromId) ensureUser(fromId).transferredAway += 1;
+    if (toId) ensureUser(toId).receivedFromOthers += 1;
+    persist();
+}
+
+/** تسجيل حذف نهائي لتذكرة (على يد عضو — وليس تلقائياً) */
+function recordTicketDeleted(userId) {
+    if (!userId) return;
+    ensureUser(userId).ticketsDeleted += 1;
+    persist();
+}
+
+/** تسجيل استخدام رد جاهز (يُفعَّل عند إضافة ميزة الردود الجاهزة) */
+function recordQuickReply(userId) {
+    if (!userId) return;
+    ensureUser(userId).quickRepliesUsed += 1;
     persist();
 }
 
@@ -111,29 +158,63 @@ function recordClaimSpeed(userId, ms) {
  *   - الاستلام + نقطة الإغلاق (إن كانت مقفلة) + سرعة الاستلام
  * ملاحظة: تستدعى من معالجي القفل/الحذف — علامة statsCommitted تمنع التكرار
  */
+/**
+ * التزام إحصائيات التذكرة عند قفلها/حذفها (بدل التحديث مع كل رسالة):
+ *   - رسائل كل المشاركين (دفعة واحدة) + التوزيع اليومي + آخر تواجد
+ *   - النشاط التفصيلي: منشنات/مرفقات/ردود على الأعضاء/شكر/ردود جاهزة
+ *   - الاستلام + نقطة الإغلاق + سرعة الاستلام + مدة الجلسة
+ * ملاحظة: تستدعى من معالجي القفل/الحذف — علامة statsCommitted تمنع التكرار
+ */
 function commitTicketStats(session) {
     if (!session || session.statsCommitted) return;
 
     const claimer = session.claimedBy;
     const counts = session.messageCounts || {};
+    const dayKey = new Date().toISOString().slice(0, 10);
 
-    // 1) رسائل كل المشاركين في التذكرة (دفعة واحدة)
+    // 1) رسائل كل المشاركين (دفعة واحدة) + اليومي + أطول تكت + آخر تواجد
     for (const [uid, count] of Object.entries(counts)) {
-        if (count > 0) recordMessages(uid, count);
+        if (!count || count <= 0) continue;
+        const raw = ensureUser(uid);
+        raw.messagesSent += count;
+        raw.daily = raw.daily || {};
+        raw.daily[dayKey] = (raw.daily[dayKey] || 0) + count;
+        raw.maxMessagesInTicket = Math.max(raw.maxMessagesInTicket || 0, count);
+        raw.lastActivityAt = Math.max(raw.lastActivityAt || 0, session.lastActivityAt || 0);
     }
 
-    // 2) الاستلام + نقطة الإغلاق + سرعة الاستلام (لآخر مستلم)
+    // 2) النشاط التفصيلي في الجلسة (مجمّع في الذاكرة أثناء المحادثة)
+    for (const [uid, act] of Object.entries(session.staffActivity || {})) {
+        const raw = ensureUser(uid);
+        raw.mentionsCount = (raw.mentionsCount || 0) + (act.mentions || 0);
+        raw.attachmentsCount = (raw.attachmentsCount || 0) + (act.attachments || 0);
+        raw.repliedToMembers = (raw.repliedToMembers || 0) + (act.repliedTo || 0);
+        raw.thanksReceived = (raw.thanksReceived || 0) + (act.thanks || 0);
+        raw.quickRepliesUsed = (raw.quickRepliesUsed || 0) + (act.quickReplies || 0);
+    }
+
+    // 3) الاستلام + نقطة الإغلاق + سرعة الاستلام + مدة الجلسة (لآخر مستلم)
     if (claimer) {
         recordClaim(claimer);
         if (session.lockedAt) recordClose(claimer);
         const claimedAt = session.claimedAt || 0;
         const openedAt = session.openedAt || 0;
         if (claimedAt > openedAt) recordClaimSpeed(claimer, claimedAt - openedAt);
+
+        const closedAt = session.lockedAt || Date.now();
+        if (claimedAt > 0 && closedAt > claimedAt) {
+            const raw = ensureUser(claimer);
+            raw.sessionDurations = raw.sessionDurations || [];
+            raw.sessionDurations.push(closedAt - claimedAt);
+            raw.longestSessionMs = Math.max(raw.longestSessionMs || 0, closedAt - claimedAt);
+        }
     }
 
-    // 3) تعليم الجلسة كملتزمة + مسح عدّادات الرسائل
+    persist();
+
+    // 4) تعليم الجلسة كملتزمة + مسح العدّادات والنشاط المؤقت
     const { updateSession } = require('../handlers/ticketStore');
-    updateSession(session.channelId, { statsCommitted: true, messageCounts: {} });
+    updateSession(session.channelId, { statsCommitted: true, messageCounts: {}, staffActivity: {} });
 }
 
 /** تسجيل تقييم نجمي (1-5) */
@@ -198,6 +279,97 @@ function getTotalClaims() {
     return Object.values(state.users).reduce((sum, s) => sum + (s.ticketsClaimed || 0), 0);
 }
 
+/**
+ * نقاط الخبرة (XP) — نظام منفصل عن نقاط الترتيب:
+ *   رسالة = 1 | استلام = 5 | إغلاق = 10 | تحويل = 2 | استلام من غيره = 2
+ *   حذف = 5 | شكر = 5 | رد جاهز = 1 | كل نجمة تقييم = 10
+ * المستوى: كل 200 XP مستوى واحد.
+ */
+function calculateXP(raw) {
+    const ratings = Array.isArray(raw.ratings) ? raw.ratings : [];
+    const ratingXp = ratings.reduce((s, r) => s + (r.value || 0) * 10, 0);
+    const xp =
+        (raw.messagesSent || 0) * 1 +
+        (raw.ticketsClaimed || 0) * 5 +
+        (raw.ticketsClosed || 0) * 10 +
+        (raw.transferredAway || 0) * 2 +
+        (raw.receivedFromOthers || 0) * 2 +
+        (raw.ticketsDeleted || 0) * 5 +
+        (raw.thanksReceived || 0) * 5 +
+        (raw.quickRepliesUsed || 0) * 1 +
+        ratingXp;
+    return { xp, level: Math.floor(xp / 200) + 1 };
+}
+
+/** لوحة XP مرتبة تنازلياً (لحساب المركز بالسيرفر) */
+function getXPLeaderboard() {
+    return Object.entries(state.users)
+        .map(([id, raw]) => ({ id, xp: calculateXP(raw).xp }))
+        .filter(u => u.xp > 0)
+        .sort((a, b) => b.xp - a.xp);
+}
+
+/** هل اسم البنل يخص الشكاوى؟ */
+function isComplaintsPanel(panelName) {
+    return /شكوى|شكاوى|complaint|مشكل|بلاغ/i.test(String(panelName || ''));
+}
+
+/** هل اسم البنل يخص الدعم الفني؟ */
+function isSupportPanel(panelName) {
+    return /دعم|فني|support|tech|مساعدة/i.test(String(panelName || ''));
+}
+
+/**
+ * الإحصائيات المفصلة للإداري (المطلوبة في إيمبد "إحصائياتي المفصلة"):
+ * تعتمد على بيانات المخزن + الجلسات الحية (قيد المعالجة/الشكاوى/الدعم)
+ * @param {String} userId
+ * @param {Array} sessions - getAllSessions() من ticketStore
+ */
+function getDetailedStats(userId, sessions = []) {
+    const stats = getUserStats(userId);
+    const raw = ensureUser(userId);
+    const durations = Array.isArray(raw.sessionDurations) ? raw.sessionDurations : [];
+    const daily = raw.daily || {};
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const mySessions = sessions.filter(s => s.claimedBy === userId);
+    const xpInfo = calculateXP(raw);
+    const lb = getXPLeaderboard();
+    const xpRank = lb.findIndex(u => u.id === userId) + 1;
+
+    return {
+        ...stats,
+        // 🎫 حالة التكتات
+        inProgress: mySessions.filter(s => !s.lockedAt).length,
+        transferredAway: raw.transferredAway || 0,
+        receivedFromOthers: raw.receivedFromOthers || 0,
+        ticketsDeleted: raw.ticketsDeleted || 0,
+        complaintsClaimed: mySessions.filter(s => isComplaintsPanel(s.panelName)).length,
+        supportClaimed: mySessions.filter(s => isSupportPanel(s.panelName)).length,
+        // ⏱️ المدد والأداء
+        longestSessionMs: raw.longestSessionMs || null,
+        fastestClaimMs: stats.claimTimes.length > 0 ? Math.min(...stats.claimTimes) : null,
+        fastestCloseMs: durations.length > 0 ? Math.min(...durations) : null,
+        avgTicketDurationMs: durations.length > 0 ? durations.reduce((s, v) => s + v, 0) / durations.length : null,
+        maxMessagesInTicket: raw.maxMessagesInTicket || 0,
+        lastActivityAt: raw.lastActivityAt || null,
+        // 💬 النشاط
+        messagesToday: daily[todayKey] || 0,
+        mentionsCount: raw.mentionsCount || 0,
+        attachmentsCount: raw.attachmentsCount || 0,
+        repliedToMembers: raw.repliedToMembers || 0,
+        quickRepliesUsed: raw.quickRepliesUsed || 0,
+        thanksReceived: raw.thanksReceived || 0,
+        // ⭐ التقييم
+        fiveStarRatings: stats.ratings.filter(r => r.value === 5).length,
+        negativeRatings: stats.ratings.filter(r => r.value <= 2).length,
+        // 🏆 الخبرة والمركز
+        xp: xpInfo.xp,
+        level: xpInfo.level,
+        xpRank,
+        xpTotal: lb.length,
+    };
+}
+
 module.exports = {
     initStatsStore,
     recordClaim,
@@ -206,11 +378,17 @@ module.exports = {
     recordMessages,
     recordClaimSpeed,
     recordRating,
+    recordTransfer,
+    recordTicketDeleted,
+    recordQuickReply,
     commitTicketStats,
     getUserStats,
     getAllStats,
     getTotalClaims,
+    getDetailedStats,
     calculatePoints,
+    calculateXP,
+    getXPLeaderboard,
     RATING_POINTS,
     MESSAGES_PER_POINT,
 };

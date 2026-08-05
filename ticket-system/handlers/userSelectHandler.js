@@ -127,6 +127,10 @@ async function handleUserSelectMenu(interaction) {
                 `<@${interaction.member.id}> قام بتحويل استلام التذكرة إلى <@${selectedUser.id}>`
             );
 
+            // 📊 إحصائيات التحويل: خرجت من يد المستلم القديم ووصلت للمستلم الجديد
+            const { recordTransfer } = require('../database/ticketStatsStore');
+            recordTransfer(previousClaimer, selectedUser.id);
+
             // تحديث أزرار رسالة التحكم الرئيسية لتعكس المستلم الجديد
             if (updated.controlMessageId) {
                 const controlMessage = await interaction.channel.messages.fetch(updated.controlMessageId).catch(() => null);

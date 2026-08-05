@@ -56,6 +56,8 @@ const SERIALIZABLE_KEYS = [
     'idleWarningSent',
     'staffNotes',
     'messageCounts',
+    'staffActivity',
+    'lastMsgAuthorId',
     'statsCommitted',
     'auditLog',
 ];
@@ -120,6 +122,8 @@ function sanitizeLoadedSession(raw) {
         idleWarningSent: !!raw.idleWarningSent,
         staffNotes: Array.isArray(raw.staffNotes) ? raw.staffNotes : [],
         messageCounts: raw.messageCounts && typeof raw.messageCounts === 'object' ? raw.messageCounts : {},
+        staffActivity: raw.staffActivity && typeof raw.staffActivity === 'object' ? raw.staffActivity : {},
+        lastMsgAuthorId: typeof raw.lastMsgAuthorId === 'string' ? raw.lastMsgAuthorId : null,
         statsCommitted: !!raw.statsCommitted,
         auditLog: Array.isArray(raw.auditLog) ? raw.auditLog : [],
     };

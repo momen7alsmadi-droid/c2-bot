@@ -415,7 +415,36 @@ ID: ${guild.id}
         if (ticketSess) {
           const counts = ticketSess.messageCounts || {};
           counts[message.author.id] = (counts[message.author.id] || 0) + 1;
-          updateTicketSession(message.channel.id, { lastActivityAt: Date.now(), messageCounts: counts });
+
+          // النشاط التفصيلي لكل مشارك (منشنات/مرفقات/ردود/شكر/ردود جاهزة)
+          const act = ticketSess.staffActivity || {};
+          const mine = (act[message.author.id] = act[message.author.id] || {
+            mentions: 0, attachments: 0, repliedTo: 0, thanks: 0, quickReplies: 0,
+          });
+          mine.mentions += (message.mentions.users?.size || 0) + (message.mentions.roles?.size || 0);
+          mine.attachments += message.attachments?.size || 0;
+          if (message.reference && message.reference.messageId) mine.repliedTo += 1;
+
+          const isStaff = ticketSess.openerId && message.author.id !== ticketSess.openerId;
+          const prevAuthor = ticketSess.lastMsgAuthorId;
+
+          // رد مباشر بعد رسالة صاحب التذكرة = رد على رسالة عضو
+          if (isStaff && prevAuthor === ticketSess.openerId) mine.repliedTo += 1;
+
+          // شكر من صاحب التذكرة (كلمات الشكر) لمن رد عليه آخراً
+          if (message.author.id === ticketSess.openerId && /شكر|تسلم|يعطيك العاف|مشكور|thx|thanks|thank|ty\b/i.test(message.content || '')) {
+            if (prevAuthor && prevAuthor !== ticketSess.openerId && act[prevAuthor]) {
+              act[prevAuthor].thanks += 1;
+            }
+          }
+
+          ticketSess.lastMsgAuthorId = message.author.id;
+          updateTicketSession(message.channel.id, {
+            lastActivityAt: Date.now(),
+            messageCounts: counts,
+            staffActivity: act,
+            lastMsgAuthorId: ticketSess.lastMsgAuthorId,
+          });
         }
       }
 

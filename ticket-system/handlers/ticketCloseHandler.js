@@ -119,7 +119,7 @@ async function handleTicketCloseButton(interaction) {
             if (!(await safeDeferUpdate(interaction))) return;
 
             await applyUnlockPermissions(interaction.channel, panel, session);
-            const updated = updateSession(interaction.channel.id, { lockedAt: null, statsCommitted: false, messageCounts: {} });
+            const updated = updateSession(interaction.channel.id, { lockedAt: null, statsCommitted: false, messageCounts: {}, staffActivity: {}, lastMsgAuthorId: null });
 
             // حذف رسالة الإغلاق نفسها بما أنها لم تعد مطلوبة
             await interaction.message.delete().catch(() => {});

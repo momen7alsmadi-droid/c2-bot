@@ -9,7 +9,7 @@ const {
 const { version } = require('../../package.json');
 const { getAdminConfig } = require('../utils/adminStorage');
 const { sendLog } = require('../utils/helpers');
-const { handleMyStats, handleTopStats, handleTopNav, handlePickPerson, handleSpeedStats, handleSpeedNav } = require('../../ticket-system/handlers/ticketStatsBuilder');
+const { handleMyStats, handleTopStats, handleTopNav, handlePickPerson, handleSpeedStats, handleSpeedNav, handleDetailStats } = require('../../ticket-system/handlers/ticketStatsBuilder');
 
 // ---------- حالة pagination لكل مستخدم ----------
 const paginationState = new Map();
@@ -809,6 +809,7 @@ async function handleBoardInteraction(interaction) {
   if (id === 'ticket_stats_top_prev') return handleTopNav(interaction, 'prev');
   if (id === 'ticket_stats_top_next') return handleTopNav(interaction, 'next');
   if (id === 'ticket_stats_pick') return handlePickPerson(interaction);
+  if (id.startsWith('ticket_stats_detail')) return handleDetailStats(interaction);
   if (id === 'ticket_stats_speed') return handleSpeedStats(interaction);
   if (id === 'ticket_stats_speed_prev') return handleSpeedNav(interaction, 'prev');
   if (id === 'ticket_stats_speed_next') return handleSpeedNav(interaction, 'next');

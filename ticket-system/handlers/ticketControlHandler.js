@@ -180,7 +180,7 @@ async function handleTicketControlButton(interaction) {
                 // ---- فتح التذكرة مجدداً من نفس الزر (نادراً ما يُستخدم لأن
                 //      إعادة الفتح تتم غالباً من رسالة الإغلاق، لكن نتركه متاحاً) ----
                 await applyUnlockPermissions(interaction.channel, panel, session);
-                const updated = updateSession(interaction.channel.id, { lockedAt: null, statsCommitted: false, messageCounts: {} });
+                const updated = updateSession(interaction.channel.id, { lockedAt: null, statsCommitted: false, messageCounts: {}, staffActivity: {}, lastMsgAuthorId: null });
                 addAuditLog(interaction.channel.id, `<@${interaction.member.id}> قام بفتح التذكرة مجدداً`);
 
                 const rows = buildTicketControlRows(updated, false);

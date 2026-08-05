@@ -17,7 +17,8 @@
 
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, UserSelectMenuBuilder } = require('discord.js');
 const { version } = require('../../package.json');
-const { getUserStats, getAllStats, getTotalClaims, MESSAGES_PER_POINT } = require('../database/ticketStatsStore');
+const { getUserStats, getAllStats, getTotalClaims, getDetailedStats, MESSAGES_PER_POINT } = require('../database/ticketStatsStore');
+const { getAllSessions } = require('./ticketStore');
 
 const COLORS = { main: 0x5865F2, gold: 0xF1C40F, green: 0x2ECC71 };
 const PER_PAGE = 10;
@@ -111,6 +112,7 @@ async function handleMyStats(interaction) {
     });
 
     const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('ticket_stats_detail').setLabel('📊 إحصائياتي المفصلة').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('ticket_stats_top').setLabel('🏆 توب نقاط').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('ticket_stats_speed').setLabel('🏎️ توب سرعة الاستلام').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Secondary),
@@ -302,12 +304,84 @@ async function handleStatsUserSelect(interaction) {
     });
 
     const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`ticket_stats_detail:${selected.id}`).setLabel('📊 إحصائيات مفصلة').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('ticket_stats_top').setLabel('🏆 توب نقاط').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('ticket_stats_me').setLabel('📊 احصائياتي').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Secondary),
     );
 
     return interaction.update({ embeds: [embed], components: [row] });
+}
+
+// ================== 📊 إحصائيات مفصلة (مخفية للإداري فقط) ==================
+
+/** تنسيق مدة (لأطول/متوسط المدد) */
+const fmtDur = ms => (ms ? formatClaimSpeed(ms) : '—');
+
+/** آخر تواجد بتكت — بصيغة نسبية */
+const fmtLast = ms => (ms ? `<t:${Math.floor(ms / 1000)}:R>` : '—');
+
+function buildDetailedStatsEmbed(targetUser, guild, detail) {
+    return new EmbedBuilder()
+        .setColor(COLORS.main)
+        .setTitle(`📊 إحصائيات مفصلة — ${targetUser.tag}`)
+        .setThumbnail(targetUser.displayAvatarURL())
+        .setDescription(
+            `${guild ? getRoleName(guild.members.cache.get(targetUser.id)) : '—'}\n` +
+            `🎫 إجمالي التكتات المستلمة: **${detail.ticketsClaimed}** | 💬 رسائله: **${detail.messagesSent}**`
+        )
+        .addFields(
+            // 🎫 حالة التكتات
+            { name: '🎫 تكتات قيد المعالجة', value: `**${detail.inProgress}**`, inline: true },
+            { name: '🔀 حوّلها لغيره', value: `**${detail.transferredAway}**`, inline: true },
+            { name: '📥 استلمها من غيره', value: `**${detail.receivedFromOthers}**`, inline: true },
+            { name: '🗑️ حذفها نهائياً', value: `**${detail.ticketsDeleted}**`, inline: true },
+            { name: '⚠️ تكتات شكاوى مستلمة', value: `**${detail.complaintsClaimed}**`, inline: true },
+            { name: '🛠️ تكتات دعم فني مستلمة', value: `**${detail.supportClaimed}**`, inline: true },
+            // ⏱️ المدد والأداء
+            { name: '🚀 أسرع استلام', value: `**${fmtDur(detail.fastestClaimMs)}**`, inline: true },
+            { name: '🏃‍♂️ أسرع إغلاق', value: `**${fmtDur(detail.fastestCloseMs)}**`, inline: true },
+            { name: '⏳ متوسط مدة التكت', value: `**${fmtDur(detail.avgTicketDurationMs)}**`, inline: true },
+            { name: '🕰️ أطول جلسة في تكت', value: `**${fmtDur(detail.longestSessionMs)}**`, inline: true },
+            { name: '📜 أطول تكت بعدد رسائلي', value: `**${detail.maxMessagesInTicket} رسالة**`, inline: true },
+            { name: '🕐 آخر تواجد بتكت', value: `**${fmtLast(detail.lastActivityAt)}**`, inline: true },
+            // 💬 النشاط
+            { name: '📅 رسائله خلال اليوم', value: `**${detail.messagesToday}**`, inline: true },
+            { name: '📢 عدد المنشنات (@)', value: `**${detail.mentionsCount}**`, inline: true },
+            { name: '📎 عدد المرفقات', value: `**${detail.attachmentsCount}**`, inline: true },
+            { name: '👥 رسائل أعضاء رد عليها', value: `**${detail.repliedToMembers}**`, inline: true },
+            { name: '⚡ استخدام الردود الجاهزة', value: `**${detail.quickRepliesUsed}**`, inline: true },
+            { name: '💖 عدد الشكر من الأعضاء', value: `**${detail.thanksReceived}**`, inline: true },
+            // ⭐ التقييمات
+            { name: '🌟 تقييمات 5 نجوم', value: `**${detail.fiveStarRatings}**`, inline: true },
+            { name: '💔 التقييمات السلبية (1-2★)', value: `**${detail.negativeRatings}**`, inline: true },
+            { name: '🎯 عدد التقييمات', value: `**${detail.ratingCount}** (متوسط ${detail.avgRating > 0 ? detail.avgRating.toFixed(1) : '—'})`, inline: true },
+            // 🏆 الخبرة والمركز
+            { name: '🧬 نقاط الخبرة (XP)', value: `**${detail.xp}**`, inline: true },
+            { name: '📊 المستوى', value: `**${detail.level}**`, inline: true },
+            { name: '🏆 المركز بالسيرفر', value: `**#${detail.xpRank || '—'}** من ${detail.xpTotal || '—'}`, inline: true },
+            { name: '\u200b', value: '\u200b', inline: true },
+        )
+        .setFooter({ text: `الإصدار: ${version} | ملاحظة: الردود الجاهزة تُحتسب عند تفعيل ميزة الردود الجاهزة` })
+        .setTimestamp();
+}
+
+/** عرض الإحصائيات المفصلة — رسالة مخفية (Ephemeral) للإداري فقط */
+async function handleDetailStats(interaction) {
+    await interaction.deferUpdate().catch(() => {});
+    const targetId = (interaction.customId || '').split(':')[1] || interaction.member.id;
+    const member = interaction.guild?.members.cache.get(targetId);
+    const targetUser = member?.user || (await interaction.client.users.fetch(targetId).catch(() => null));
+    if (!targetUser) {
+        return interaction.followUp({
+            content: '⚠️ لم يتم العثور على هذا العضو.',
+            ephemeral: true,
+        }).catch(() => {});
+    }
+
+    const detail = getDetailedStats(targetId, getAllSessions());
+    const embed = buildDetailedStatsEmbed(targetUser, interaction.guild, detail);
+    return interaction.followUp({ embeds: [embed], ephemeral: true }).catch(() => {});
 }
 
 module.exports = {
@@ -318,5 +392,6 @@ module.exports = {
     handleStatsUserSelect,
     handleSpeedStats,
     handleSpeedNav,
+    handleDetailStats,
     formatClaimSpeed,
 };
