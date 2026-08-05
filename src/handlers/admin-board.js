@@ -10,6 +10,7 @@ const { version } = require('../../package.json');
 const { getAdminConfig } = require('../utils/adminStorage');
 const { sendLog } = require('../utils/helpers');
 const { handleMyStats, handleTopStats, handleTopNav, handlePickPerson, handleDetailStats, handleDetailStatsBack, handleTeamStats, handleTeamDetail } = require('../../ticket-system/handlers/ticketStatsBuilder');
+const { ackComponent, deliverComponent } = require('../../ticket-system/utils/interactionSafe');
 
 // ---------- حالة pagination لكل مستخدم ----------
 const paginationState = new Map();
@@ -24,37 +25,8 @@ function setState(userId, state) {
 function clearState(userId) { paginationState.delete(userId); }
 
 // ---------- دالة مساعدة ----------
-/**
- * تأكيد زر بأمان مع محاولة إضافية (يبتلع الخطأ الشائع "تفاعل مؤكد مسبقاً")
- * ويعيد true إذا أصبح التفاعل مؤكداً (deferred/replied) مهما كانت الظروف.
- */
-async function ackBoardButton(interaction) {
-  if (interaction.replied || interaction.deferred) return true;
-  try {
-    await interaction.deferUpdate();
-    return true;
-  } catch (e) {
-    // أخطاء شبكة عابرة: محاولة ثانية بعد لحظة قصيرة
-    await new Promise(r => setTimeout(r, 300));
-    if (interaction.replied || interaction.deferred) return true;
-    try {
-      await interaction.deferUpdate();
-      return true;
-    } catch {}
-    return interaction.replied || interaction.deferred;
-  }
-}
-
-/**
- * تسليم آمن: followUp إذا كان التفاعل مؤكداً، وإلا reply مباشر
- * (يبطل خطأ InteractionNotReplied حتى لو فشل التأكيد نفسه).
- */
-function deliverFollowUp(interaction, payload) {
-  if (interaction.deferred || interaction.replied) {
-    return interaction.followUp(payload).catch(() => {});
-  }
-  return interaction.reply(payload).catch(() => {});
-}
+// (ackComponent/deliverComponent مستوردة من utils/interactionSafe —
+//  تأكيد آمن مع محاولة إضافية + تسليم عبر followUp أو reply بديل)
 
 async function respondOrUpdate(interaction, payload) {
   // ===== إضافة الزر الشكلي 'إعادة تعيين' في نهاية الرسائل التي تحتوي قوائم منسدلة =====
@@ -247,16 +219,17 @@ function buildMainPanelEmbed(guild, cfg, stats) {
     .setTimestamp();
 }
 
-function buildMainPanelComponents(isHigh) {
+function buildMainPanelComponents(isAdmin) {
   const row1 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('adm_board_myprofile').setLabel('👤 عرض ملفي').setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId('adm_board_ladder').setLabel('🪜 سلم الرتب').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('adm_board_top').setLabel('🏆 توب الإدارة').setStyle(ButtonStyle.Success),
   );
   const row2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('adm_board_promote').setLabel('📈 ترقية').setStyle(ButtonStyle.Primary).setDisabled(!isHigh),
-    new ButtonBuilder().setCustomId('adm_board_demote').setLabel('📉 تنزيل').setStyle(ButtonStyle.Primary).setDisabled(!isHigh),
-    new ButtonBuilder().setCustomId('adm_board_remove').setLabel('🗑️ سحب').setStyle(ButtonStyle.Danger).setDisabled(!isHigh),
+    // 🔒 الترقية/التنزيل/السحب: Administrator فقط (الآخرون يرونها معطّلة)
+    new ButtonBuilder().setCustomId('adm_board_promote').setLabel('📈 ترقية').setStyle(ButtonStyle.Primary).setDisabled(!isAdmin),
+    new ButtonBuilder().setCustomId('adm_board_demote').setLabel('📉 تنزيل').setStyle(ButtonStyle.Primary).setDisabled(!isAdmin),
+    new ButtonBuilder().setCustomId('adm_board_remove').setLabel('🗑️ سحب').setStyle(ButtonStyle.Danger).setDisabled(!isAdmin),
   );
   const row3 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('ticket_stats_me').setLabel('📊 احصائياتي').setStyle(ButtonStyle.Success),
@@ -481,7 +454,7 @@ async function handleBoardMain(interaction) {
   const cfg = getAdminConfig();
   const guild = interaction.guild;
   const member = interaction.member;
-  const isHigh = isHighAdmin(member, cfg);
+  const isAdmin = !!(member?.permissions?.has('Administrator'));
 
   const admins = await getAdminMembers(guild, cfg);
   const rolesInRange = getHierarchyRolesInRange(guild, cfg);
@@ -496,7 +469,7 @@ async function handleBoardMain(interaction) {
   };
 
   const embed = buildMainPanelEmbed(guild, cfg, stats);
-  const components = buildMainPanelComponents(isHigh);
+  const components = buildMainPanelComponents(isAdmin);
 
   // الأمر: لوحة عامة / الزر: رد على التأكيد الفوري
   if (interaction.isCommand()) {
@@ -509,14 +482,15 @@ async function handleBoardMain(interaction) {
 
 async function showMemberSelector(interaction, action) {
   // نأكد فوراً للزر (بدون تعديل اللوحة) بأمان، ثم نرسل كلشي كـ followUp مخفي
-  await ackBoardButton(interaction);
+  await ackComponent(interaction);
 
   const cfg = getAdminConfig();
   const guild = interaction.guild;
   const member = interaction.member;
 
-  if (!isHighAdmin(member, cfg)) {
-    return deliverFollowUp(interaction, { content: '❌ ليس لديك صلاحية الإدارة العليا لاستخدام هذا الزر.', ephemeral: true });
+  // 🔒 الترقية/التنزيل/السحب: لمن يملك صلاحية Administrator فقط
+  if (!member?.permissions?.has('Administrator')) {
+    return deliverComponent(interaction, { content: '🚫 أزرار الترقية والتنزيل والسحب متاحة فقط لمن يملك صلاحية **Administrator**.', ephemeral: true });
   }
 
   // استبعد الإدارة العليا من نظام الترقية/التنزيل/السحب
@@ -526,7 +500,7 @@ async function showMemberSelector(interaction, action) {
     admins = admins.filter(m => !highRoles.some(roleId => m.roles.cache.has(roleId)));
   }
   if (admins.length === 0) {
-    return deliverFollowUp(interaction, { content: '⚠️ لا يوجد أعضاء إدارة للاختيار منهم.', ephemeral: true });
+    return deliverComponent(interaction, { content: '⚠️ لا يوجد أعضاء إدارة للاختيار منهم.', ephemeral: true });
   }
 
   const totalPages = Math.ceil(admins.length / 25);
@@ -538,7 +512,7 @@ async function showMemberSelector(interaction, action) {
   setState(interaction.user.id, state);
 
   const firstPage = renderMemberPageContent(state);
-  return deliverFollowUp(interaction, { embeds: [firstPage.embed], components: firstPage.components, ephemeral: true });
+  return deliverComponent(interaction, { embeds: [firstPage.embed], components: firstPage.components, ephemeral: true });
 }
 
 function renderMemberPageContent(state) {
@@ -602,8 +576,9 @@ async function executeAction(interaction, action, targetId) {
   const guild = interaction.guild;
   const member = interaction.member;
 
-  if (!isHighAdmin(member, cfg)) {
-    return interaction.followUp({ content: '❌ ليس لديك صلاحية.', ephemeral: true }).catch(() => {});
+  // 🔒 تنفيذ الترقية/التنزيل/السحب: Administrator فقط
+  if (!member?.permissions?.has('Administrator')) {
+    return interaction.followUp({ content: '🚫 أزرار الترقية والتنزيل والسحب متاحة فقط لمن يملك صلاحية **Administrator**.', ephemeral: true }).catch(() => {});
   }
 
   const targetMember = await guild.members.fetch(targetId).catch(() => null);
@@ -736,7 +711,7 @@ async function executeAction(interaction, action, targetId) {
 
 async function showTopAdmins(interaction) {
   // تأكيد فوري للزر قبل العملية الطويلة — بأمان
-  await ackBoardButton(interaction);
+  await ackComponent(interaction);
 
   const cfg = getAdminConfig();
   const guild = interaction.guild;
@@ -744,7 +719,7 @@ async function showTopAdmins(interaction) {
 
   const admins = await getAdminMembers(guild, cfg);
   if (admins.length === 0) {
-    return deliverFollowUp(interaction, { content: '⚠️ لا يوجد أعضاء إدارة.', ephemeral: true });
+    return deliverComponent(interaction, { content: '⚠️ لا يوجد أعضاء إدارة.', ephemeral: true });
   }
 
   // صاحب السيرفر دائماً الأول مهما كانت رتبته
@@ -768,7 +743,7 @@ async function showTopAdmins(interaction) {
   // إرسال التوب بشكل مخفي (خاص) لكل مستخدم
   const embed = buildTopEmbed(state);
   const navRow = buildTopNavRow(state);
-  return deliverFollowUp(interaction, { embeds: [embed], components: [navRow], ephemeral: true });
+  return deliverComponent(interaction, { embeds: [embed], components: [navRow], ephemeral: true });
 }
 
 function buildTopEmbed(state) {

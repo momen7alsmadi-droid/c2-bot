@@ -23,6 +23,7 @@ const { version } = require('../../package.json');
 const { getUserStats, getAllStats, getTotalClaims, getDetailedStats, getTeamAggregate, getLevelInfo, MESSAGES_PER_POINT, LOGIN_POINTS_PER_DAY } = require('../database/ticketStatsStore');
 const { getAdminConfig } = require('../../src/utils/adminStorage');
 const { getAllSessions } = require('./ticketStore');
+const { ackComponent, deliverComponent } = require('../utils/interactionSafe');
 
 const COLORS = { main: 0x5865F2, gold: 0xF1C40F, green: 0x2ECC71 };
 const PER_PAGE = 10;
@@ -123,7 +124,7 @@ function buildUserStatsEmbed(targetUser, guild, options = {}) {
 
 // ================== 📊 احصائياتي ==================
 async function handleMyStats(interaction) {
-    await interaction.deferUpdate().catch(() => {});
+    await ackComponent(interaction);
     const { embed } = buildUserStatsEmbed(interaction.user, interaction.guild, {
         title: 'احصائياتي',
         color: COLORS.main,
@@ -135,18 +136,18 @@ async function handleMyStats(interaction) {
         new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Secondary),
     );
 
-    return interaction.followUp({ embeds: [embed], components: [row], ephemeral: true }).catch(() => {});
+    return deliverComponent(interaction, { embeds: [embed], components: [row], ephemeral: true });
 }
 
 // ================== 🏆 توب نقاط ==================
 async function handleTopStats(interaction) {
-    await interaction.deferUpdate().catch(() => {});
+    await ackComponent(interaction);
     const ranked = getAllStats();
     if (ranked.length === 0) {
-        return interaction.followUp({
+        return deliverComponent(interaction, {
             content: '📊 لا توجد إحصائيات بعد — ابدأ بفتح التكتات والرد على الأعضاء!',
             ephemeral: true,
-        }).catch(() => {});
+        });
     }
     const totalPages = Math.ceil(ranked.length / PER_PAGE);
     const state = { type: 'stats_top', page: 0, totalPages, ranked, userId: interaction.member.id };
@@ -154,7 +155,7 @@ async function handleTopStats(interaction) {
 
     const embed = buildTopEmbed(state, interaction.guild);
     const row = buildTopNavRow(state);
-    return interaction.followUp({ embeds: [embed], components: row, ephemeral: true }).catch(() => {});
+    return deliverComponent(interaction, { embeds: [embed], components: row, ephemeral: true });
 }
 
 function buildTopEmbed(state, guild) {
@@ -215,17 +216,17 @@ async function handleTopNav(interaction, direction) {
 
 // ================== 🔍 اختيار شخص ==================
 async function handlePickPerson(interaction) {
-    await interaction.deferUpdate().catch(() => {});
+    await ackComponent(interaction);
     const select = new UserSelectMenuBuilder()
         .setCustomId('ticket_stats_user_select')
         .setPlaceholder('اختر شخصاً لعرض إحصائياته...');
 
     const row = new ActionRowBuilder().addComponents(select);
-    return interaction.followUp({
+    return deliverComponent(interaction, {
         content: '🔍 اختر شخصاً لعرض كل إحصائياته:',
         components: [row],
         ephemeral: true,
-    }).catch(() => {});
+    });
 }
 
 /** عرض إحصائيات الشخص المختار من القائمة */
@@ -268,6 +269,8 @@ function buildDetailedStatsEmbed(targetUser, guild, detail) {
             `🎫 إجمالي التكتات المستلمة: **${detail.ticketsClaimed}** | 💬 رسائله: **${detail.messagesSent}**`
         )
         .addFields(
+            // 🏆 النقاط (نفس قيمة التوب حتى لا يظهر التوب نقاطاً والإحصائيات لا)
+            { name: '🏆 النقاط الإجمالية', value: `**${detail.points.total} نقطة**\n${buildPointsBreakdownField(detail)}`, inline: false },
             // 🎫 حالة التكتات
             { name: '🎫 تكتات قيد المعالجة', value: `**${detail.inProgress}**`, inline: true },
             { name: '🔀 حوّلها لغيره', value: `**${detail.transferredAway}**`, inline: true },
@@ -302,15 +305,15 @@ function buildDetailedStatsEmbed(targetUser, guild, detail) {
 
 /** عرض الإحصائيات المفصلة — رسالة مخفية (Ephemeral) للإداري فقط */
 async function handleDetailStats(interaction) {
-    await interaction.deferUpdate().catch(() => {});
+    await ackComponent(interaction);
     const targetId = (interaction.customId || '').split(':')[1] || interaction.member.id;
     const member = interaction.guild?.members.cache.get(targetId);
     const targetUser = member?.user || (await interaction.client.users.fetch(targetId).catch(() => null));
     if (!targetUser) {
-        return interaction.followUp({
+        return deliverComponent(interaction, {
             content: '⚠️ لم يتم العثور على هذا العضو.',
             ephemeral: true,
-        }).catch(() => {});
+        });
     }
 
     const detail = getDetailedStats(targetId, getAllSessions());
@@ -321,7 +324,7 @@ async function handleDetailStats(interaction) {
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(backId).setLabel('🔙 رجوع').setStyle(ButtonStyle.Secondary),
     );
-    return interaction.followUp({ embeds: [embed], components: [row], ephemeral: true }).catch(() => {});
+    return deliverComponent(interaction, { embeds: [embed], components: [row], ephemeral: true });
 }
 
 /** رجوع من مفصلة شخص مختار → إعادة عرض ملفه (نفس عرض اختيار الشخص) */
@@ -348,33 +351,39 @@ async function handleDetailStatsBack(interaction) {
 // ================== 📊 إحصائيات عامة (الإدارة كلها كشخص واحد) ==================
 
 /** آيديات الإدارة: من يملك رتبة الإدارة المشتركة (أو صلاحية Administrator كبديل) */
-function getTeamAdminIds(guild) {
+async function getTeamAdminIds(guild) {
     if (!guild) return [];
+    // نجلب الأعضاء والرولات أولاً حتى لا يكون عدد الإدارة ناقصاً
+    // بسبب كاش غير مكتمل (كان يظهر 0 أو عدد خاطئ)
+    try { await guild.members.fetch(); } catch (e) { console.error('❌ getTeamAdminIds fetch members:', e.message); }
+    try { await guild.roles.fetch(); } catch (e) { console.error('❌ getTeamAdminIds fetch roles:', e.message); }
     const cfg = getAdminConfig();
     const roleId = cfg.sharedAdminRoleId;
     if (roleId && guild.roles.cache.has(roleId)) {
-        return guild.members.cache.filter(m => m.roles.cache.has(roleId)).map(m => m.id);
+        return guild.members.cache.filter(m => !m.user.bot && m.roles.cache.has(roleId)).map(m => m.id);
     }
     // بديل: إن لم تُحدَّد الرتبة المشتركة، نجمع من يملك صلاحية المدير
-    return guild.members.cache.filter(m => m.permissions.has('Administrator')).map(m => m.id);
+    return guild.members.cache.filter(m => !m.user.bot && m.permissions.has('Administrator')).map(m => m.id);
 }
 
 /** تنسيق رقم قياسي: القيمة + من سجّلها (مثال: 3 دقائق — <@id>) */
 const fmtRecord = rec => (rec ? `${formatClaimSpeed(rec.value)} — <@${rec.id}>` : '—');
 
 /** إيمبد الملخص العام للإدارة */
-function buildTeamStatsEmbed(guild) {
-    const adminIds = getTeamAdminIds(guild);
+async function buildTeamStatsEmbed(guild) {
+    const adminIds = await getTeamAdminIds(guild);
     const agg = getTeamAggregate(adminIds, getAllSessions());
     const levelInfo = getLevelInfo(agg.points.total);
     const bar = buildProgressBar(levelInfo.inLevel / levelInfo.nextLevelAt);
     const totalClaims = getTotalClaims();
     const claimRate = totalClaims > 0 ? Math.round((agg.ticketsClaimed / totalClaims) * 100) : 0;
+    const cfg = getAdminConfig();
+    const roleSource = (cfg.sharedAdminRoleId && guild.roles.cache.has(cfg.sharedAdminRoleId)) ? 'رتبة الإدارة المشتركة' : 'صلاحية Administrator';
 
     return new EmbedBuilder()
         .setColor(COLORS.main)
         .setTitle('📊 إحصائيات عامة — الإدارة')
-        .setDescription(`👥 عدد أفراد الإدارة (رتبة الإدارة المشتركة): **${agg.members}**`)
+        .setDescription(`👥 عدد أفراد الإدارة (${roleSource}): **${agg.members}**`)
         .addFields(
             { name: '🏆 النقاط الإجمالية (كل الإدارة)', value: `**${agg.points.total} نقطة**`, inline: false },
             { name: '📊 المستوى', value: `**المستوى ${levelInfo.level}**\n🎯 ${bar} \`${levelInfo.inLevel}/${levelInfo.nextLevelAt}\` نقطة للمستوى ${levelInfo.level + 1}`, inline: false },
@@ -409,8 +418,8 @@ function buildTeamStatsEmbed(guild) {
 }
 
 /** إيمبد مفصّل عام (نفس صيغة الإحصائيات المفصلة لكن لكل الإدارة) */
-function buildTeamDetailEmbed(guild) {
-    const agg = getTeamAggregate(getTeamAdminIds(guild), getAllSessions());
+async function buildTeamDetailEmbed(guild) {
+    const agg = getTeamAggregate(await getTeamAdminIds(guild), getAllSessions());
     return new EmbedBuilder()
         .setColor(COLORS.main)
         .setTitle('📊 إحصائيات مفصلة عامة — الإدارة')
@@ -447,27 +456,27 @@ function buildTeamDetailEmbed(guild) {
 
 /** عرض الملخص العام (زر من لوحة الإدارة) */
 async function handleTeamStats(interaction) {
-    await interaction.deferUpdate().catch(() => {});
+    await ackComponent(interaction);
     if (!interaction.guild) return;
-    const embed = buildTeamStatsEmbed(interaction.guild);
+    const embed = await buildTeamStatsEmbed(interaction.guild);
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('ticket_stats_team_detail').setLabel('📊 مفصلة عامة').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('ticket_stats_top').setLabel('🏆 توب نقاط').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('ticket_stats_me').setLabel('📊 احصائياتي').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId('adm_board_main').setLabel('🔙 رجوع للوحة').setStyle(ButtonStyle.Secondary),
     );
-    return interaction.followUp({ embeds: [embed], components: [row], ephemeral: true }).catch(() => {});
+    return deliverComponent(interaction, { embeds: [embed], components: [row], ephemeral: true });
 }
 
 /** عرض المفصلة العامة */
 async function handleTeamDetail(interaction) {
-    await interaction.deferUpdate().catch(() => {});
+    await ackComponent(interaction);
     if (!interaction.guild) return;
-    const embed = buildTeamDetailEmbed(interaction.guild);
+    const embed = await buildTeamDetailEmbed(interaction.guild);
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('ticket_stats_team').setLabel('🔙 رجوع للملخص').setStyle(ButtonStyle.Secondary),
     );
-    return interaction.followUp({ embeds: [embed], components: [row], ephemeral: true }).catch(() => {});
+    return deliverComponent(interaction, { embeds: [embed], components: [row], ephemeral: true });
 }
 
 module.exports = {

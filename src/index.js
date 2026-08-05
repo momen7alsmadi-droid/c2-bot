@@ -44,7 +44,7 @@ const { initTicketStore, getSession: getTicketSession, updateSession: updateTick
 const { initTicketSettings } = require('../ticket-system/database/ticketSettingsDB');
 const { initCooldownStore } = require('../ticket-system/database/ticketCooldownStore');
 const { initCounterStore } = require('../ticket-system/database/ticketCounterStore');
-const { initStatsStore } = require('../ticket-system/database/ticketStatsStore');
+const { initStatsStore, loadStatsFromMongo, syncStatsToMongo } = require('../ticket-system/database/ticketStatsStore');
 const { startTicketMaintenance } = require('../ticket-system/handlers/ticketAutoClose');
 const { handleUserSelectMenu } = require('../ticket-system/handlers/userSelectHandler');
 const { handleStatsUserSelect } = require('../ticket-system/handlers/ticketStatsBuilder');
@@ -64,6 +64,7 @@ const {
     syncPanelsToMongo: syncPanels,
     loadPanelsFromMongo: loadPanels,
 } = require('../ticket-system/database/panelsDB');
+const { initStatsModel } = require('../ticket-system/database/ticketStatsStore');
 
 const client = new Client({
   intents: [
@@ -235,6 +236,7 @@ async function initialize() {
   const sbReady = initStarboardModels();
   const admReady = initAdminModel();
   const panelsReady = initPanelsModel();
+  const statsReady = initStatsModel();
   // استعادة جلسات التذاكر المفتوحة (حتى لا تفقد التذاكر حالتها بعد إعادة التشغيل)
   initTicketStore();
   // الإعدادات العامة للحدود/الكولداون + سجل آخر وقت فتح لكل عضو
@@ -253,6 +255,7 @@ async function initialize() {
   console.log(`   ${sbReady ? '✅' : '⚠️'} Starboard Storage`);
   console.log(`   ${admReady ? '✅' : '⚠️'} Admin Storage`);
   console.log(`   ${panelsReady ? '✅' : '⚠️'} Ticket Panels Storage`);
+  console.log(`   ${statsReady ? '✅' : '⚠️'} Ticket Stats Storage`);
   console.log('═══════════════════════════════════════\n');
 
   if (dbConnected) {
@@ -260,6 +263,9 @@ async function initialize() {
     // ثم مزامنة أي بنلات جديدة من JSON إلى MongoDB
     await loadPanels();
     await syncPanels();
+    // إحصائيات التكتات: استعادة أي إحصائيات فُقدت من القرص المؤقت
+    await loadStatsFromMongo();
+    await syncStatsToMongo();
     await ensureConfigLoaded();
     console.log('📦 تم تحميل الإعدادات من MongoDB');
     await ensureReportsLoaded();
@@ -286,6 +292,7 @@ async function initialize() {
         initAutoReplyModel();
         initReactModel();
         initPanelsModel();
+        initStatsModel();
         await ensureConfigLoaded();
         const { syncJsonToMongo: syncEmbeds } = require('./utils/embedStorage');
         await syncEmbeds();
@@ -293,6 +300,8 @@ async function initialize() {
         await syncRr();
         await loadPanels();
         await syncPanels();
+        await loadStatsFromMongo();
+        await syncStatsToMongo();
       } else {
         try {
           const { connectDatabase } = require('./utils/database');

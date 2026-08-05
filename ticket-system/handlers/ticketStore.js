@@ -105,6 +105,7 @@ function serializeSession(session) {
  */
 function sanitizeLoadedSession(raw) {
     return {
+        channelId: typeof raw.channelId === 'string' ? raw.channelId : null,
         panelName: typeof raw.panelName === 'string' ? raw.panelName : null,
         openerId: typeof raw.openerId === 'string' ? raw.openerId : '',
         claimedBy: typeof raw.claimedBy === 'string' ? raw.claimedBy : null,

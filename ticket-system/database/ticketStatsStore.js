@@ -16,6 +16,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose');
 
 const DB_PATH = path.join(__dirname, '..', 'data', 'ticket-stats.json');
 
@@ -40,6 +41,7 @@ function persist() {
         try {
             ensureFile();
             fs.writeFileSync(DB_PATH, JSON.stringify(state, null, 2), 'utf-8');
+            scheduleMongoSync(); // نسخ احتياطي إلى MongoDB (بلا انتظار)
         } catch (err) {
             console.error('[ticketStats] فشل الحفظ على القرص:', err.message);
         }
@@ -463,10 +465,14 @@ function getTeamAggregate(adminIds, sessions = []) {
     agg.inProgress = sessions.filter(s => s.claimedBy && idSet.has(s.claimedBy) && !s.lockedAt).length;
 
     // 🏅 الأرقام القياسية مع اسم صاحبها
+    // ملاحظة: نتجاهل القيم الصفرية/الفارغة حتى لا يظهر رقم قياسي
+    // بلا قيمة (مثل "— <@id>" أو "0 رسالة — <@id>") لمستخدم لم
+    // يسجل أي نشاط أصلاً.
     const findBest = (list, dir) => {
         let best = null;
         for (const u of perUser) {
             for (const v of list(u)) {
+                if (!v || v <= 0) continue; // نتجاهل الصفر والفارغ
                 if (!best || (dir === 'min' ? v < best.value : v > best.value)) best = { value: v, id: u.id };
             }
         }
@@ -507,8 +513,106 @@ function getTeamAggregate(adminIds, sessions = []) {
     };
 }
 
+// =========================================================
+// MongoDB Backup (نسخ احتياطي — حماية من مسح القرص المؤقت)
+// =========================================================
+// الإحصائيات تُحفظ في MongoDB مثل البنلات: كل كتابة على القرص
+// تُنسخ خلف الكواليس إلى MongoDB، وعند التشغيل نستعيد أي
+// إحصائيات فُقدت من JSON (المنصات المجانية تمسح القرص المؤقت).
+
+const statsSchema = new mongoose.Schema({ _id: String }, { collection: 'ticketstats', versionKey: false, strict: false });
+
+let StatsModel;
+
+function isMongoReady() {
+    if (mongoose.connection.readyState !== 1) return false;
+    if (StatsModel) return true;
+    try {
+        StatsModel = mongoose.models.TicketStats || mongoose.model('TicketStats', statsSchema);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/** تهيئة النموذج (تُستدعى عند التشغيل) */
+function initStatsModel() {
+    if (isMongoReady()) {
+        console.log('📦 ticketStats → ✅ MongoDB');
+        return true;
+    }
+    console.log('📦 ticketStats → ⚠️ JSON فقط');
+    return false;
+}
+
+let mongoSyncTimer = null;
+
+/** مزامنة كل الإحصائيات من JSON إلى MongoDB (كتابة مخفّفة) */
+function scheduleMongoSync() {
+    clearTimeout(mongoSyncTimer);
+    mongoSyncTimer = setTimeout(() => {
+        syncStatsToMongo().catch(() => {});
+    }, 2000);
+}
+
+/**
+ * مزامنة كل المستخدمين من JSON إلى MongoDB (Upsert)
+ * @returns {Promise<Number>} عدد المستخدمين المُزامنين
+ */
+async function syncStatsToMongo() {
+    if (!isMongoReady()) return 0;
+    const ids = Object.keys(state.users);
+    if (ids.length === 0) return 0;
+    try {
+        const ops = ids.map(id => ({
+            updateOne: {
+                filter: { _id: id },
+                update: { $set: { ...state.users[id], _id: id } },
+                upsert: true,
+            },
+        }));
+        await StatsModel.bulkWrite(ops, { ordered: false });
+        console.log(`✅ stats: تمت مزامنة ${ids.length} مستخدم إلى MongoDB`);
+        return ids.length;
+    } catch (e) {
+        console.error('❌ stats sync MongoDB:', e.message);
+        return 0;
+    }
+}
+
+/**
+ * استعادة الإحصائيات من MongoDB (حماية من مسح القرص):
+ * يُضاف أي مستخدم موجود في MongoDB ولا يوجد في JSON الحالي.
+ * @returns {Promise<Number>} عدد المستخدمين المستعادين
+ */
+async function loadStatsFromMongo() {
+    if (!isMongoReady()) return 0;
+    try {
+        const docs = await StatsModel.find().lean();
+        if (!docs || docs.length === 0) return 0;
+        let restored = 0;
+        for (const doc of docs) {
+            const id = doc._id;
+            if (!id) continue;
+            if (state.users[id]) continue; // الموجود في JSON هو المصدر الأحدث
+            const { _id, ...raw } = doc;
+            state.users[id] = raw;
+            restored++;
+        }
+        if (restored > 0) {
+            persist();
+            console.log(`🔄 stats: تمت استعادة ${restored} مستخدم من MongoDB`);
+        }
+        return restored;
+    } catch (e) {
+        console.error('❌ stats load MongoDB:', e.message);
+        return 0;
+    }
+}
+
 module.exports = {
     initStatsStore,
+    initStatsModel,
     recordClaim,
     recordClose,
     recordMessage,
@@ -533,4 +637,7 @@ module.exports = {
     RATING_POINTS,
     MESSAGES_PER_POINT,
     LOGIN_POINTS_PER_DAY,
+    // MongoDB backup
+    loadStatsFromMongo,
+    syncStatsToMongo,
 };
