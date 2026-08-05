@@ -360,6 +360,17 @@ ID: ${guild.id}
     // تشغيل الصيانة التلقائية للتذاكر (إغلاق الخمول + مهلة الستاف + الحذف التلقائي)
     startTicketMaintenance(client);
 
+    // إشعارات التحديث: عند كل إصدار جديد يُرسل الملخص الكامل + تأكيد النجاح
+    // إلى روم الأخطاء المحدد (بعد 5 ثوانٍ حتى تكتمل مزامنة القنوات)
+    setTimeout(async () => {
+      try {
+        const { notifyVersionUpdate } = require('./utils/versionNotifier');
+        await notifyVersionUpdate(client);
+      } catch (e) {
+        console.error('❌ فشل تشغيل إشعار التحديث:', e.message);
+      }
+    }, 5000);
+
     // تسجيل الأوامر فوراً عند دخول سيرفر جديد (بدون انتظار إعادة تشغيل)
     client.on('guildCreate', async (guild) => {
       try {
