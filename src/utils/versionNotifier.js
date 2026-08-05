@@ -4,19 +4,26 @@
  * =========================================================
  * نظام إشعارات التحديث — يُشغَّل عند كل إقلاع للبوت:
  *
- *   1) يقارن الإصدار الحالي (package.json) مع آخر إصدار تم
- *      الإشعار عنه (محفوظ في MongoDB + نسخة محلية).
+ *   1) يقرأ الإصدار الحالي (package.json) ويقارنه مع آخر إصدار
+ *      تم الإشعار عنه.
  *   2) إن تغيّر الإصدار:
- *        - يُرسل إلى روم الأخطاء المحدد (errorLogChannelId)
- *          إيمبد يحتوي ملخص كامل لكل ما تم تعديله وإضافته
- *          (من سجل التغييرات changelog.js).
+ *        - يُرسل إلى روم الإشعارات (updateChannelId — مع بديل
+ *          روم الأخطاء errorLogChannelId) إيمبد ملخص كامل لكل
+ *          ما تم تعديله وإضافته (من سجل التغييرات changelog.js).
  *        - ثم رسالة منفصلة في إيمبد آخر:
  *          "✅ تم تحديث البوت من v(القديم) إلى v(الجديد) بنجاح".
- *   3) أول تشغيل فقط: يسجّل الإصدار كأساس ويُرسل رسالة
- *      تأكيد تفعيل النظام (دون ملخص كامل لتجنّب إغراق الروم).
  *
- * ملاحظة: يُفضل ضبط MONGODB_URI — فآخر إصدار يُحفظ في MongoDB
- * ليتجاوز مسح القرص المؤقت عند إعادة النشر (Railway وغيره).
+ * تخزين "آخر إصدار مُبلَّغ" (حتى لا يتكرر الإشعار ولا يُفقد):
+ *   1) 🎯 علامة ديسكورد: رسالة صغيرة في روم الإشعارات نفسه
+ *      (📦 آخر إصدار مُبلَّغ: vX.Y.Z) تُحدَّث مع كل إشعار —
+ *      تنجو من مسح القرص المؤقت عند إعادة النشر (Railway)
+ *      حتى بدون MongoDB.
+ *   2) 🗄️ MongoDB إن كان متصلاً (كتابة موازية).
+ *   3) 💾 ملف محلي احتياطي.
+ *
+ * أول تشغيل (لا توجد علامة): يُرسل ملخص التاريخ الكامل +
+ * تأكيد "تم تحديث البوت إلى vX" ثم يُنشئ العلامة — من بعدها
+ * يصل كل تحديث قادم بصيغة "من v(القديم) إلى v(الجديد)".
  * =========================================================
  */
 
@@ -30,6 +37,9 @@ const CHANGELOG = require('./changelog');
 const STATE_PATH = path.join(__dirname, '..', '..', 'data', 'last-notified-version.json');
 const COLOR_MAIN = 0x5865F2;
 const COLOR_SUCCESS = 0x2ECC71;
+
+// علامة الديسكورد: رسالة صغيرة في روم الإشعارات تحمل آخر إصدار مُبلَّغ
+const MARKER_PREFIX = '📦 آخر إصدار مُبلَّغ: v';
 
 // ---------- قراءة الإصدارات ----------
 
@@ -48,7 +58,17 @@ function parseVersion(s) {
     return Number(m[1]) * 10000 + Number(m[2]) * 100 + Number(m[3]);
 }
 
-// ---------- تخزين آخر إصدار (MongoDB أولاً ثم ملف محلي) ----------
+/** تحديد روم إشعارات التحديث (مخصص أولاً، ثم روم الأخطاء) */
+function getNotifyChannelId() {
+    try {
+        const cfg = getConfig();
+        return cfg.updateChannelId || cfg.errorLogChannelId || null;
+    } catch {
+        return null;
+    }
+}
+
+// ---------- MongoDB (احتياطي) ----------
 
 let StateModel;
 function getStateModel() {
@@ -68,8 +88,56 @@ function getStateModel() {
     }
 }
 
-async function readStoredVersion() {
-    // 1) MongoDB (ينجو من مسح القرص عند إعادة النشر)
+// ---------- علامة الديسكورد ----------
+
+/** البحث عن رسالة العلامة في الروم (آخر 20 رسالة) */
+async function findMarkerMessage(channel) {
+    try {
+        const messages = await channel.messages.fetch({ limit: 20 }).catch(() => null);
+        if (!messages) return null;
+        for (const msg of messages.values()) {
+            const isOwn = !msg.client ? true : msg.author?.id === msg.client?.user?.id;
+            if (isOwn && String(msg.content || '').startsWith(MARKER_PREFIX)) {
+                return msg;
+            }
+        }
+    } catch {
+        /* تجاهل */
+    }
+    return null;
+}
+
+/** قراءة آخر إصدار مُبلَّغ من العلامة */
+async function readStoredFromMarker(channel) {
+    const marker = await findMarkerMessage(channel);
+    if (!marker) return null;
+    const m = String(marker.content || '').match(new RegExp(`^${MARKER_PREFIX}([\\d.]+)`));
+    return m ? m[1] : null;
+}
+
+/** إنشاء/تحديث العلامة (تُحدَّث في مكانها إن وُجدت — لا تكرار للرسائل) */
+async function writeStoredToMarker(channel, version) {
+    try {
+        const marker = await findMarkerMessage(channel);
+        if (marker) {
+            await marker.edit({ content: `${MARKER_PREFIX}${version}` }).catch(() => {});
+        } else {
+            await channel.send({ content: `${MARKER_PREFIX}${version}` }).catch(() => {});
+        }
+    } catch {
+        /* تجاهل */
+    }
+}
+
+// ---------- قراءة/كتابة آخر إصدار (علامة ← Mongo ← ملف) ----------
+
+async function readStoredVersion(channel) {
+    // 1) علامة الديسكورد (ينجو من مسح القرص)
+    if (channel) {
+        const fromMarker = await readStoredFromMarker(channel);
+        if (fromMarker) return fromMarker;
+    }
+    // 2) MongoDB
     try {
         const Model = getStateModel();
         if (Model) {
@@ -77,9 +145,9 @@ async function readStoredVersion() {
             if (doc && doc.version) return doc.version;
         }
     } catch {
-        /* متابعة للملف المحلي */
+        /* متابعة */
     }
-    // 2) الملف المحلي
+    // 3) الملف المحلي
     try {
         if (fs.existsSync(STATE_PATH)) {
             const d = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
@@ -91,12 +159,10 @@ async function readStoredVersion() {
     return null;
 }
 
-async function writeStoredVersion(version) {
-    try {
-        fs.writeFileSync(STATE_PATH, JSON.stringify({ version, at: Date.now() }), 'utf8');
-    } catch {
-        /* تجاهل */
-    }
+async function writeStoredVersion(channel, version) {
+    // 1) علامة الديسكورد
+    if (channel) await writeStoredToMarker(channel, version);
+    // 2) MongoDB
     try {
         const Model = getStateModel();
         if (Model) {
@@ -105,16 +171,17 @@ async function writeStoredVersion(version) {
     } catch {
         /* تجاهل */
     }
+    // 3) الملف المحلي
+    try {
+        fs.writeFileSync(STATE_PATH, JSON.stringify({ version, at: Date.now() }), 'utf8');
+    } catch {
+        /* تجاهل */
+    }
 }
 
 // ---------- بناء الإيمبدات ----------
 
-/**
- * ملخص التغييرات لكل إصدار أحدث من آخر إصدار معروف
- * @param {String} oldVersion
- * @param {String} currentVersion
- * @returns {Array<{version:String, added?:[], changed?:[], fixes?:[]}>}
- */
+/** ملخص التغييرات لكل إصدار أحدث من آخر إصدار معروف */
 function collectChangelog(oldVersion, currentVersion) {
     const oldNum = parseVersion(oldVersion) || 0;
     const curNum = parseVersion(currentVersion) || Infinity;
@@ -129,10 +196,10 @@ function collectChangelog(oldVersion, currentVersion) {
 }
 
 /** إيمبد الملخص الكامل (ماذا عُدّل وماذا أُضيف) */
-function buildChangelogEmbed(entries, currentVersion) {
+function buildChangelogEmbed(entries, currentVersion, title) {
     const embed = new EmbedBuilder()
         .setColor(COLOR_MAIN)
-        .setTitle(`📦 تحديث البوت — v${currentVersion}`)
+        .setTitle(title || `📦 تحديث البوت — v${currentVersion}`)
         .setDescription('إليك ملخص **كل ما تم تعديله وإضافته** في هذا التحديث:')
         .setFooter({ text: `الإصدار الحالي: v${currentVersion}` })
         .setTimestamp();
@@ -164,7 +231,6 @@ function buildChangelogEmbed(entries, currentVersion) {
         addedFields++;
     }
 
-    // إن لم يوجد أي تفاصيل (إصدارات بلا سجل) نضيف سطراً عاماً
     if (addedFields === 0) {
         embed.addFields({
             name: `⬆️ v${currentVersion}`,
@@ -188,21 +254,6 @@ function buildUpdateSuccessEmbed(oldVersion, currentVersion) {
         .setTimestamp();
 }
 
-/** إيمبد أول تشغيل (تأكيد تفعيل النظام) */
-function buildFirstRunEmbed(currentVersion) {
-    return new EmbedBuilder()
-        .setColor(COLOR_MAIN)
-        .setTitle('📡 تم تفعيل نظام إشعارات التحديث')
-        .setDescription(
-            `مرحباً! 👋\n\nتم تسجيل **v${currentVersion}** كأساس للنظام.\n` +
-            'من الآن، عند كل تحديث للبوت سيصلك هنا ملخص كامل لكل ما تم تعديله وإضافته، ' +
-            'مع رسالة تأكيد منفصلة بنجاح التحديث.\n\n' +
-            `🕐 <t:${Math.floor(Date.now() / 1000)}:F>`
-        )
-        .setFooter({ text: `الإصدار: v${currentVersion}` })
-        .setTimestamp();
-}
-
 // ---------- الدالة الرئيسية ----------
 
 /**
@@ -214,35 +265,47 @@ async function notifyVersionUpdate(client) {
         const current = readCurrentVersion();
         if (!current) return;
 
-        const stored = await readStoredVersion();
+        // روم الإشعارات (المخصص أو روم الأخطاء)
+        const channelId = getNotifyChannelId();
+        if (!channelId) {
+            console.log('📦 إشعارات التحديث: لم يُحدد روم الإشعارات (updateChannelId) — لن يُرسل شيء');
+            return;
+        }
+        const channel = await client.channels.fetch(channelId).catch(() => null);
+        if (!channel) {
+            console.log(`📦 إشعارات التحديث: تعذر الوصول لروم ${channelId}`);
+            return;
+        }
 
-        // أول تشغيل: سجّل الإصدار وأرسل تأكيد التفعيل فقط
+        const stored = await readStoredVersion(channel);
+
+        // أول تشغيل (لا علامة ولا سجل): أرسل التاريخ الكامل + تأكيد، ثم أنشئ العلامة
         if (!stored) {
-            await writeStoredVersion(current);
-            const channelId = (getConfig() || {}).errorLogChannelId;
-            if (channelId) {
-                const channel = await client.channels.fetch(channelId).catch(() => null);
-                if (channel) {
-                    await channel.send({ embeds: [buildFirstRunEmbed(current)] });
-                    console.log(`📡 تم تفعيل إشعارات التحديث (أساس: v${current})`);
-                }
+            const entries = collectChangelog(null, current);
+            if (entries.length) {
+                await channel.send({ embeds: [buildChangelogEmbed(entries, current, `📦 تحديث البوت — v${current}`)] });
             }
+            await channel.send({
+                embeds: [
+                    new EmbedBuilder()
+                        .setColor(COLOR_SUCCESS)
+                        .setTitle('✅ تم تحديث البوت بنجاح')
+                        .setDescription(
+                            `تم تحديث البوت إلى **v${current}** بنجاح 🎉\n\n` +
+                            'من الآن سيصلك هنا ملخص كامل لكل تحديث قادم مع تأكيد النجاح (من الإصدار القديم إلى الجديد).\n\n' +
+                            `🕐 <t:${Math.floor(Date.now() / 1000)}:F>`
+                        )
+                        .setFooter({ text: `الإصدار: v${current}` })
+                        .setTimestamp(),
+                ],
+            });
+            await writeStoredVersion(channel, current);
+            console.log(`📡 تم تفعيل إشعارات التحديث (أساس: v${current}) في <#${channelId}>`);
             return;
         }
 
         // نفس الإصدار: لا إشعار
         if (stored === current) return;
-
-        const channelId = (getConfig() || {}).errorLogChannelId;
-        if (!channelId) {
-            console.log(`📦 تحديث v${stored} → v${current} لكن روم الأخطاء غير محدد — لن يُرسل إشعار`);
-            return;
-        }
-        const channel = await client.channels.fetch(channelId).catch(() => null);
-        if (!channel) {
-            console.log(`📦 تعذر الوصول لروم الأخطاء — لن يُرسل إشعار التحديث`);
-            return;
-        }
 
         // 1) رسالة الملخص الكامل (ماذا عُدّل وماذا أُضيف)
         const entries = collectChangelog(stored, current);
@@ -252,8 +315,8 @@ async function notifyVersionUpdate(client) {
         await channel.send({ embeds: [buildUpdateSuccessEmbed(stored, current)] });
 
         // فقط بعد نجاح الإرسال نحفظ الإصدار الجديد
-        await writeStoredVersion(current);
-        console.log(`📦 تم إرسال إشعار التحديث v${stored} → v${current} إلى روم الأخطاء`);
+        await writeStoredVersion(channel, current);
+        console.log(`📦 تم إرسال إشعار التحديث v${stored} → v${current} إلى <#${channelId}>`);
     } catch (e) {
         console.error('❌ فشل إشعار التحديث:', e.message);
     }

@@ -49,7 +49,8 @@ const DEFAULT_CONFIG = {
   disabledGuilds: [],
   statusChannelId: null,
   dbStatusChannelId: null,
-  errorLogChannelId: null
+  errorLogChannelId: null,
+  updateChannelId: '1530910507408560128' // روم إشعارات التحديث (ملخص كل تعديل + تأكيد النجاح)
 };
 
 // ---------- MongoDB Models ----------
@@ -137,7 +138,8 @@ function getConfig() {
     disabledGuilds: Array.isArray(cfg.disabledGuilds) ? cfg.disabledGuilds : [],
     statusChannelId: cfg.statusChannelId || null,
     dbStatusChannelId: cfg.dbStatusChannelId || null,
-    errorLogChannelId: cfg.errorLogChannelId || null
+    errorLogChannelId: cfg.errorLogChannelId || null,
+    updateChannelId: cfg.updateChannelId || '1530910507408560128'
   };
 }
 

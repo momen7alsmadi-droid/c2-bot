@@ -182,6 +182,7 @@ async function showRoomsPage(interaction) {
       { name: '📡 روم حالة البوت', value: cfg.statusChannelId ? `<#${cfg.statusChannelId}>` : '❌ غير محدد', inline: false },
       { name: '🗄️ روم حالة قاعدة البيانات', value: cfg.dbStatusChannelId ? `<#${cfg.dbStatusChannelId}>` : '❌ غير محدد', inline: false },
       { name: '🚨 روم الأخطاء التلقائي', value: cfg.errorLogChannelId ? `<#${cfg.errorLogChannelId}>` : '❌ غير محدد', inline: false },
+      { name: '📦 روم إشعارات التحديث', value: cfg.updateChannelId ? `<#${cfg.updateChannelId}>` : '❌ غير محدد', inline: false },
     )
     .setFooter({ text: `الإصدار: ${version} | @${interaction.user.tag}` })
     .setTimestamp();
@@ -205,6 +206,13 @@ async function showRoomsPage(interaction) {
       new ChannelSelectMenuBuilder()
         .setCustomId('dev_ch_error')
         .setPlaceholder('🚨 اختر روم الأخطاء التلقائي')
+        .setChannelTypes(ChannelType.GuildText)
+        .setMaxValues(1),
+    ),
+    new ActionRowBuilder().addComponents(
+      new ChannelSelectMenuBuilder()
+        .setCustomId('dev_ch_update')
+        .setPlaceholder('📦 اختر روم إشعارات التحديث')
         .setChannelTypes(ChannelType.GuildText)
         .setMaxValues(1),
     ),
@@ -511,6 +519,7 @@ async function handleDevChannelSelect(interaction) {
   if (id === 'dev_ch_status') cfg.statusChannelId = channelId;
   else if (id === 'dev_ch_db') cfg.dbStatusChannelId = channelId;
   else if (id === 'dev_ch_error') cfg.errorLogChannelId = channelId;
+  else if (id === 'dev_ch_update') cfg.updateChannelId = channelId;
   else return;
   saveConfig(cfg);
 
