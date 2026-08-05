@@ -122,6 +122,12 @@ commands.push(
     .setName('تغيير-صورة-البوت')
     .setDescription('🖼️ تغيير صورة البوت (للمطور فقط)')
     .addAttachmentOption(o => o.setName('الصورة').setDescription('الصورة الجديدة للبوت').setRequired(true))
+    .toJSON(),
+  // أمر 🏆 إداري الأسبوع (لرتبة Administrator فقط — تفعيل/تخصيص/معاينة)
+  new SlashCommandBuilder()
+    .setName('اداري_الأسبوع')
+    .setDescription('🏆 لوحة إداري الأسبوع - تفعيل/إطفاء، روم الإرسال، اليوم والوقت، تخصيص رسالة التهنئة')
+    .setDefaultMemberPermissions(8)
     .toJSON()
 );
 

@@ -701,6 +701,9 @@ async function handleModalSubmit(interaction) {
   if (interaction.customId.startsWith('modal_ticket_note:')) {
     return handleNoteModal(interaction);
   }
+  if (interaction.customId === 'sw_time_modal' || interaction.customId === 'sw_msg_modal') {
+    return handleStaffWeekModal(interaction);
+  }
   return handleTicketModal(interaction);
 }
 

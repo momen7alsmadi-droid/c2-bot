@@ -76,7 +76,18 @@ const DEFAULT_SETTINGS = {
     // نظام التقييم والملاحظات (رومات محددة من الإعدادات العامة)
     ratingChannelId: '', // روم استقبال التقييمات
     notesChannelId: '', // روم استقبال الملاحظات
+    // 🏆 نظام إداري الأسبوع (تهنئة أسبوعية لأعلى إداري نقاط)
+    staffWeekEnabled: 0, // 1 = مفعّل
+    staffWeekChannelId: '', // روم إرسال التهنئة
+    staffWeekDay: 5, // يوم الإرسال (0=الأحد .. 5=الجمعة .. 6=السبت)
+    staffWeekTime: '18:00', // وقت الإرسال (توقيت الأردن HH:MM)
+    staffWeekMessage: '', // رسالة التهنئة (يدعم المتغيرات — فارغ = الافتراضي)
+    staffWeekLastRun: '', // آخر تاريخ نُفذ فيه الإرسال (YYYY-MM-DD بتوقيت الأردن)
 };
+
+/** الرسالة الافتراضية لتهنئة إداري الأسبوع (تدعم المتغيرات) */
+const DEFAULT_STAFF_WEEK_MESSAGE =
+    '🎉 مبروك [user]! 🏆\nأصبحت **إداري الأسبوع** هذا الأسبوع في سيرفر [server]!\n🌟 حصلت على **{points} نقطة** هذا الأسبوع.\n📆 الأسبوع: {week_start} ← {week_end}\n\nواصل تألقك وإبداعك يا بطل! ⚡';
 
 // ---------- MongoDB Schema ----------
 const ticketSettingsSchema = new mongoose.Schema(
@@ -104,6 +115,12 @@ const ticketSettingsSchema = new mongoose.Schema(
         autoPurgeLockedDays: { type: Number, default: 0 },
         ratingChannelId: { type: String, default: '' },
         notesChannelId: { type: String, default: '' },
+        staffWeekEnabled: { type: Number, default: 0 },
+        staffWeekChannelId: { type: String, default: '' },
+        staffWeekDay: { type: Number, default: 5 },
+        staffWeekTime: { type: String, default: '18:00' },
+        staffWeekMessage: { type: String, default: '' },
+        staffWeekLastRun: { type: String, default: '' },
     },
     { collection: 'ticketsettings', versionKey: false }
 );
@@ -176,9 +193,10 @@ const NUMERIC_KEYS = [
     'workHoursEnd',
     'maxTicketAgeHours',
     'autoPurgeLockedDays',
+    'staffWeekDay',
 ];
 // المفاتيح المنطقية (0/1)
-const BOOLEAN_KEYS = ['autoCloseEnabled', 'archiveOnDelete', 'maintenanceEnabled'];
+const BOOLEAN_KEYS = ['autoCloseEnabled', 'archiveOnDelete', 'maintenanceEnabled', 'staffWeekEnabled'];
 
 /**
  * تحديث الإعدادات العامة (تطبيع تلقائي لكل نوع)
@@ -212,9 +230,18 @@ function updateTicketSettings(partial = {}) {
                     at: typeof b.at === 'number' ? b.at : Date.now(),
                 }))
                 .slice(0, 100);
-        } else if (key === 'ratingChannelId' || key === 'notesChannelId') {
-            // رومات نظام التقييم/الملاحظات (آيدي روم أو فارغ = معطّل)
+        } else if (key === 'ratingChannelId' || key === 'notesChannelId' || key === 'staffWeekChannelId') {
+            // رومات (آيدي روم أو فارغ = معطّل)
             next[key] = String(partial[key] || '').trim().slice(0, 30);
+        } else if (key === 'staffWeekTime') {
+            // وقت الإرسال بتنسيق HH:MM (أو H:MM) — يُطبَّع إلى HH:MM
+            const m = String(partial[key] || '').trim().match(/^(\d{1,2}):(\d{2})$/);
+            next[key] = m ? `${String(Number(m[1])).padStart(2, '0')}:${m[2]}` : '18:00';
+        } else if (key === 'staffWeekMessage') {
+            // رسالة التهنئة المخصصة (فارغ = الافتراضي)
+            next[key] = String(partial[key] || '').slice(0, 1500);
+        } else if (key === 'staffWeekLastRun') {
+            next[key] = String(partial[key] || '').slice(0, 30);
         }
     }
     writeDB(next);
@@ -358,4 +385,5 @@ module.exports = {
     setTicketSettingsClient,
     backupSettingsToChannel,
     restoreSettingsFromChannel,
+    DEFAULT_STAFF_WEEK_MESSAGE,
 };

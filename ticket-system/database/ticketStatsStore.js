@@ -70,6 +70,7 @@ function ensureUser(userId) {
             messagesSent: 0,
             ratings: [],
             ratedTickets: [], // معرّفات التكتات المقيَّمة (منع التقييم المكرر)
+            pointsLog: [], // [{ pts, at, reason }] — سجل نقاط زمني (لإداري الأسبوع وغيرها)
             claimTimes: [],
             // حقول الإحصائيات المفصلة:
             transferredAway: 0, // تكتات حوّلها لغيره (خرجت من استلامه)
@@ -96,6 +97,17 @@ function recordClaim(userId) {
     persist();
 }
 
+/** إضافة نقاط إلى سجل النقاط الزمني (لحساب نقاط الأسبوع) — مع تقليم تلقائي */
+function pushPoints(userId, pts, reason) {
+    if (!userId || !pts || pts <= 0) return;
+    const raw = ensureUser(userId);
+    if (!Array.isArray(raw.pointsLog)) raw.pointsLog = [];
+    raw.pointsLog.push({ pts: Math.round(pts * 100) / 100, at: Date.now(), reason });
+    // نحتفظ بآخر 14 يوم فقط (الأقدم يُحذف) + سقف 400 حدث
+    const cutoff = Date.now() - 14 * 86400000;
+    raw.pointsLog = raw.pointsLog.filter(e => e && e.at >= cutoff).slice(-400);
+}
+
 /** عدد النقاط اليومية مقابل كل يوم نشط */
 const LOGIN_POINTS_PER_DAY = 3;
 
@@ -110,6 +122,7 @@ function recordDailyLogin(userId, date = new Date().toISOString().slice(0, 10)) 
     const days = Array.isArray(raw.loginDays) ? raw.loginDays : (raw.loginDays = []);
     if (days.includes(date)) return { isNew: false, days: days.length, points: 0 };
     days.push(date);
+    pushPoints(userId, LOGIN_POINTS_PER_DAY, 'login');
     persist();
     return { isNew: true, days: days.length, points: LOGIN_POINTS_PER_DAY };
 }
@@ -118,6 +131,7 @@ function recordDailyLogin(userId, date = new Date().toISOString().slice(0, 10)) 
 function recordClose(userId) {
     if (!userId) return;
     ensureUser(userId).ticketsClosed += 1;
+    pushPoints(userId, 1, 'close');
     persist();
 }
 
@@ -144,14 +158,22 @@ function recordTicketDeleted(userId) {
 /** تسجيل رسالة داخل تذكرة */
 function recordMessage(userId) {
     if (!userId) return;
-    ensureUser(userId).messagesSent += 1;
+    const raw = ensureUser(userId);
+    const before = Math.floor((raw.messagesSent || 0) / MESSAGES_PER_POINT);
+    raw.messagesSent += 1;
+    const after = Math.floor(raw.messagesSent / MESSAGES_PER_POINT);
+    if (after > before) pushPoints(userId, after - before, 'messages');
     persist();
 }
 
 /** تسجيل دفعة رسائل دفعة واحدة (تُستدعى عند قفل التذكرة — لتقليل الضغط) */
 function recordMessages(userId, count) {
     if (!userId || !count || count <= 0) return;
-    ensureUser(userId).messagesSent += count;
+    const raw = ensureUser(userId);
+    const before = Math.floor((raw.messagesSent || 0) / MESSAGES_PER_POINT);
+    raw.messagesSent += count;
+    const after = Math.floor(raw.messagesSent / MESSAGES_PER_POINT);
+    if (after > before) pushPoints(userId, after - before, 'messages');
     persist();
 }
 
@@ -256,6 +278,7 @@ function recordRating(userId, value) {
     if (!userId) return;
     const stars = Math.max(1, Math.min(5, Math.floor(Number(value) || 0)));
     ensureUser(userId).ratings.push({ value: stars, at: Date.now() });
+    pushPoints(userId, RATING_POINTS[stars] || 0, 'rating');
     persist();
 }
 
@@ -269,6 +292,40 @@ function calculatePoints(stats) {
     const loginDays = Array.isArray(stats.loginDays) ? stats.loginDays.length : 0;
     const loginPoints = loginDays * LOGIN_POINTS_PER_DAY;
     return { messagePoints, closePoints: closed, ratingPoints, loginPoints, total: messagePoints + closed + ratingPoints + loginPoints };
+}
+
+/**
+ * نقاط العضو خلال فترة زمنية (من سجل النقاط الزمني)
+ * @param {String} userId
+ * @param {Number} sinceMs - حد البداية (مثال: الآن - 7 أيام)
+ * @returns {{ total: Number, messages: Number, close: Number, rating: Number, login: Number }}
+ */
+function getWeeklyPoints(userId, sinceMs) {
+    const raw = ensureUser(userId);
+    const log = Array.isArray(raw.pointsLog) ? raw.pointsLog : [];
+    let total = 0;
+    const byReason = { messages: 0, close: 0, rating: 0, login: 0 };
+    for (const e of log) {
+        if (!e || e.at < sinceMs) continue;
+        const pts = Number(e.pts) || 0;
+        total += pts;
+        byReason[e.reason] = (byReason[e.reason] || 0) + pts;
+    }
+    return { total: Math.round(total * 100) / 100, messages: byReason.messages, close: byReason.close, rating: byReason.rating, login: byReason.login };
+}
+
+/**
+ * ترتيب الإدارة حسب نقاط الأسبوع تنازلياً
+ * @param {String[]} adminIds
+ * @param {Number} sinceMs
+ * @returns {Array<{ id: String, weekly: Object }>} — مرتب تنازلياً (بمن لديه نقاط فقط)
+ */
+function getTopStaffWeekly(adminIds, sinceMs) {
+    const list = (Array.isArray(adminIds) ? adminIds : [])
+        .map(id => ({ id, weekly: getWeeklyPoints(id, sinceMs) }))
+        .filter(x => x.weekly.total > 0)
+        .sort((a, b) => b.weekly.total - a.weekly.total || a.id.localeCompare(b.id));
+    return list;
 }
 
 /**
@@ -666,6 +723,8 @@ module.exports = {
     RATING_POINTS,
     MESSAGES_PER_POINT,
     LOGIN_POINTS_PER_DAY,
+    getWeeklyPoints,
+    getTopStaffWeekly,
     // MongoDB backup
     loadStatsFromMongo,
     syncStatsToMongo,

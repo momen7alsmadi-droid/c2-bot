@@ -492,4 +492,5 @@ module.exports = {
     handleTeamStats,
     handleTeamDetail,
     formatClaimSpeed,
+    getTeamAdminIds,
 };
