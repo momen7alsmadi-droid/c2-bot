@@ -20,6 +20,8 @@ const { buildPanelSettings } = require('./panelSettingsBuilder');
 const { reportError } = require('../../src/utils/errorLogger');
 const { safeDeferUpdate } = require('../utils/interactionGuard');
 const { updatePanel, getPanelByName } = require('../database/panelsDB');
+const { getTicketSettings, updateTicketSettings } = require('../database/ticketSettingsDB');
+const { buildRatingSettingsPage } = require('./ticketRatingHandler');
 const { resolveSession } = require('../utils/panelResolver');
 const { buildPublicPanelMessage } = require('./publicPanelBuilder');
 const { takePendingSend } = require('../utils/sendStore');
@@ -71,6 +73,26 @@ async function handleChannelSelectMenu(interaction) {
             await interaction
                 .update({ content: '❌ حدث خطأ أثناء محاولة نشر البنل. تأكد أن للبوت صلاحية الإرسال في هذا الروم.', components: [] })
                 .catch(() => {});
+        }
+        return;
+    }
+
+    // ---------------------------------------------------
+    // قائمتا نظام ⭐ التقييم والملاحظات (إعدادات عامة — بدون جلسة بنل)
+    // ---------------------------------------------------
+    if (interaction.customId === 'settings_select_rating_channel' || interaction.customId === 'settings_select_notes_channel') {
+        try {
+            await interaction.deferUpdate().catch(() => {});
+            const channelId = interaction.values[0] || '';
+            if (interaction.customId === 'settings_select_rating_channel') {
+                updateTicketSettings({ ratingChannelId: channelId });
+            } else {
+                updateTicketSettings({ notesChannelId: channelId });
+            }
+            await interaction.editReply(buildRatingSettingsPage());
+        } catch (error) {
+            console.error('[channelSelectHandler] خطأ في اختيار روم التقييم/الملاحظات:', error);
+            reportError('TICKET_RATING_CHANNEL', interaction.customId || '?', error);
         }
         return;
     }

@@ -32,7 +32,7 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder } = require('discord.js');
 const { reportError } = require('../../src/utils/errorLogger');
 const { safeDeferUpdate } = require('../utils/interactionGuard');
-const { buildMainDashboard, buildSubPanel, buildTicketSettingsPage, buildBlacklistPage } = require('./dashboardBuilder');
+const { buildMainDashboard, buildSubPanel, buildTicketSettingsPage, buildBlacklistPage, buildRatingSettingsPage } = require('./dashboardBuilder');
 const { buildPanelSettings } = require('./panelSettingsBuilder');
 const {
     buildCreatePanelModal,
@@ -107,6 +107,9 @@ async function handleTicketButton(interaction) {
         'ticket_settings_blacklist',
         'ticket_settings_blacklist_add',
         'ticket_settings_back',
+        'ticket_settings_rating',
+        'ticket_settings_rating_off',
+        'ticket_settings_notes_off',
         'ticket_settings_max_age',
         'ticket_settings_purge_locked',
         'settings_page_back',
@@ -211,6 +214,24 @@ async function handleTicketButton(interaction) {
         }
         if (interaction.customId === 'ticket_settings_back') {
             await interaction.update(buildTicketSettingsPage());
+            return;
+        }
+
+        // ---------------------------------------------------
+        // صفحة ⭐ التقييم والملاحظات (رومات الاستقبال) + أزرار التعطيل
+        // ---------------------------------------------------
+        if (interaction.customId === 'ticket_settings_rating') {
+            await interaction.update(buildRatingSettingsPage());
+            return;
+        }
+        if (interaction.customId === 'ticket_settings_rating_off') {
+            updateTicketSettings({ ratingChannelId: '' });
+            await interaction.update(buildRatingSettingsPage());
+            return;
+        }
+        if (interaction.customId === 'ticket_settings_notes_off') {
+            updateTicketSettings({ notesChannelId: '' });
+            await interaction.update(buildRatingSettingsPage());
             return;
         }
 

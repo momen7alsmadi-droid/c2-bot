@@ -48,6 +48,7 @@ const { initStatsStore, recordMessage } = require('../ticket-system/database/tic
 const { startTicketMaintenance } = require('../ticket-system/handlers/ticketAutoClose');
 const { handleUserSelectMenu } = require('../ticket-system/handlers/userSelectHandler');
 const { handleStatsUserSelect } = require('../ticket-system/handlers/ticketStatsBuilder');
+const { handleRatingButton, handleNoteButton, handleNoteModal } = require('../ticket-system/handlers/ticketRatingHandler');
 const { handleTicketCloseButton } = require('../ticket-system/handlers/ticketCloseHandler');
 const { handleRoleSelectMenu } = require('../ticket-system/handlers/roleSelectHandler');
 const { handleChannelSelectMenu } = require('../ticket-system/handlers/channelSelectHandler');
@@ -614,6 +615,9 @@ async function handleModalSubmit(interaction) {
     return handleBlaghModal(interaction);
   }
   // نظام التذاكر
+  if (interaction.customId.startsWith('modal_ticket_note:')) {
+    return handleNoteModal(interaction);
+  }
   return handleTicketModal(interaction);
 }
 
@@ -728,6 +732,9 @@ async function handleButton(interaction) {
   if (id.startsWith('ticket_open:')) return handleTicketCreate(interaction);
   if (['ticket_claim', 'ticket_lock'].includes(id)) return handleTicketControlButton(interaction);
   if (['ticket_reopen', 'ticket_delete_confirm', 'ticket_delete_cancel'].includes(id)) return handleTicketCloseButton(interaction);
+  // أزرار نظام التقييم (تُضغط في الخاص من رسالة التقييم بعد حذف التذكرة)
+  if (id.startsWith('ticket_rating:')) return handleRatingButton(interaction);
+  if (id.startsWith('ticket_note:')) return handleNoteButton(interaction);
   // أزرار إحصائيات التكتات (📊 احصائياتي / 🏆 توب نقاط / التنقل / اختيار شخص) — من لوحة الإدارة
   if (id.startsWith('ticket_stats_')) return handleBoardInteraction(interaction);
   // أزرار لوحة الإدارة + التحكم داخل التذكرة (تسلك بسلاسة)

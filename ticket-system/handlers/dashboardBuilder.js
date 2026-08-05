@@ -31,6 +31,7 @@ const { getAllPanels } = require('../database/panelsDB');
 const { getTicketSettings } = require('../database/ticketSettingsDB');
 const { safeEmoji } = require('../utils/emoji');
 const { version } = require('../../package.json');
+const { buildRatingSettingsPage } = require('./ticketRatingHandler');
 const { appendDecorativeOption } = require('../../src/utils/decorativeReset');
 
 // ألوان موحدة مع باقي لوحات البوت (نفس لوحة الإيمبد)
@@ -217,6 +218,7 @@ function buildTicketSettingsPage() {
     );
 
     const row5 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('ticket_settings_rating').setLabel('⭐ التقييم والملاحظات').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId('ticket_back').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary)
     );
 
@@ -352,4 +354,5 @@ module.exports = {
     buildSubPanel,
     buildTicketSettingsPage,
     buildBlacklistPage,
+    buildRatingSettingsPage,
 };

@@ -55,6 +55,9 @@ const DEFAULT_SETTINGS = {
     maxTicketAgeHours: 0, // تذكرة مفتوحة أكثر من هذا → إجراء الخمول (0 = معطّل)
     // تنظيف المقفلات
     autoPurgeLockedDays: 0, // مقفلة أكثر من هذا → حذف تلقائي (0 = معطّل)
+    // نظام التقييم والملاحظات (رومات محددة من الإعدادات العامة)
+    ratingChannelId: '', // روم استقبال التقييمات
+    notesChannelId: '', // روم استقبال الملاحظات
 };
 
 // ---------- MongoDB Schema ----------
@@ -81,6 +84,8 @@ const ticketSettingsSchema = new mongoose.Schema(
         blockedUsers: { type: mongoose.Schema.Types.Mixed, default: [] },
         maxTicketAgeHours: { type: Number, default: 0 },
         autoPurgeLockedDays: { type: Number, default: 0 },
+        ratingChannelId: { type: String, default: '' },
+        notesChannelId: { type: String, default: '' },
     },
     { collection: 'ticketsettings', versionKey: false }
 );
@@ -188,6 +193,9 @@ function updateTicketSettings(partial = {}) {
                     at: typeof b.at === 'number' ? b.at : Date.now(),
                 }))
                 .slice(0, 100);
+        } else if (key === 'ratingChannelId' || key === 'notesChannelId') {
+            // رومات نظام التقييم/الملاحظات (آيدي روم أو فارغ = معطّل)
+            next[key] = String(partial[key] || '').trim().slice(0, 30);
         }
     }
     writeDB(next);
