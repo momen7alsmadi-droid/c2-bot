@@ -17,7 +17,7 @@
 
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, UserSelectMenuBuilder } = require('discord.js');
 const { version } = require('../../package.json');
-const { getUserStats, getAllStats, getTotalClaims, getDetailedStats, getLevelInfo, MESSAGES_PER_POINT } = require('../database/ticketStatsStore');
+const { getUserStats, getAllStats, getTotalClaims, getDetailedStats, getLevelInfo, MESSAGES_PER_POINT, LOGIN_POINTS_PER_DAY } = require('../database/ticketStatsStore');
 const { getAllSessions } = require('./ticketStore');
 
 const COLORS = { main: 0x5865F2, gold: 0xF1C40F, green: 0x2ECC71 };
@@ -65,8 +65,9 @@ function formatClaimSpeed(ms) {
 
 /** حقل تفصيل النقاط */
 function buildPointsBreakdownField(stats) {
-    const { messagePoints, closePoints, ratingPoints } = stats.points;
+    const { messagePoints, closePoints, ratingPoints, loginPoints } = stats.points;
     return [
+        `📅 تسجيل دخول يومي (${LOGIN_POINTS_PER_DAY} نقاط لكل يوم تكتب فيه بالشات): **+${loginPoints}**`,
         `💬 رسائل (كل ${MESSAGES_PER_POINT} رسالة داخل التكتات = نقطة): **+${messagePoints}**`,
         `📥 تكتات مغلقة (نقطة لكل تكت كآخر مستلم): **+${closePoints}**`,
         `⭐ تقييمات (5★=1.5 | 4★=1 | 3★=0.75 | 2★=0.5 | 1★=0.25): **+${ratingPoints}**`,
@@ -103,6 +104,7 @@ function buildUserStatsEmbed(targetUser, guild, options = {}) {
             { name: '🎫 تكتات استلمها', value: `${stats.ticketsClaimed}`, inline: true },
             { name: '📥 تكتات مغلقة (كآخر مستلم)', value: `${stats.ticketsClosed}`, inline: true },
             { name: '💬 رسائله في كل التكتات', value: `${stats.messagesSent}`, inline: true },
+            { name: '📅 أيام تسجيل الدخول', value: `${stats.loginDays}`, inline: true },
             { name: '📊 معدل الرسائل لكل تكت', value: `${stats.messagesPerTicket.toFixed(2)}`, inline: true },
             { name: '⚡ سرعة الاستلام (متوسط)', value: formatClaimSpeed(stats.avgClaimTimeMs), inline: true },
             { name: '⭐ عدد نجوم التقييم', value: `${stats.ratingCount}`, inline: true },
@@ -276,6 +278,7 @@ function buildDetailedStatsEmbed(targetUser, guild, detail) {
             { name: '🕐 آخر تواجد بتكت', value: `**${fmtLast(detail.lastActivityAt)}**`, inline: true },
             // 💬 النشاط
             { name: '📅 رسائله خلال اليوم', value: `**${detail.messagesToday}**`, inline: true },
+            { name: '📅 أيام تسجيل الدخول', value: `**${detail.loginDays}**`, inline: true },
             { name: '📢 عدد المنشنات (@)', value: `**${detail.mentionsCount}**`, inline: true },
             { name: '📎 عدد المرفقات', value: `**${detail.attachmentsCount}**`, inline: true },
             { name: '👥 رسائل أعضاء رد عليها', value: `**${detail.repliedToMembers}**`, inline: true },

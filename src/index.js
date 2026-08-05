@@ -441,6 +441,30 @@ ID: ${guild.id}
         }
       }
 
+      // 📅 تسجيل دخول يومي: أول رسالة من الشخص في اليوم الجديد = +3 نقاط
+      // (في أي شات يراه البوت — مثل نظام تسجيل الدخول، مرة واحدة في اليوم)
+      if (!message.author.bot && !message.system) {
+        const { recordDailyLogin } = require('./ticket-system/database/ticketStatsStore');
+        const login = recordDailyLogin(message.author.id);
+        if (login.isNew) {
+          const { version } = require('../package.json');
+          const todayAr = new Date().toLocaleDateString('ar-EG', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+          });
+          const embed = new EmbedBuilder()
+            .setColor(0x5865F2)
+            .setTitle('✅ تم تسجيل دخولك اليوم')
+            .setDescription(
+              `📅 التاريخ: **${todayAr}**\n` +
+              `🎁 حصلت على **+${login.points} نقاط** إضافية (نقاط نشاط يومي)\n` +
+              `📅 عدد أيام تسجيل دخولك الإجمالية: **${login.days}**`
+            )
+            .setFooter({ text: `الإصدار: ${version}` })
+            .setTimestamp();
+          message.author.send({ embeds: [embed] }).catch(() => {}); // تجاهل إغلاق الخاص
+        }
+      }
+
       console.log('📨 رسالة جديدة:', message.id, 'channel:', message.channel?.id, 'author:', message.author?.tag);
       await handleMessage(message);
       await handleTicketBoardTrigger(message);

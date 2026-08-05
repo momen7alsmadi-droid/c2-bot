@@ -8,7 +8,7 @@
  *     عدد الرسائل داخل كل التكتات، وتقييمات النجوم.
  *
  * نظام النقاط (يُحسب من البيانات الخام — لا يُخزَّن لئلا يتباعد):
- *   - كل 75 رسالة داخل التكتات        = نقطة واحدة
+ *   - كل 50 رسالة داخل التكتات        = نقطة واحدة
  *   - كل تكت يُقفل (آخر مستلم له)     = نقطة واحدة
  *   - التقييمات: 5★ = 1.5 | 4★ = 1 | 3★ = 0.75 | 2★ = 0.5 | 1★ = 0.25
  * =========================================================
@@ -19,8 +19,8 @@ const path = require('path');
 
 const DB_PATH = path.join(__dirname, '..', 'data', 'ticket-stats.json');
 
-/** كل 75 رسالة داخل التكتات = نقطة */
-const MESSAGES_PER_POINT = 75;
+/** كل 50 رسالة داخل التكتات = نقطة */
+const MESSAGES_PER_POINT = 50;
 
 /** نقاط كل تقييم نجمي */
 const RATING_POINTS = { 1: 0.25, 2: 0.5, 3: 0.75, 4: 1, 5: 1.5 };
@@ -79,6 +79,7 @@ function ensureUser(userId) {
             repliedToMembers: 0, // رسائل الأعضاء التي رد عليها
             sessionDurations: [], // مدد الجلسات (استلام → قفل/حذف)
             daily: {}, // { 'YYYY-MM-DD': عدد الرسائل }
+            loginDays: [], // أيام تسجيل الدخول اليومي ['YYYY-MM-DD', ...]
             lastActivityAt: 0, // آخر تواجد له في أي تكت
         };
     }
@@ -90,6 +91,24 @@ function recordClaim(userId) {
     if (!userId) return;
     ensureUser(userId).ticketsClaimed += 1;
     persist();
+}
+
+/** عدد النقاط اليومية مقابل كل يوم نشط */
+const LOGIN_POINTS_PER_DAY = 3;
+
+/**
+ * تسجيل دخول يومي — أول رسالة من المستخدم في اليوم الجديد:
+ * يُضاف اليوم لقائمة أيامه ويحصل على نقاط نشاط يومي (مرة واحدة في اليوم).
+ * @returns {{ isNew: Boolean, days: Number, points: Number }}
+ */
+function recordDailyLogin(userId, date = new Date().toISOString().slice(0, 10)) {
+    if (!userId) return { isNew: false, days: 0, points: 0 };
+    const raw = ensureUser(userId);
+    const days = Array.isArray(raw.loginDays) ? raw.loginDays : (raw.loginDays = []);
+    if (days.includes(date)) return { isNew: false, days: days.length, points: 0 };
+    days.push(date);
+    persist();
+    return { isNew: true, days: days.length, points: LOGIN_POINTS_PER_DAY };
 }
 
 /** تسجيل إغلاق تذكرة (آخر مستلم لها — نقطة واحدة) */
@@ -221,7 +240,9 @@ function calculatePoints(stats) {
     const ratings = Array.isArray(stats.ratings) ? stats.ratings : [];
     const messagePoints = Math.floor(messages / MESSAGES_PER_POINT);
     const ratingPoints = ratings.reduce((sum, r) => sum + (RATING_POINTS[r.value] || 0), 0);
-    return { messagePoints, closePoints: closed, ratingPoints, total: messagePoints + closed + ratingPoints };
+    const loginDays = Array.isArray(stats.loginDays) ? stats.loginDays.length : 0;
+    const loginPoints = loginDays * LOGIN_POINTS_PER_DAY;
+    return { messagePoints, closePoints: closed, ratingPoints, loginPoints, total: messagePoints + closed + ratingPoints + loginPoints };
 }
 
 /**
@@ -248,6 +269,7 @@ function getUserStats(userId) {
                 ? raw.claimTimes.reduce((s, t) => s + t, 0) / raw.claimTimes.length
                 : null,
         messagesPerTicket: raw.ticketsClaimed > 0 ? raw.messagesSent / raw.ticketsClaimed : 0,
+        loginDays: Array.isArray(raw.loginDays) ? raw.loginDays.length : 0,
         points,
     };
 }
@@ -379,6 +401,7 @@ module.exports = {
     recordRating,
     recordTransfer,
     recordTicketDeleted,
+    recordDailyLogin,
     commitTicketStats,
     getUserStats,
     getAllStats,
@@ -392,4 +415,5 @@ module.exports = {
     getLevelInfo,
     RATING_POINTS,
     MESSAGES_PER_POINT,
+    LOGIN_POINTS_PER_DAY,
 };
