@@ -29,7 +29,7 @@ const { getPanelByName } = require('../database/panelsDB');
 const { canOpenTicket } = require('./permissionUtils');
 const { createSession, updateSession, addAuditLog } = require('./ticketStore');
 const { buildTicketControlRows } = require('./ticketControlBuilder');
-const { buildTicketEmbed } = require('./ticketEmbedBuilder');
+const { buildTicketEmbed, sendWelcomeMessage } = require('./ticketEmbedBuilder');
 const { buildTicketChannelName } = require('../utils/ticketChannelName');
 
 /**
@@ -127,14 +127,8 @@ async function handleTicketCreate(interaction) {
             permissionOverwrites,
         });
 
-        // ---------------------------------------------------
-        // بناء رسالة الترحيب/التحكم (الإيمبد فوق الأزرار)
-        // قابل للتخصيص بالكامل عبر panel.ticketEmbed:
-        //   العنوان + الكلام + الصورة + اللون، وكل النصوص
-        //   تدعم المتغيرات. إن تُرك أي حقل فارغاً نستخدم
-        //   الافتراضي (الاسم + رسالة الترحيب المخصصة).
-        // ---------------------------------------------------
-        const welcomeEmbed = buildTicketEmbed(panel, {
+        // سياق المتغيرات المشترك لرسائل الترحيب والتحكم
+        const welcomeContext = {
             member: interaction.member,
             guild,
             channelName: ticketChannel.name,
@@ -144,7 +138,17 @@ async function handleTicketCreate(interaction) {
             pingRoles: panel.pingRoles,
             categoryName: category.name,
             ticketCreatedAt: Date.now(),
-        });
+        };
+
+        // ---------------------------------------------------
+        // 1) رسالة الترحيب — تُرسَل كرسالة منفصلة تماماً عن
+        //    أزرار التحكم، قابلة للتخصيص بالكامل عبر
+        //    panel.welcomeSettings:
+        //      type: 'embed' | 'text' (إيمبد أو رسالة نصية عادية)
+        //      content: الكلام خارج الإيمبد (يدعم المتغيرات)
+        //      title/description/color/image: محتوى الإيمبد
+        // ---------------------------------------------------
+        await sendWelcomeMessage(ticketChannel, panel, welcomeContext);
 
         // منشن صاحب التكت + رتب المنشن خارج الإيمبد كما هو مطلوب
         const pingMentions = [
@@ -152,18 +156,23 @@ async function handleTicketCreate(interaction) {
             ...panel.pingRoles.map(roleId => `<@&${roleId}>`),
         ].join(' ');
 
-        // إنشاء جلسة التذكرة قبل إرسال الرسالة حتى تكون الأزرار
+        // إنشاء جلسة التذكرة قبل إرسال رسالة التحكم حتى تكون الأزرار
         // متوافقة مع الحالة الابتدائية (غير مستلمة، غير مقفلة)
         createSession(ticketChannel.id, {
             panelName: panel.name,
             openerId: interaction.member.id,
         });
 
+        // ---------------------------------------------------
+        // 2) رسالة التحكم — المنشن + الإيمبد فوق الأزرار
+        //    (panel.ticketEmbed) + صف أزرار (استلام/قفل)
+        //    + قائمة تحكم الستاف
+        // ---------------------------------------------------
         const controlRows = buildTicketControlRows({ claimedBy: null, panelName: panel.name }, false);
 
         const controlMessage = await ticketChannel.send({
             content: pingMentions,
-            embeds: [welcomeEmbed],
+            embeds: [buildTicketEmbed(panel, welcomeContext)],
             components: controlRows,
         });
 

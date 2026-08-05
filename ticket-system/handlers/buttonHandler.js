@@ -42,6 +42,7 @@ const {
     buildTicketEmbedModal,
     buildTicketNameModal,
     buildActionMessageModal,
+    buildRoleButtonColorModal,
 } = require('./modalsBuilder');
 const { getPanelByName, updatePanel, deletePanel } = require('../database/panelsDB');
 const { getSession, setSession, clearSession } = require('./sessionStore');
@@ -91,6 +92,7 @@ async function handleTicketButton(interaction) {
         'settings_toggle_enabled',
         'settings_toggle_role_btn',
         'settings_toggle_role_btn_exclusive',
+        'settings_role_btn_custom_color',
         'settings_save',
         'ticket_log_back',
         'ticket_delete_no',
@@ -390,6 +392,19 @@ async function handleTicketButton(interaction) {
         }
 
         // ---------------------------------------------------
+        // 7-ط-0) زر "🎨 لون مخصص" لزر الرتبة: فتح Modal إدخال Hex
+        // ---------------------------------------------------
+        if (interaction.customId === 'settings_role_btn_custom_color') {
+            const session = resolveSession(interaction);
+            if (!session.panelName || !session.roleBtnId) {
+                await interaction.reply({ content: '⚠️ اختر زر رتبة من القائمة أولاً.', ephemeral: true });
+                return;
+            }
+            await interaction.showModal(buildRoleButtonColorModal(session.roleBtnId));
+            return;
+        }
+
+        // ---------------------------------------------------
         // 7-ط) زر رتبة مخصص داخل التكت: رسالة مخفية + قائمة منسدلة
         //      اختيار خيار = إعطاء رتبته لصاحب التكت
         // ---------------------------------------------------
@@ -448,8 +463,12 @@ async function handleTicketButton(interaction) {
                     }))
                 );
 
+            const pickerColor = /^#[0-9A-Fa-f]{6}$/.test(button.color || '')
+                ? parseInt(button.color.slice(1), 16)
+                : 0x2b2d31;
+
             const embed = new EmbedBuilder()
-                .setColor(0x2b2d31)
+                .setColor(pickerColor)
                 .setTitle(String(button.label || '🎖️ اختر رتبة').slice(0, 256))
                 .setDescription('اختر خياراً من القائمة المنسدلة بالأسفل — ستحصل على الرتبة المحددة له.')
                 .setFooter({ text: `الوضع: ${button.exclusive ? 'حصري (رتبة واحدة فقط)' : 'متعدد (أكثر من رتبة)'}` })

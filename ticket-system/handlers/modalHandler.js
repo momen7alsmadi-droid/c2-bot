@@ -31,7 +31,7 @@ const { safeEmoji } = require('../utils/emoji');
 const { resolveSession } = require('../utils/panelResolver');
 const { sendActionMessage } = require('../utils/actionMessages');
 const { enrichActionContext } = require('../utils/ticketContext');
-const { addRoleButton, addRoleOption } = require('../utils/roleButtons');
+const { addRoleButton, addRoleOption, setRoleButtonColor } = require('../utils/roleButtons');
 
 const RELEVANT_IDS = ['modal_create_panel', 'modal_edit_name_desc', 'modal_welcome_message', 'modal_panel_message', 'modal_ticket_embed', 'modal_ticket_name', 'modal_action_message', 'modal_rename_ticket', 'modal_custom_role_btn'];
 
@@ -104,7 +104,7 @@ function normalizeColor(input) {
  * @param {import('discord.js').ModalSubmitInteraction} interaction
  */
 async function handleTicketModal(interaction) {
-    if (!RELEVANT_IDS.includes(interaction.customId) && !isRoleButtonModal(interaction.customId)) return;
+    if (!RELEVANT_IDS.includes(interaction.customId) && !isRoleButtonModal(interaction.customId) && !interaction.customId.startsWith('modal_role_btn_color:')) return;
 
     try {
         // ---------------------------------------------------
@@ -193,7 +193,9 @@ async function handleTicketModal(interaction) {
         }
 
         // ---------------------------------------------------
-        // 3) حفظ رسالة الترحيب المخصصة
+        // 3) حفظ رسالة الترحيب المخصصة (رسالة منفصلة عن أزرار التحكم)
+        //    content = كلام خارج الإيمبد • title/description/color/image = الإيمبد
+        //    (نوع الرسالة: إيمبد أو نص عادي — يُختار من قائمة صفحة الرسائل)
         // ---------------------------------------------------
         if (interaction.customId === 'modal_welcome_message') {
             const session = resolveSession(interaction);
@@ -202,10 +204,65 @@ async function handleTicketModal(interaction) {
                 return;
             }
 
-            const welcomeMessage = interaction.fields.getTextInputValue('welcome_message').trim();
-            updatePanel(session.panelName, { welcomeMessage });
+            const content = interaction.fields.getTextInputValue('welcome_content').trim();
+            const title = interaction.fields.getTextInputValue('welcome_title').trim();
+            const description = interaction.fields.getTextInputValue('welcome_description').trim();
+            const color = normalizeColor(interaction.fields.getTextInputValue('welcome_color'));
+
+            let image = null;
+            try {
+                image = await resolveImageInput(
+                    interaction.fields.getTextInputValue('welcome_image'),
+                    interaction
+                );
+            } catch (err) {
+                await interaction.reply({ content: `❌ ${err.message}`, ephemeral: true });
+                return;
+            }
+
+            const current = (getPanelByName(session.panelName) || {}).welcomeSettings || {};
+            const welcomeSettings = {
+                ...current,
+                content: content || null,
+                title: title || null,
+                description: description || null,
+                color,
+                image,
+            };
+
+            updatePanel(session.panelName, {
+                welcomeSettings,
+                welcomeMessage: description || null, // توافق مع النسخ السابقة
+            });
 
             const result = buildPanelSettings(session.panelName, 'messages');
+            await interaction.update(result);
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 3-أ) لون مخصص لزر الرتبة (Hex من باقة /الألوان_المتوفرة)
+        // ---------------------------------------------------
+        if (interaction.customId.startsWith('modal_role_btn_color:')) {
+            const session = resolveSession(interaction);
+            const btnId = interaction.customId.split(':')[1];
+            if (!session.panelName || !btnId) {
+                await interaction.reply({ content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء المحاولة مجدداً.', ephemeral: true });
+                return;
+            }
+
+            const hex = interaction.fields.getTextInputValue('role_btn_color_hex').trim();
+            if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) {
+                await interaction.reply({
+                    content: '❌ رمز اللون غير صالح. استخدم صيغة Hex من 6 أرقام/حروف مع #، مثال: #FF0000',
+                    ephemeral: true,
+                });
+                return;
+            }
+
+            setRoleButtonColor(session.panelName, btnId, hex.toUpperCase());
+
+            const result = buildPanelSettings(session.panelName, 'roleButtons', null, btnId, session.roleOptId);
             await interaction.update(result);
             return;
         }

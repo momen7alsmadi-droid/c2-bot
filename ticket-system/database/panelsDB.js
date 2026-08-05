@@ -72,6 +72,7 @@ const DEFAULT_PANEL_FIELDS = {
     logChannelId: null,
     welcomeMessage: null,
     panelMessage: null,
+    welcomeSettings: null,
     customRoleButtons: [],
     claimButtonColor: 'success',
 };
@@ -98,6 +99,7 @@ const panelSchema = new mongoose.Schema(
         logChannelId: { type: String, default: null },
         welcomeMessage: { type: String, default: null },
         panelMessage: { type: mongoose.Schema.Types.Mixed, default: null },
+        welcomeSettings: { type: mongoose.Schema.Types.Mixed, default: null },
         customRoleButtons: { type: mongoose.Schema.Types.Mixed, default: [] },
         claimButtonColor: { type: String, default: 'success' },
     },
@@ -190,6 +192,7 @@ function withDefaults(panel) {
         .map(b => ({
             id: b.id,
             label: String(b.label || 'زر رتبة').slice(0, 80),
+            color: typeof b.color === 'string' && /^#[0-9A-Fa-f]{6}$/.test(b.color) ? b.color : null,
             enabled: b.enabled !== false,
             exclusive: !!b.exclusive,
             allowedRoles: Array.isArray(b.allowedRoles)
@@ -207,6 +210,17 @@ function withDefaults(panel) {
                       }))
                 : [],
         }));
+
+    // ---- رسالة الترحيب المنفصلة (نوعها + كلام خارج الإيمبد + محتوى الإيمبد) ----
+    if (!merged.welcomeSettings || typeof merged.welcomeSettings !== 'object') merged.welcomeSettings = {};
+    merged.welcomeSettings = {
+        type: merged.welcomeSettings.type === 'text' ? 'text' : 'embed',
+        content: typeof merged.welcomeSettings.content === 'string' ? merged.welcomeSettings.content.slice(0, 2000) : null,
+        title: typeof merged.welcomeSettings.title === 'string' ? merged.welcomeSettings.title.slice(0, 256) : null,
+        description: typeof merged.welcomeSettings.description === 'string' ? merged.welcomeSettings.description.slice(0, 4000) : null,
+        color: typeof merged.welcomeSettings.color === 'string' ? merged.welcomeSettings.color.slice(0, 20) : null,
+        image: typeof merged.welcomeSettings.image === 'string' ? merged.welcomeSettings.image.slice(0, 500) : null,
+    };
 
     // ---- تنظيف المصفوفة: نصوص صالحة فقط، بلا مكررات، بلا اسم البنل نفسه، حد 25 ----
     merged.linkedPanels = [

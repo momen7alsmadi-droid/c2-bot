@@ -99,24 +99,70 @@ function buildEditNameDescModal(panel) {
 }
 
 /**
- * Modal تخصيص رسالة الترحيب داخل التكت
+ * Modal تخصيص رسالة الترحيب — رسالة منفصلة عن أزرار التحكم:
+ *   - content: الكلام خارج الإيمبد (أو نص الرسالة في وضع النص العادي)
+ *   - title / description / color / image: محتوى الإيمبد (وضع الإيمبد فقط)
+ * أي حقل فارغ يعود للقيمة الافتراضية، وكل النصوص تدعم المتغيرات.
  * @param {Object} panel
  */
 function buildWelcomeMessageModal(panel) {
+    const ws = panel.welcomeSettings || {};
     const modal = new ModalBuilder()
         .setCustomId('modal_welcome_message')
         .setTitle('💬 تخصيص رسالة الترحيب');
 
-    const messageInput = new TextInputBuilder()
-        .setCustomId('welcome_message')
-        .setLabel('نص الرسالة')
-        .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder('مثال: مرحباً [user]، شكراً لتواصلك مع [server]. سيتم الرد عليك قريباً.')
-        .setValue(panel.welcomeMessage || '')
+    const contentInput = new TextInputBuilder()
+        .setCustomId('welcome_content')
+        .setLabel('الكلام خارج الإيمبد (يدعم المتغيرات)')
+        .setStyle(TextInputStyle.Short)
+        .setValue(ws.content || '')
+        .setPlaceholder('مثال: تم استلام تذكرتك [user] — اتركه فارغاً لعدم الإرسال')
         .setMaxLength(1000)
-        .setRequired(true);
+        .setRequired(false);
 
-    modal.addComponents(new ActionRowBuilder().addComponents(messageInput));
+    const titleInput = new TextInputBuilder()
+        .setCustomId('welcome_title')
+        .setLabel('عنوان الإيمبد (فارغ = اسم البنل + الإيموجي)')
+        .setStyle(TextInputStyle.Short)
+        .setValue(ws.title || '')
+        .setPlaceholder('مثال: مركز الدعم الفني')
+        .setMaxLength(256)
+        .setRequired(false);
+
+    const descInput = new TextInputBuilder()
+        .setCustomId('welcome_description')
+        .setLabel('الكلام داخل الإيمبد (يدعم المتغيرات)')
+        .setStyle(TextInputStyle.Paragraph)
+        .setValue(ws.description || panel.welcomeMessage || '')
+        .setPlaceholder('مثال: مرحباً [user]، شكراً لتواصلك مع [server]. سيتم الرد عليك قريباً.')
+        .setMaxLength(1000)
+        .setRequired(false);
+
+    const colorInput = new TextInputBuilder()
+        .setCustomId('welcome_color')
+        .setLabel('اللون (Hex مثل #5865F2 أو اسم مثل green)')
+        .setStyle(TextInputStyle.Short)
+        .setValue(ws.color || '')
+        .setPlaceholder('#5865F2')
+        .setMaxLength(20)
+        .setRequired(false);
+
+    const imageInput = new TextInputBuilder()
+        .setCustomId('welcome_image')
+        .setLabel('🖼️ صورة الإيمبد')
+        .setStyle(TextInputStyle.Short)
+        .setValue(ws.image || '')
+        .setPlaceholder('الأفضل: استخدم /رفع-صورة لرفع صورة مباشرة. هنا يمكنك أيضاً لصق رابط http/https')
+        .setMaxLength(500)
+        .setRequired(false);
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(contentInput),
+        new ActionRowBuilder().addComponents(titleInput),
+        new ActionRowBuilder().addComponents(descInput),
+        new ActionRowBuilder().addComponents(colorInput),
+        new ActionRowBuilder().addComponents(imageInput)
+    );
 
     return modal;
 }
@@ -219,7 +265,7 @@ function buildTicketEmbedModal(panel) {
         .setLabel('الكلام داخل الإيمبد (يدعم المتغيرات)')
         .setStyle(TextInputStyle.Paragraph)
         .setValue(custom.description || '')
-        .setPlaceholder('فارغ = رسالة الترحيب. مثال: مرحباً [user]، سيساعدك [staff] قريباً.')
+        .setPlaceholder('فارغ = بدون وصف (رسالة الترحيب أصبحت رسالة منفصلة)')
         .setMaxLength(1000)
         .setRequired(false);
 
@@ -425,6 +471,28 @@ function buildRoleButtonOptionModal(btnId, option = null) {
     return modal;
 }
 
+/**
+ * Modal إدخال لون مخصص لزر الرتبة (من باقة /الألوان_المتوفرة أو Hex مخصص)
+ * @param {String} btnId
+ */
+function buildRoleButtonColorModal(btnId) {
+    const modal = new ModalBuilder()
+        .setCustomId(`modal_role_btn_color:${btnId}`)
+        .setTitle('🎨 لون مخصص لزر الرتبة');
+
+    const hexInput = new TextInputBuilder()
+        .setCustomId('role_btn_color_hex')
+        .setLabel('رمز اللون (Hex) — مثل #FF0000')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('#FF0000')
+        .setMinLength(4)
+        .setMaxLength(7)
+        .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(hexInput));
+    return modal;
+}
+
 module.exports = {
     buildCreatePanelModal,
     buildEditNameDescModal,
@@ -436,4 +504,5 @@ module.exports = {
     buildRenameTicketModal,
     buildRoleButtonModal,
     buildRoleButtonOptionModal,
+    buildRoleButtonColorModal,
 };

@@ -32,12 +32,13 @@ const {
 const { getPanelByName, getAllPanels } = require('../database/panelsDB');
 const { reportError } = require('../../src/utils/errorLogger');
 const { buildPublicPanelMessage } = require('./publicPanelBuilder');
-const { buildTicketEmbed } = require('./ticketEmbedBuilder');
+const { buildTicketEmbed, buildWelcomeEmbed, buildWelcomeText } = require('./ticketEmbedBuilder');
 const { SUPPORTED_VARIABLES } = require('../utils/messageVariables');
 const { safeEmoji } = require('../utils/emoji');
 const { ACTION_KEYS, DEFAULT_ACTION_MESSAGES, getActionMessage, isActionEnabled } = require('../utils/actionMessages');
 const { getAllImages } = require('../utils/imageLibrary');
 const { appendDecorativeOption } = require('../../src/utils/decorativeReset');
+const { COLORS } = require('../../src/utils/colors');
 
 /**
  * تحويل رابط صورة مُحفوظ في البنل إلى اسمها في المكتبة
@@ -64,6 +65,9 @@ const PAGES = {
     actions: { label: 'رسائل الأزرار', emoji: '🔔' },
     roleButtons: { label: 'أزرار الرتب', emoji: '🎖️' },
 };
+
+// باقة الألوان من أمر /الألوان_المتوفرة (تُستخدم للون زر الرتبة)
+// أول 23 لوناً تكفي القائمة (حد ديسكورد 25 خياراً + خيار إعادة التعيين)
 
 /**
  * بناء صف "رجوع للإعدادات العامة" — الزر الوحيد للخروج من أي
@@ -218,10 +222,16 @@ function buildSettingsEmbed(panel, page, actionKey, btnId, optId) {
     const pm = panel.panelMessage || {};
     embed.addFields(
         {
-            name: '💬 رسالة الترحيب',
-            value: panel.welcomeMessage
-                ? panel.welcomeMessage.slice(0, 1024)
-                : 'لم تُخصص بعد (ستُستخدم الافتراضية)',
+            name: '💬 رسالة الترحيب (منفصلة عن أزرار التحكم)',
+            value: (() => {
+                const ws = panel.welcomeSettings || {};
+                const typeLabel = ws.type === 'text' ? '📝 نص عادي' : '🖼️ إيمبد';
+                const parts = [`**النوع:** ${typeLabel}`];
+                if (ws.content) parts.push(`**خارج الإيمبد:** ${String(ws.content).slice(0, 200)}`);
+                const desc = ws.description || panel.welcomeMessage;
+                parts.push(`**داخل الإيمبد:** ${(desc || 'الافتراضية').slice(0, 200)}`);
+                return parts.join('\n');
+            })(),
             inline: false,
         },
         {
@@ -273,7 +283,12 @@ function buildSettingsEmbed(panel, page, actionKey, btnId, optId) {
                 const btns = Array.isArray(panel.customRoleButtons) ? panel.customRoleButtons : [];
                 if (btns.length === 0) return 'لا توجد أزرار رتبة بعد — أضفها من صفحة أزرار الرتب';
                 return btns
-                    .map(b => `${b.enabled ? '🟢' : '🔴'} ${String(b.label).slice(0, 60)} — ${(b.options || []).length} خيار${b.exclusive ? ' (حصري)' : ''}`)
+                    .map(b => {
+                        const colorName = b.color
+                            ? (COLORS.find(c => c.value === b.color)?.name || b.color)
+                            : '🔵 أزرق (الافتراضي)';
+                        return `${b.enabled ? '🟢' : '🔴'} ${String(b.label).slice(0, 60)} — 🎨 ${colorName} — ${(b.options || []).length} خيار${b.exclusive ? ' (حصري)' : ''}`;
+                    })
                     .join('\n')
                     .slice(0, 1024);
             })(),
@@ -496,11 +511,35 @@ function buildChannelsPage() {
 }
 
 /**
- * بناء واجهة "الرسائل" — تخصيص رسالة الترحيب داخل التكت
- * + تخصيص رسالة البنل العامة (الإيمبد المنشور مع زر/قائمة الفتح)
- * + تخصيص إيمبد التكت (فوق الأزرار داخل التكت: كلام + صورة)
+ * بناء واجهة "الرسائل" — تخصيص رسالة الترحيب (رسالة منفصلة:
+ * إيمبد أو نص عادي + كلام خارج الإيمبد) + رسالة البنل العامة
+ * + إيمبد التكت (فوق أزرار التحكم) + اسم التكت + مكتبة الصور.
  */
-function buildMessagesPage() {
+function buildMessagesPage(panel) {
+    const ws = panel.welcomeSettings || {};
+    const welcomeType = ws.type === 'text' ? 'text' : 'embed';
+
+    // قائمة نوع رسالة الترحيب: إيمبد أو رسالة نصية عادية
+    const welcomeTypeRow = new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+            .setCustomId('settings_select_welcome_type')
+            .setPlaceholder(`💬 نوع رسالة الترحيب: ${welcomeType === 'text' ? '📝 نص عادي' : '🖼️ إيمبد'}`)
+            .addOptions(
+                {
+                    label: '🖼️ إيمبد (عنوان + وصف + لون + صورة)',
+                    value: 'embed',
+                    emoji: '🖼️',
+                    default: welcomeType === 'embed',
+                },
+                {
+                    label: '📝 رسالة نصية عادية',
+                    value: 'text',
+                    emoji: '📝',
+                    default: welcomeType === 'text',
+                }
+            )
+    );
+
     const messagesRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('settings_edit_welcome')
@@ -516,10 +555,7 @@ function buildMessagesPage() {
         new ButtonBuilder()
             .setCustomId('settings_edit_ticket_embed')
             .setLabel('🖼️ تخصيص إيمبد التكت')
-            .setStyle(ButtonStyle.Secondary)
-    );
-
-    const ticketNameRow = new ActionRowBuilder().addComponents(
+            .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
             .setCustomId('settings_edit_ticket_name')
             .setLabel('🏷️ تخصيص اسم التكت')
@@ -535,7 +571,7 @@ function buildMessagesPage() {
             .setStyle(ButtonStyle.Primary)
     );
 
-    return [messagesRow, ticketEmbedRow, ticketNameRow, imageLibRow];
+    return [welcomeTypeRow, messagesRow, ticketEmbedRow, imageLibRow];
 }
 
 /**
@@ -625,6 +661,20 @@ function buildRoleButtonsPage(panel, btnId = null, optId = null) {
         .setPlaceholder('🎖️ اختر زر الرتبة لإدارته...')
         .setMaxValues(1);
 
+    // ---- صف 1 (بجانب اختيار الزر): لون الزر من باقة /الألوان_المتوفرة ----
+    // (أول 23 لوناً من الباقة — حد ديسكورد 25 خياراً + زر "لون مخصص" أسفل)
+    const colorSelect = new StringSelectMenuBuilder()
+        .setCustomId('settings_select_role_btn_color')
+        .setPlaceholder('🎨 لون الزر (باقة الألوان المتوفرة)...')
+        .setDisabled(!button)
+        .addOptions(
+            COLORS.slice(0, 23).map(c => ({
+                label: c.name,
+                value: c.value,
+                default: !!button && button.color === c.value,
+            }))
+        );
+
     if (buttons.length === 0) {
         btnSelect
             .addOptions({ label: 'لا توجد أزرار بعد — أنشئ واحداً', value: 'none' })
@@ -701,13 +751,18 @@ function buildRoleButtonsPage(panel, btnId = null, optId = null) {
             .setStyle(button && button.exclusive ? ButtonStyle.Primary : ButtonStyle.Secondary)
             .setDisabled(!button),
         new ButtonBuilder()
+            .setCustomId('settings_role_btn_custom_color')
+            .setLabel('🎨 لون مخصص')
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(!button),
+        new ButtonBuilder()
             .setCustomId('settings_page_general')
             .setLabel('🔙 رجوع للإعدادات العامة')
             .setStyle(ButtonStyle.Secondary)
     );
 
     return [
-        new ActionRowBuilder().addComponents(btnSelect),
+        new ActionRowBuilder().addComponents(btnSelect, colorSelect),
         new ActionRowBuilder().addComponents(optSelect),
         new ActionRowBuilder().addComponents(optRoleSelect),
         new ActionRowBuilder().addComponents(useRoleSelect),
@@ -833,12 +888,25 @@ function buildPanelSettings(panelName, page = 'general', actionKey, btnId, optId
         console.error('[panelSettingsBuilder] فشل بناء معاينة الباقة:', bundleErr.message);
         reportError('TICKET_BUNDLE_PREVIEW', panel.name, bundleErr);
     }
-    const embeds = [infoEmbed, ...(bundle.embeds || [])];
+    const embeds = [infoEmbed];
 
-    // في صفحة الرسائل نضيف معاينة لإيمبد التكت (فوق الأزرار داخل التكت)
+    // معاينات صفحة الرسائل: رسالة الترحيب المنفصلة + إيمبد التكت (فوق الأزرار)
     if (page === 'messages') {
+        const ws = panel.welcomeSettings || {};
+        if (ws.type === 'text') {
+            embeds.push(
+                new EmbedBuilder()
+                    .setColor(0x2ECC71)
+                    .setTitle('📝 معاينة رسالة الترحيب (نص عادي)')
+                    .setDescription(buildWelcomeText(panel) || '—')
+            );
+        } else {
+            embeds.push(buildWelcomeEmbed(panel));
+        }
         embeds.push(buildTicketEmbed(panel));
     }
+
+    embeds.push(...(bundle.embeds || []));
 
     // في صفحة رسائل الأزرار: معاينة رسالة الإجراء المحدد
     if (page === 'actions' && actionKey) {
@@ -854,7 +922,7 @@ function buildPanelSettings(panelName, page = 'general', actionKey, btnId, optId
     else if (page === 'roles') rows = [...buildRolesPage(panel), buildRolesNavRow(), buildRolesBackRow()];
     else if (page === 'roles2') rows = [...buildRoles2Page(panel), buildBackToRolesRow()];
     else if (page === 'channels') rows = [...buildChannelsPage(), buildBackToGeneralRow()];
-    else if (page === 'messages') rows = [...buildMessagesPage(), buildBackToGeneralRow()];
+    else if (page === 'messages') rows = [...buildMessagesPage(panel), buildBackToGeneralRow()];
     else if (page === 'images') rows = [...buildImagesPage(panel), buildBackToGeneralRow()];
     else if (page === 'actions') rows = [...buildActionsPage(panel, actionKey), buildBackToGeneralRow()];
     // صفحة أزرار الرتب تحوي زر الرجوع داخل صف الحالة (الصف 5) — لا نضيف صف رجوع إضافي

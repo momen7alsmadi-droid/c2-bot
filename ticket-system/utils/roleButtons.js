@@ -127,6 +127,18 @@ function setRoleButtonAllowedRoles(panelName, btnId, roleIds) {
     );
 }
 
+/**
+ * تعيين لون زر الرتبة (من باقة /الألوان_المتوفرة):
+ *   hex مثل '#FF0000' — يُستخدم في إيمبد اختيار الرتبة داخل التكت
+ *   وفي معلومات البنل. (ديسكورد لا يدعم ألوان Hex على الأزرار نفسها)
+ */
+function setRoleButtonColor(panelName, btnId, hex) {
+    const safe = typeof hex === 'string' && /^#[0-9A-Fa-f]{6}$/.test(hex) ? hex : null;
+    updateRoleButtons(panelName, list =>
+        list.map(b => (b.id === btnId ? { ...b, color: safe } : b))
+    );
+}
+
 module.exports = {
     genId,
     getRoleButton,
@@ -139,4 +151,5 @@ module.exports = {
     toggleRoleButtonExclusive,
     setRoleOptionRole,
     setRoleButtonAllowedRoles,
+    setRoleButtonColor,
 };

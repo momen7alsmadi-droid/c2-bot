@@ -497,6 +497,7 @@ client.on('interactionCreate', async (interaction) => {
         await handleTicketStaffMenu(interaction);
       } else if (interaction.customId.startsWith('ticket_select_') || 
                  interaction.customId === 'settings_select_ticket_system' ||
+                 interaction.customId === 'settings_select_welcome_type' ||
                  interaction.customId === 'settings_select_linked_panel' ||
                  interaction.customId === 'settings_select_action' ||
                  interaction.customId === 'settings_select_panel_image' ||
@@ -504,6 +505,7 @@ client.on('interactionCreate', async (interaction) => {
                  interaction.customId === 'settings_select_claim_color' ||
                  interaction.customId === 'settings_select_role_button' ||
                  interaction.customId === 'settings_select_role_btn_option' ||
+                 interaction.customId === 'settings_select_role_btn_color' ||
                  interaction.customId.startsWith('ticket_role_opt:')) {
         await handleTicketSelectMenu(interaction);
       } else if (interaction.isRoleSelectMenu()) {

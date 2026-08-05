@@ -49,6 +49,7 @@ const {
     getRoleOption,
     removeRoleButton,
     removeRoleOption,
+    setRoleButtonColor,
 } = require('../utils/roleButtons');
 const { canUseRoleButton, canUseExclusiveRoleButton } = require('./permissionUtils');
 const { getSession: getTicketSession, addAuditLog } = require('./ticketStore');
@@ -59,6 +60,7 @@ async function handleTicketSelectMenu(interaction) {
     const isRelevant =
         customId.startsWith('ticket_select_') ||
         customId === 'settings_select_ticket_system' ||
+        customId === 'settings_select_welcome_type' ||
         customId === 'settings_select_linked_panel' ||
         customId === 'settings_select_action' ||
         customId === 'settings_select_panel_image' ||
@@ -66,6 +68,7 @@ async function handleTicketSelectMenu(interaction) {
         customId === 'settings_select_claim_color' ||
         customId === 'settings_select_role_button' ||
         customId === 'settings_select_role_btn_option' ||
+        customId === 'settings_select_role_btn_color' ||
         customId.startsWith('ticket_role_opt:');
 
     if (!isRelevant) return;
@@ -369,6 +372,43 @@ async function handleTicketSelectMenu(interaction) {
         }
 
         // ---------------------------------------------------
+        // 4-ب) قائمة "نوع رسالة الترحيب" (إيمبد / نص عادي)
+        //      الرسالة تُرسل منفصلة عن أزرار التحكم داخل التكت
+        // ---------------------------------------------------
+        if (customId === 'settings_select_welcome_type') {
+            if (!(await safeDeferUpdate(interaction))) return;
+
+            const session = resolveSession(interaction);
+            if (!session.panelName) {
+                await interaction.followUp({
+                    content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء الرجوع للوحة الرئيسية والمحاولة مجدداً.',
+                    ephemeral: true,
+                }).catch(() => {});
+                return;
+            }
+
+            const type = interaction.values[0];
+            if (type !== 'text' && type !== 'embed') return;
+
+            const panel = getPanelByName(session.panelName);
+            if (!panel) {
+                await interaction.followUp({
+                    content: '⚠️ لم يتم العثور على هذا البنل.',
+                    ephemeral: true,
+                }).catch(() => {});
+                return;
+            }
+
+            // نحافظ على بقية إعدادات الترحيب (المحتوى/العنوان/اللون...) ونبدّل النوع فقط
+            const current = panel.welcomeSettings || {};
+            updatePanel(session.panelName, { welcomeSettings: { ...current, type } });
+
+            const result = buildPanelSettings(session.panelName, 'messages');
+            await safeRebuildSettings(result);
+            return;
+        }
+
+        // ---------------------------------------------------
         // اختيار إجراء من صفحة "رسائل الأزرار"
         // نحفظ الإجراء المحدد في الجلسة ثم نعيد بناء الصفحة
         // ليظهر الإجراء المحدد + أزرار التعديل/التبديل تعمل عليه
@@ -559,6 +599,30 @@ async function handleTicketSelectMenu(interaction) {
         }
 
         // ---------------------------------------------------
+        // 8-ج) تغيير لون زر الرتبة (باقة الألوان الرسمية لأزرار ديسكورد)
+        // ---------------------------------------------------
+        if (customId === 'settings_select_role_btn_color') {
+            if (!(await safeDeferUpdate(interaction))) return;
+
+            const session = resolveSession(interaction);
+            if (!session.panelName || !session.roleBtnId) {
+                await interaction.followUp({
+                    content: '⚠️ انتهت صلاحية هذه الجلسة، الرجاء الرجوع للوحة الرئيسية والمحاولة مجدداً.',
+                    ephemeral: true,
+                }).catch(() => {});
+                return;
+            }
+
+            const color = interaction.values[0];
+            if (!/^#[0-9A-Fa-f]{6}$/.test(color)) return;
+
+            setRoleButtonColor(session.panelName, session.roleBtnId, color);
+            const result = buildPanelSettings(session.panelName, 'roleButtons', null, session.roleBtnId, session.roleOptId);
+            await safeRebuildSettings(result);
+            return;
+        }
+
+        // ---------------------------------------------------
         // 9) اختيار رتبة من قائمة "زر الرتبة" داخل التكت:
         //    إعطاء رتبة الخيار لصاحب التكت (الوضع الحصري يزيل
         //    الرتب الأخرى من خيارات نفس الزر أولاً)
@@ -636,10 +700,27 @@ async function handleTicketSelectMenu(interaction) {
 
             await opener.roles.add(option.roleId).catch(async err => {
                 console.error('[selectMenuHandler] فشل منح الرتبة:', err.message);
+                // تنبيه خاص للمنفِّذ فقط
                 await interaction.followUp({
                     content: `❌ فشل منح الرتبة: \`${err.message}\``,
                     ephemeral: true,
                 }).catch(() => {});
+                // رسالة ظاهرة لكل من في التكت عند فشل المنح
+                await interaction.channel.send({
+                    embeds: [
+                        new EmbedBuilder()
+                            .setColor(0xed4245)
+                            .setTitle('❌ فشل منح الرتبة')
+                            .setDescription(
+                                `تعذّر منح **${opener}** رتبة **${role.name}**.\n\`${err.message}\``
+                            )
+                            .setTimestamp(),
+                    ],
+                }).catch(() => {});
+                // إغلاق قائمة الاختيار المخفية
+                await interaction
+                    .editReply({ content: '❌ فشل منح الرتبة.', embeds: [], components: [] })
+                    .catch(() => {});
             });
 
             // إن كانت الرتبة أُعطيت بنجاح (أو كانت موجودة أصلاً) نؤكد
@@ -654,14 +735,22 @@ async function handleTicketSelectMenu(interaction) {
                     .setColor(0x2ECC71)
                     .setTitle('✅ تم منح الرتبة')
                     .setDescription(
-                        `**${opener}** حصل على رتبة **${role.name}**` +
+                        `**${opener}** حصل على رتبة **${role.name}** بواسطة <@${interaction.user.id}>` +
                         (button.exclusive
                             ? '\n🔄 الوضع الحصري: أُزيلت الرتب الأخرى من خيارات هذا الزر.'
                             : '')
                     )
                     .setTimestamp();
 
-                await interaction.editReply({ embeds: [confirmEmbed], components: [] }).catch(() => {});
+                // رسالة ظاهرة لكل من في التكت (وليس فقط لمن ضغط الزر)
+                await interaction.channel
+                    .send({ embeds: [confirmEmbed] })
+                    .catch(() => {});
+
+                // إغلاق قائمة الاختيار المخفية الخاصة بالضاغط فقط
+                await interaction
+                    .editReply({ content: '✅ تم منح الرتبة بنجاح.', embeds: [], components: [] })
+                    .catch(() => {});
             }
             return;
         }
