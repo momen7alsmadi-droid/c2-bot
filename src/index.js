@@ -41,6 +41,8 @@ const { handleTicketCreate } = require('../ticket-system/handlers/ticketCreateHa
 const { handleTicketControlButton } = require('../ticket-system/handlers/ticketControlHandler');
 const { handleTicketStaffMenu } = require('../ticket-system/handlers/ticketStaffMenuHandler');
 const { initTicketStore } = require('../ticket-system/handlers/ticketStore');
+const { initTicketSettings } = require('../ticket-system/database/ticketSettingsDB');
+const { initCooldownStore } = require('../ticket-system/database/ticketCooldownStore');
 const { handleUserSelectMenu } = require('../ticket-system/handlers/userSelectHandler');
 const { handleTicketCloseButton } = require('../ticket-system/handlers/ticketCloseHandler');
 const { handleRoleSelectMenu } = require('../ticket-system/handlers/roleSelectHandler');
@@ -230,6 +232,9 @@ async function initialize() {
   const panelsReady = initPanelsModel();
   // استعادة جلسات التذاكر المفتوحة (حتى لا تفقد التذاكر حالتها بعد إعادة التشغيل)
   initTicketStore();
+  // الإعدادات العامة للحدود/الكولداون + سجل آخر وقت فتح لكل عضو
+  initTicketSettings();
+  initCooldownStore();
 
   // تأكيد حالة التخزين
   console.log('\n═══════════════════════════════════════');

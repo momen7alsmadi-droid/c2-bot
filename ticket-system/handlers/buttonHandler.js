@@ -32,7 +32,7 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder } = require('discord.js');
 const { reportError } = require('../../src/utils/errorLogger');
 const { safeDeferUpdate } = require('../utils/interactionGuard');
-const { buildMainDashboard, buildSubPanel } = require('./dashboardBuilder');
+const { buildMainDashboard, buildSubPanel, buildTicketSettingsPage } = require('./dashboardBuilder');
 const { buildPanelSettings } = require('./panelSettingsBuilder');
 const {
     buildCreatePanelModal,
@@ -43,6 +43,7 @@ const {
     buildTicketNameModal,
     buildActionMessageModal,
     buildRoleButtonColorModal,
+    buildTicketSettingModal,
 } = require('./modalsBuilder');
 const { getPanelByName, updatePanel, deletePanel } = require('../database/panelsDB');
 const { getSession, setSession, clearSession } = require('./sessionStore');
@@ -83,6 +84,11 @@ async function handleTicketButton(interaction) {
     const relevantIds = [
         'ticket_add',
         'ticket_back',
+        'ticket_settings',
+        'ticket_settings_max_open',
+        'ticket_settings_max_panel',
+        'ticket_settings_cooldown',
+        'ticket_settings_max_claims',
         'settings_page_back',
         'settings_edit_name_desc',
         'settings_edit_welcome',
@@ -112,6 +118,26 @@ async function handleTicketButton(interaction) {
         // ---------------------------------------------------
         if (interaction.customId === 'ticket_add') {
             await interaction.showModal(buildCreatePanelModal());
+            return;
+        }
+
+        // ---------------------------------------------------
+        // 1-ب) صفحة "⚙️ إعدادات عامة" (الحدود + الكولداون)
+        // ---------------------------------------------------
+        if (interaction.customId === 'ticket_settings') {
+            await interaction.update(buildTicketSettingsPage());
+            return;
+        }
+
+        // أزرار الإعدادات العامة: كل زر يفتح نافذة إدخال القيمة
+        const SETTINGS_KEY_MAP = {
+            ticket_settings_max_open: 'maxOpenPerUser',
+            ticket_settings_max_panel: 'maxOpenPerPanelPerUser',
+            ticket_settings_cooldown: 'openCooldownMinutes',
+            ticket_settings_max_claims: 'maxClaimsPerStaff',
+        };
+        if (SETTINGS_KEY_MAP[interaction.customId]) {
+            await interaction.showModal(buildTicketSettingModal(SETTINGS_KEY_MAP[interaction.customId]));
             return;
         }
 

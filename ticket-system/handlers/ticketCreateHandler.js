@@ -26,8 +26,10 @@
 const { PermissionFlagsBits, ChannelType } = require('discord.js');
 const { reportError } = require('../../src/utils/errorLogger');
 const { getPanelByName } = require('../database/panelsDB');
-const { canOpenTicket } = require('./permissionUtils');
-const { createSession, updateSession, addAuditLog } = require('./ticketStore');
+const { canOpenTicket, isAdmin } = require('./permissionUtils');
+const { createSession, updateSession, getAllSessions, addAuditLog } = require('./ticketStore');
+const { getTicketSettings } = require('../database/ticketSettingsDB');
+const { getLastOpen, setLastOpen } = require('../database/ticketCooldownStore');
 const { buildTicketControlRows } = require('./ticketControlBuilder');
 const { buildTicketEmbed, sendWelcomeMessage } = require('./ticketEmbedBuilder');
 const { buildTicketChannelName } = require('../utils/ticketChannelName');
@@ -68,6 +70,53 @@ async function handleTicketCreate(interaction) {
         if (!allowed) {
             await interaction.reply({ content: reason, ephemeral: true });
             return;
+        }
+
+        // ---------------------------------------------------
+        // الحدود العامة من "⚙️ إعدادات عامة":
+        //   - حد التذاكر المتزامنة لكل عضو
+        //   - حد التذاكر من نفس البنل
+        //   - كولداون فتح التذكرة
+        // الإدارة (Administrator) لا يشملها أي حد أو كولداون،
+        // والقيمة 0 تعني بدون حد.
+        // ---------------------------------------------------
+        if (!isAdmin(interaction.member)) {
+            const settings = getTicketSettings();
+            const myTickets = getAllSessions().filter(s => s.openerId === interaction.member.id);
+
+            if (settings.maxOpenPerUser > 0 && myTickets.length >= settings.maxOpenPerUser) {
+                await interaction.reply({
+                    content: `🚫 وصلت للحد الأقصى من التذاكر المفتوحة في نفس الوقت (**${settings.maxOpenPerUser}**). أغلق أو أنهِ بعض تذاكرك قبل فتح تذكرة جديدة.`,
+                    ephemeral: true,
+                });
+                return;
+            }
+
+            if (settings.maxOpenPerPanelPerUser > 0) {
+                const myFromPanel = myTickets.filter(s => s.panelName === panel.name);
+                if (myFromPanel.length >= settings.maxOpenPerPanelPerUser) {
+                    await interaction.reply({
+                        content: `🚫 وصلت للحد الأقصى من التذاكر المفتوحة من هذا البنل (**${settings.maxOpenPerPanelPerUser}**).`,
+                        ephemeral: true,
+                    });
+                    return;
+                }
+            }
+
+            if (settings.openCooldownMinutes > 0) {
+                const last = getLastOpen(interaction.member.id);
+                if (last) {
+                    const remainingMs = last + settings.openCooldownMinutes * 60000 - Date.now();
+                    if (remainingMs > 0) {
+                        const mins = Math.ceil(remainingMs / 60000);
+                        await interaction.reply({
+                            content: `⏱️ عليك الانتظار **${mins} ${mins === 1 ? 'دقيقة' : 'دقائق'}** قبل فتح تذكرة جديدة (الكولداون: ${settings.openCooldownMinutes} دقيقة).`,
+                            ephemeral: true,
+                        });
+                        return;
+                    }
+                }
+            }
         }
 
         await interaction.deferReply({ ephemeral: true });
@@ -162,6 +211,9 @@ async function handleTicketCreate(interaction) {
             panelName: panel.name,
             openerId: interaction.member.id,
         });
+
+        // تسجيل وقت الفتح للكولداون (غير مشمول للإدارة)
+        if (!isAdmin(interaction.member)) setLastOpen(interaction.member.id, Date.now());
 
         // ---------------------------------------------------
         // 2) رسالة التحكم — المنشن + الإيمبد فوق الأزرار

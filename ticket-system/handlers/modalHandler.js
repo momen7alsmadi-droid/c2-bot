@@ -32,6 +32,8 @@ const { resolveSession } = require('../utils/panelResolver');
 const { sendActionMessage } = require('../utils/actionMessages');
 const { enrichActionContext } = require('../utils/ticketContext');
 const { addRoleButton, addRoleOption, setRoleButtonColor } = require('../utils/roleButtons');
+const { getTicketSettings, updateTicketSettings } = require('../database/ticketSettingsDB');
+const { buildTicketSettingsPage } = require('./dashboardBuilder');
 
 const RELEVANT_IDS = ['modal_create_panel', 'modal_edit_name_desc', 'modal_welcome_message', 'modal_panel_message', 'modal_ticket_embed', 'modal_ticket_name', 'modal_action_message', 'modal_rename_ticket', 'modal_custom_role_btn'];
 
@@ -104,9 +106,30 @@ function normalizeColor(input) {
  * @param {import('discord.js').ModalSubmitInteraction} interaction
  */
 async function handleTicketModal(interaction) {
-    if (!RELEVANT_IDS.includes(interaction.customId) && !isRoleButtonModal(interaction.customId) && !interaction.customId.startsWith('modal_role_btn_color:')) return;
+    if (!RELEVANT_IDS.includes(interaction.customId) && !isRoleButtonModal(interaction.customId) && !interaction.customId.startsWith('modal_role_btn_color:') && !interaction.customId.startsWith('modal_ticket_settings:')) return;
 
     try {
+        // ---------------------------------------------------
+        // 0) الإعدادات العامة: حدود فتح/استلام التذاكر + الكولداون
+        //    (0 = بدون حد — الإدارة Administrator غير مشمولة)
+        // ---------------------------------------------------
+        if (interaction.customId.startsWith('modal_ticket_settings:')) {
+            const key = interaction.customId.split(':')[1];
+            const raw = interaction.fields.getTextInputValue('setting_value').trim();
+            const value = Math.floor(Number(raw));
+            if (!Number.isFinite(value) || value < 0 || value > 9999) {
+                await interaction.reply({
+                    content: '❌ أدخل رقماً صحيحاً بين 0 و 9999 (0 = بدون حد).',
+                    ephemeral: true,
+                });
+                return;
+            }
+
+            updateTicketSettings({ [key]: value });
+            await interaction.update(buildTicketSettingsPage());
+            return;
+        }
+
         // ---------------------------------------------------
         // 1) إنشاء بنل جديد
         // ---------------------------------------------------

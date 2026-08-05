@@ -18,8 +18,9 @@
 const { getPanelByName } = require('../database/panelsDB');
 const { reportError } = require('../../src/utils/errorLogger');
 const { safeDeferUpdate } = require('../utils/interactionGuard');
-const { getSession, updateSession, addAuditLog } = require('./ticketStore');
-const { isStaff, isUpperManagement, canUseRestrictedControls } = require('./permissionUtils');
+const { getSession, updateSession, getAllSessions, addAuditLog } = require('./ticketStore');
+const { isStaff, isUpperManagement, canUseRestrictedControls, isAdmin } = require('./permissionUtils');
+const { getTicketSettings } = require('../database/ticketSettingsDB');
 const { buildTicketControlRows } = require('./ticketControlBuilder');
 const {
     applyClaimPermissions,
@@ -74,6 +75,22 @@ async function handleTicketControlButton(interaction) {
                 if (!isStaff(interaction.member, panel) && !isUpperManagement(interaction.member, panel)) {
                     await interaction.reply({ content: '❌ هذا الزر مخصص لأعضاء الستاف فقط.', ephemeral: true });
                     return;
+                }
+
+                // حد الاستلام المتزامن للستاف من "⚙️ إعدادات عامة"
+                // (الإدارة Administrator غير مشمولة — 0 = بدون حد)
+                if (!isAdmin(interaction.member)) {
+                    const settings = getTicketSettings();
+                    if (settings.maxClaimsPerStaff > 0) {
+                        const myClaims = getAllSessions().filter(s => s.claimedBy === interaction.member.id);
+                        if (myClaims.length >= settings.maxClaimsPerStaff) {
+                            await interaction.reply({
+                                content: `🚫 وصلت للحد الأقصى من التذاكر المستلمة في نفس الوقت (**${settings.maxClaimsPerStaff}**). ألغِ استلام بعض التذاكر أو أنهِها قبل استلام تذكرة جديدة.`,
+                                ephemeral: true,
+                            });
+                            return;
+                        }
+                    }
                 }
 
                 if (!(await safeDeferUpdate(interaction))) return;

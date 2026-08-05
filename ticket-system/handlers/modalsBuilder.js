@@ -14,6 +14,7 @@ const {
     ActionRowBuilder,
 } = require('discord.js');
 const { SUPPORTED_VARIABLES } = require('../utils/messageVariables');
+const { getTicketSettings } = require('../database/ticketSettingsDB');
 
 // قائمة كل المتغيرات المدعومة — كل متغير في سطر مستقل مع شرح بسيط
 // (تظهر داخل نافذة التخصيص في حقل "📋 كل المتغيرات المدعومة")
@@ -554,6 +555,43 @@ function buildRoleButtonColorModal(btnId) {
     return modal;
 }
 
+/**
+ * Modal إدخال قيمة لإحدى الإعدادات العامة (حدود فتح/استلام + الكولداون)
+ * القيمة 0 = بدون حد / لا نهائي
+ * @param {String} key - من مفاتيح DEFAULT_SETTINGS في ticketSettingsDB
+ */
+function buildTicketSettingModal(key) {
+    const TITLES = {
+        maxOpenPerUser: '👤 حد تذاكر العضو المتزامنة',
+        maxOpenPerPanelPerUser: '📁 حد تذاكر العضو من نفس البنل',
+        openCooldownMinutes: '⏱️ كولداون فتح التذكرة (دقائق)',
+        maxClaimsPerStaff: '👥 حد استلام الستاف المتزامن',
+    };
+    const HINTS = {
+        maxOpenPerUser: 'كم تذكرة يفتحها العضو في نفس الوقت (0 = بدون حد)',
+        maxOpenPerPanelPerUser: 'كم تذكرة يفتحها العضو من نفس البنل (0 = بدون حد)',
+        openCooldownMinutes: 'مدة الانتظار بين فتح تذكرة وأخرى بالدقائق (0 = بدون)',
+        maxClaimsPerStaff: 'كم تذكرة يستلمها الستاف في نفس الوقت (0 = بدون حد)',
+    };
+
+    const modal = new ModalBuilder()
+        .setCustomId(`modal_ticket_settings:${key}`)
+        .setTitle((TITLES[key] || '⚙️ إعداد عام').slice(0, 45));
+
+    const valueInput = new TextInputBuilder()
+        .setCustomId('setting_value')
+        .setLabel('القيمة (0 = بدون حد)')
+        .setStyle(TextInputStyle.Short)
+        .setValue(String(getTicketSettings()[key] ?? 0))
+        .setPlaceholder(HINTS[key] || 'مثال: 2')
+        .setMinLength(1)
+        .setMaxLength(4)
+        .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(valueInput));
+    return modal;
+}
+
 module.exports = {
     buildCreatePanelModal,
     buildEditNameDescModal,
@@ -566,4 +604,5 @@ module.exports = {
     buildRoleButtonModal,
     buildRoleButtonOptionModal,
     buildRoleButtonColorModal,
+    buildTicketSettingModal,
 };

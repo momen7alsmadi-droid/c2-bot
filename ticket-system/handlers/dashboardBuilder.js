@@ -28,6 +28,7 @@ const {
 } = require('discord.js');
 
 const { getAllPanels } = require('../database/panelsDB');
+const { getTicketSettings } = require('../database/ticketSettingsDB');
 const { safeEmoji } = require('../utils/emoji');
 const { version } = require('../../package.json');
 const { appendDecorativeOption } = require('../../src/utils/decorativeReset');
@@ -71,6 +72,77 @@ function buildMainDashboard() {
             .setCustomId('ticket_send')
             .setLabel('📤 إرسال تكت')
             .setStyle(ButtonStyle.Primary),
+    );
+
+    const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('ticket_settings')
+            .setLabel('⚙️ إعدادات عامة')
+            .setStyle(ButtonStyle.Secondary),
+    );
+
+    return { embeds: [embed], components: [row, row2] };
+}
+
+/**
+ * بناء صفحة "⚙️ إعدادات عامة" لنظام التذاكر:
+ *   - حد التذاكر المتزامنة لكل عضو
+ *   - حد التذاكر من نفس البنل لكل عضو
+ *   - كولداون فتح التذكرة (بالدقائق)
+ *   - حد الاستلام المتزامن لكل ستاف
+ *
+ * ملاحظات:
+ *   - الإدارة (Administrator) لا يشملها أي حد أو كولداون.
+ *   - القيمة 0 = بدون حد / لا نهائي.
+ * @returns {{ embeds: EmbedBuilder[], components: ActionRowBuilder[] }}
+ */
+function buildTicketSettingsPage() {
+    const s = getTicketSettings();
+
+    const fmt = v => (v > 0 ? `**${v}** تذكرة` : '**بدون حد (0)**');
+
+    const embed = new EmbedBuilder()
+        .setColor(COLORS.main)
+        .setTitle('⚙️ إعدادات عامة لنظام التذاكر')
+        .setDescription(
+            'تحكّم بالحدود العامة لفتح واستلام التذاكر.\n' +
+            '👑 **الإدارة (Administrator) لا يشملها أي حد أو كولداون.**\n' +
+            '• القيمة **0** = بدون حد (لا نهائي).'
+        )
+        .addFields(
+            { name: '👤 حد تذاكر العضو المتزامنة', value: fmt(s.maxOpenPerUser), inline: false },
+            { name: '📁 حد تذاكر العضو من نفس البنل', value: fmt(s.maxOpenPerPanelPerUser), inline: false },
+            {
+                name: '⏱️ كولداون فتح التذكرة (بالدقائق)',
+                value: s.openCooldownMinutes > 0 ? `**${s.openCooldownMinutes}** دقيقة` : '**بدون (0)**',
+                inline: false,
+            },
+            { name: '👥 حد استلام الستاف المتزامن', value: fmt(s.maxClaimsPerStaff), inline: false },
+        )
+        .setFooter({ text: `الإصدار: ${version}` })
+        .setTimestamp();
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('ticket_settings_max_open')
+            .setLabel('👤 حد تذاكر العضو')
+            .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+            .setCustomId('ticket_settings_max_panel')
+            .setLabel('📁 حد تذاكر البنل')
+            .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+            .setCustomId('ticket_settings_cooldown')
+            .setLabel('⏱️ كولداون الفتح')
+            .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+            .setCustomId('ticket_settings_max_claims')
+            .setLabel('👥 حد استلام الستاف')
+            .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+            .setCustomId('ticket_back')
+            .setLabel('🔙 رجوع للرئيسية')
+            .setStyle(ButtonStyle.Secondary),
     );
 
     return { embeds: [embed], components: [row] };
@@ -146,4 +218,5 @@ function buildSubPanel(type) {
 module.exports = {
     buildMainDashboard,
     buildSubPanel,
+    buildTicketSettingsPage,
 };

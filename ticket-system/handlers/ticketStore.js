@@ -191,6 +191,14 @@ function updateSession(channelId, updates) {
 }
 
 /**
+ * جلب كل الجلسات النشطة حالياً (للإحصاءات: حدود الفتح/الاستلام)
+ * @returns {Array<Object>}
+ */
+function getAllSessions() {
+    return [...sessions.values()];
+}
+
+/**
  * إضافة سطر إلى "سجل الأحداث المؤقت" الخاص بالتذكرة
  * @param {String} channelId
  * @param {String} text - وصف الحدث، مثال: "<@123> قام بالاستلام"
@@ -217,6 +225,7 @@ module.exports = {
     createSession,
     getSession,
     updateSession,
+    getAllSessions,
     addAuditLog,
     deleteSession,
     initTicketStore,
