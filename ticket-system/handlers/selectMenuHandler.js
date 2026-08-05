@@ -81,11 +81,13 @@ async function handleTicketSelectMenu(interaction) {
     if (customId === 'ticket_settings_blacklist_remove') {
         const targetId = interaction.values[0];
         const settings = getTicketSettings();
+        const removed = (settings.blockedUsers || []).find(b => b.id === targetId);
         const remaining = (settings.blockedUsers || []).filter(b => b.id !== targetId);
         updateTicketSettings({ blockedUsers: remaining });
         await interaction.update(buildBlacklistPage());
+        const mention = removed && removed.type === 'role' ? `<@&${targetId}>` : `<@${targetId}>`;
         await interaction
-            .followUp({ content: `✅ تمت إزالة <@${targetId}> من قائمة الحظر.`, ephemeral: true })
+            .followUp({ content: `✅ تمت إزالة ${mention} من قائمة الحظر.`, ephemeral: true })
             .catch(() => {});
         return;
     }

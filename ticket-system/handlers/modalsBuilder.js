@@ -634,15 +634,15 @@ function buildTicketSettingModal(key) {
 function buildBlacklistAddModal() {
     const modal = new ModalBuilder()
         .setCustomId('modal_blacklist_add')
-        .setTitle('🚫 حظر عضو من فتح التذاكر');
+        .setTitle('🚫 حظر عضو أو رول من فتح التذاكر');
 
     const idInput = new TextInputBuilder()
         .setCustomId('bl_user_id')
-        .setLabel('آيدي العضو (ID)')
+        .setLabel('آيدي العضو أو الرول (ID)')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('123456789012345678')
+        .setPlaceholder('الصق المنشن <@id> أو <@&id> أو اكتب الآيدي مباشرة')
         .setMinLength(15)
-        .setMaxLength(20)
+        .setMaxLength(40)
         .setRequired(true);
 
     const reasonInput = new TextInputBuilder()

@@ -117,42 +117,70 @@ async function handleTicketModal(interaction) {
             const rawId = interaction.fields.getTextInputValue('bl_user_id').trim();
             const reason = interaction.fields.getTextInputValue('bl_reason').trim();
 
-            if (!/^\d{15,20}$/.test(rawId)) {
+            // قبول المنشن أو الآيدي الصرف:
+            //   <@id> / <@!id> = عضو  |  <@&id> = رول  |  123... = نحاول الاثنين
+            let type = 'user';
+            let clean = rawId;
+            const roleMention = rawId.match(/^<@&(\d+)>$/);
+            const userMention = rawId.match(/^<@!?(\d+)>$/);
+            if (roleMention) {
+                type = 'role';
+                clean = roleMention[1];
+            } else if (userMention) {
+                clean = userMention[1];
+            }
+
+            if (!/^\d{15,20}$/.test(clean)) {
                 await interaction.reply({
-                    content: '❌ آيدي العضو غير صالح (يجب أن يكون 15-20 رقماً).',
+                    content: '❌ آيدي غير صالح (15-20 رقماً) — الصق منشن العضو <@id> أو الرول <@&id> أو اكتب الآيدي مباشرة.',
                     ephemeral: true,
                 });
                 return;
             }
 
-            // التحقق أن العضو موجود فعلاً في السيرفر
-            const target = await interaction.guild.members.fetch(rawId).catch(() => null);
-            if (!target) {
+            // التحقق من وجود الهدف في السيرفر: نحاول كعضو ثم كرول (والعكس حسب المنشن)
+            let targetMember = null;
+            let targetRole = null;
+            if (type === 'role') {
+                targetRole = await interaction.guild.roles.fetch(clean).catch(() => null);
+                if (!targetRole) {
+                    targetMember = await interaction.guild.members.fetch(clean).catch(() => null);
+                    if (targetMember) type = 'user';
+                }
+            } else {
+                targetMember = await interaction.guild.members.fetch(clean).catch(() => null);
+                if (!targetMember) {
+                    targetRole = await interaction.guild.roles.fetch(clean).catch(() => null);
+                    if (targetRole) type = 'role';
+                }
+            }
+            if (!targetMember && !targetRole) {
                 await interaction.reply({
-                    content: '❌ لم يتم العثور على عضو بهذا الآيدي في السيرفر.',
+                    content: '❌ لم يتم العثور على عضو أو رول بهذا الآيدي في السيرفر.',
                     ephemeral: true,
                 });
                 return;
             }
 
             const current = getTicketSettings().blockedUsers || [];
-            if (current.some(b => b.id === rawId)) {
+            if (current.some(b => b.id === clean)) {
                 await interaction.reply({
-                    content: 'ℹ️ هذا العضو محظور بالفعل.',
+                    content: 'ℹ️ هذا العنصر محظور بالفعل.',
                     ephemeral: true,
                 });
                 return;
             }
 
             updateTicketSettings({
-                blockedUsers: [...current, { id: rawId, reason: reason || 'بدون سبب', at: Date.now() }],
+                blockedUsers: [...current, { id: clean, type, reason: reason || 'بدون سبب', at: Date.now() }],
             });
 
+            const mention = type === 'role' ? `<@&${clean}>` : `<@${clean}>`;
             // نُحدّث صفحة قائمة الحظر نفسها ونُثبت الحظر برسالة مخفية
             await interaction.update(buildBlacklistPage());
             await interaction
                 .followUp({
-                    content: `✅ تم حظر <@${rawId}> من فتح التذاكر${reason ? ' — السبب: ' + reason : ''}.`,
+                    content: `✅ تم حظر ${mention} من فتح التذاكر${reason ? ' — السبب: ' + reason : ''}.`,
                     ephemeral: true,
                 })
                 .catch(() => {});

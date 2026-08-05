@@ -102,8 +102,12 @@ async function handleTicketCreate(interaction) {
                 }
             }
 
-            // 🚫 قائمة الحظر: أعضاء محظورون من فتح التذاكر
-            const blocked = (settings.blockedUsers || []).find(b => b.id === interaction.member.id);
+            // 🚫 قائمة الحظر: عضو محظور مباشرة أو يملك رولاً محظوراً
+            const blockList = settings.blockedUsers || [];
+            const directBlock = blockList.find(b => b.id === interaction.member.id && b.type !== 'role');
+            const memberRoleIds = [...(interaction.member.roles?.cache?.keys() || [])];
+            const blockedRole = blockList.find(b => b.type === 'role' && memberRoleIds.includes(b.id));
+            const blocked = directBlock || blockedRole;
             if (blocked) {
                 await interaction.reply({
                     content: `🚫 أنت محظور من فتح التذاكر${blocked.reason ? ' — السبب: **' + blocked.reason + '**' : ''}.`,

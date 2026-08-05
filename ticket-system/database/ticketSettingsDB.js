@@ -200,12 +200,13 @@ function updateTicketSettings(partial = {}) {
         } else if (key === 'maintenanceMessage') {
             next[key] = String(partial[key] || '').slice(0, 500);
         } else if (key === 'blockedUsers') {
-            // قائمة الحظر: [{ id, reason, at }] — نتجاهل المداخل غير الصالحة
+            // قائمة الحظر: [{ id, type: 'user'|'role', reason, at }] — نتجاهل المداخل غير الصالحة
             const arr = Array.isArray(partial[key]) ? partial[key] : [];
             next[key] = arr
                 .filter(b => b && typeof b.id === 'string' && b.id.trim())
                 .map(b => ({
                     id: b.id.trim(),
+                    type: b.type === 'role' ? 'role' : 'user',
                     reason: String(b.reason || 'بدون سبب').slice(0, 200),
                     at: typeof b.at === 'number' ? b.at : Date.now(),
                 }))

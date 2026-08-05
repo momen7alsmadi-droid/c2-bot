@@ -337,14 +337,17 @@ function buildBlacklistPage() {
     const s = getTicketSettings();
     const blocked = (s.blockedUsers || []).slice(0, 20);
 
+    // تنسيق المنشن حسب النوع: عضو <@id> أو رول <@&id> (القديم بلا type = عضو)
+    const mentionOf = b => (b.type === 'role' ? `<@&${b.id}>` : `<@${b.id}>`);
+
     let description;
     if (blocked.length === 0) {
-        description = 'لا يوجد أعضاء محظورون حالياً.\nاستخدم **[➕ إضافة عضو]** لحظر شخص من فتح التذاكر.';
+        description = 'لا يوجد أعضاء أو رولات محظورة حالياً.\nاستخدم **[➕ إضافة]** لحظر عضو أو رول من فتح التذاكر.';
     } else {
         description = blocked
             .map(
                 (b, i) =>
-                    `${i + 1}. <@${b.id}> (\`${b.id}\`) — ${b.reason}\n   منذ <t:${Math.floor(b.at / 1000)}:R>`
+                    `${i + 1}. ${mentionOf(b)} (\`${b.id}\`) — ${b.reason}\n   منذ <t:${Math.floor(b.at / 1000)}:R>`
             )
             .join('\n')
             .slice(0, 1024);
@@ -367,20 +370,22 @@ function buildBlacklistPage() {
     } else {
         removeSelect.addOptions(
             ...blocked.slice(0, 25).map(b => ({
-                label: String(b.reason || b.id).slice(0, 80),
+                label: String(b.reason || (b.type === 'role' ? 'رول محظور' : b.id)).slice(0, 80),
                 value: b.id,
-                description: `<@${b.id}> — ${b.reason}`.slice(0, 100),
+                description: `${mentionOf(b)} — ${b.reason}`.slice(0, 100),
             }))
         );
     }
 
-    const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('ticket_settings_blacklist_add').setLabel('➕ إضافة عضو').setStyle(ButtonStyle.Success),
-        removeSelect,
+    // ملاحظة: القائمة المنسدلة تأخذ عرض الصف كاملاً في ديسكورد،
+    // فلا يجوز خلطها مع أزرار في نفس الصف (سبب COMPONENT_LAYOUT_WIDTH_EXCEEDED)
+    const rowButtons = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('ticket_settings_blacklist_add').setLabel('➕ إضافة عضو أو رول').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId('ticket_settings_back').setLabel('🔙 رجوع للإعدادات').setStyle(ButtonStyle.Secondary)
     );
+    const rowSelect = new ActionRowBuilder().addComponents(removeSelect);
 
-    return { embeds: [embed], components: [row] };
+    return { embeds: [embed], components: [rowButtons, rowSelect] };
 }
 
 /**
