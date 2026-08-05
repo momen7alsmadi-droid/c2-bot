@@ -33,7 +33,7 @@ const { sendActionMessage } = require('../utils/actionMessages');
 const { enrichActionContext } = require('../utils/ticketContext');
 const { addRoleButton, addRoleOption, setRoleButtonColor } = require('../utils/roleButtons');
 const { getTicketSettings, updateTicketSettings } = require('../database/ticketSettingsDB');
-const { buildTicketSettingsPage, buildBlacklistPage } = require('./dashboardBuilder');
+const { buildTicketSettingsPage, buildBlacklistPage, buildPageForSettings } = require('./dashboardBuilder');
 
 const RELEVANT_IDS = ['modal_create_panel', 'modal_edit_name_desc', 'modal_welcome_message', 'modal_panel_message', 'modal_ticket_embed', 'modal_ticket_name', 'modal_action_message', 'modal_rename_ticket', 'modal_custom_role_btn', 'modal_blacklist_add', 'modal_staff_note'];
 
@@ -193,7 +193,7 @@ async function handleTicketModal(interaction) {
             if (key === 'maintenanceMessage') {
                 const text = interaction.fields.getTextInputValue('setting_value').trim();
                 updateTicketSettings({ maintenanceMessage: text });
-                await interaction.update(buildTicketSettingsPage());
+                await interaction.update(buildPageForSettings([key]));
                 return;
             }
 
@@ -209,7 +209,7 @@ async function handleTicketModal(interaction) {
             }
 
             updateTicketSettings({ [key]: value });
-            await interaction.update(buildTicketSettingsPage());
+            await interaction.update(buildPageForSettings([key]));
             return;
         }
 

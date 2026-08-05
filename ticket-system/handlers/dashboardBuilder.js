@@ -94,144 +94,244 @@ function buildMainDashboard() {
  *   - القيمة 0 = بدون حد / معطّل.
  * @returns {{ embeds: EmbedBuilder[], components: ActionRowBuilder[] }}
  */
+/** تصنيف كل مفتاح إعداد (لتحديد أي صفحة تُعاد بعد التعديل) */
+const KEY_CATEGORY = {
+    maxOpenPerUser: 'limits',
+    maxOpenPerPanelPerUser: 'limits',
+    openCooldownMinutes: 'limits',
+    maxClaimsPerStaff: 'limits',
+    claimSlaMinutes: 'limits',
+    autoCloseEnabled: 'auto_close',
+    autoCloseIdleHours: 'auto_close',
+    autoCloseGraceHours: 'auto_close',
+    autoCloseAction: 'auto_close',
+    maxTicketAgeHours: 'auto_close',
+    deleteCountdownSeconds: 'delete',
+    archiveOnDelete: 'delete',
+    autoPurgeLockedDays: 'delete',
+    maintenanceEnabled: 'maintenance',
+    maintenanceMessage: 'maintenance',
+    ticketNumberStart: 'maintenance',
+    workHoursEnabled: 'work_hours',
+    workHoursStart: 'work_hours',
+    workHoursEnd: 'work_hours',
+};
+
+/**
+ * تحديد الصفحة المناسبة بعد تعديل إعداد:
+ * إذا كان المفتاح ضمن تصنيف واحد نُعيد صفحة ذلك التصنيف،
+ * وإلا صفحة التصنيفات.
+ * @param {String[]} keys - مفاتيح الإعدادات التي تغيّرت
+ */
+function buildPageForSettings(keys) {
+    const cats = [...new Set(keys.map(k => KEY_CATEGORY[k]).filter(Boolean))];
+    return cats.length === 1 ? buildTicketSettingsCategory(cats[0]) : buildTicketSettingsPage();
+}
+
+/**
+ * صفحة التصنيفات الرئيسية — كل زر يفتح تصنيفاً داخل نفس اللوحة:
+ *   1) 🎫 حدود الفتح والاستلام
+ *   2) 🤖 الإغلاق التلقائي (الخمول + حد العمر)
+ *   3) 🗑️ الحذف والأرشفة والتنظيف
+ *   4) 🛠️ الصيانة والترقيم
+ *   5) 🌙 ساعات العمل
+ *   6) 🚫 قائمة الحظر
+ *   7) ⭐ التقييم والملاحظات
+ * @returns {{ embeds: EmbedBuilder[], components: ActionRowBuilder[] }}
+ */
 function buildTicketSettingsPage() {
     const s = getTicketSettings();
     const version = require('../../package.json').version;
 
-    const num = v => (v > 0 ? `**${v}**` : 'بدون حد');
-    const onoff = v => (v ? '✅ مفعّل' : '❌ معطّل');
-    const mins = v => (v > 0 ? `**${v}** دقيقة` : 'بدون');
-
     const embed = new EmbedBuilder()
         .setColor(COLORS.main)
-        .setTitle('⚙️ إعدادات عامة لنظام التذاكر')
+        .setTitle('⚙️ الإعدادات العامة — التصنيفات')
         .setDescription(
-            '👑 **الإدارة (Administrator) لا يشملها أي حد أو كولداون.**\n' +
-            '• القيمة **0** = بدون حد / معطّل.\n' +
-            '• **كل إجراء تلقائي من البوت يُسجَّل في روم اللوق.**'
+            'اختر تصنيفاً لعرض إعداداته وضبطها (تظهر الواجهة في نفس اللوحة).\n' +
+            '👑 **الإدارة لا يشملها أي حد أو كولداون** — القيمة **0** = بدون حد/معطّل.'
         )
         .addFields(
+            { name: '🎫 حدود الفتح والاستلام', value: '👤 العضو • 📁 البنل • ⏱️ الكولداون • 👥 حد الستاف • ⏳ مهلة الرد', inline: true },
+            { name: '🤖 الإغلاق التلقائي', value: '⏰ ساعات الخمول • 🕰️ السماح • 🔒/🗑️ الإجراء • ⏱️ حد العمر', inline: true },
+            { name: '🗑️ الحذف والأرشفة', value: '⏱️ ثواني الحذف • 📜 الأرشيف • 🧹 تنظيف المقفلات', inline: true },
+            { name: '🛠️ الصيانة والترقيم', value: '🛠️ وضع الصيانة • 💬 رسالته • 🔢 بداية الترقيم', inline: true },
+            { name: '🌙 ساعات العمل', value: 'تشغيل/إيقاف • 🌅 البداية • 🌇 النهاية', inline: true },
+            { name: '🚫 قائمة الحظر', value: `عدد المحظورين: **${(s.blockedUsers || []).length}**`, inline: true },
             {
-                name: '🎫 حدود الفتح',
-                value: `👤 تذاكر متزامنة للعضو: ${num(s.maxOpenPerUser)}\n📁 من نفس البنل: ${num(s.maxOpenPerPanelPerUser)}\n⏱️ كولداون الفتح: ${mins(s.openCooldownMinutes)}`,
-                inline: true,
-            },
-            {
-                name: '👥 الاستلام',
-                value: `👥 حد الاستلام المتزامن للستاف: ${num(s.maxClaimsPerStaff)}\n⏳ مهلة رد الستاف (SLA): ${mins(s.claimSlaMinutes)}\n   (بلا رد = إلغاء استلام تلقائي)`,
-                inline: true,
-            },
-            {
-                name: '🤖 الإغلاق التلقائي (الخمول)',
-                value:
-                    `الحالة: ${onoff(s.autoCloseEnabled)}\n` +
-                    `⏰ تنبيه بعد خمول: **${s.autoCloseIdleHours} ساعة**\n` +
-                    `🕰️ ثم سماح: **${s.autoCloseGraceHours} ساعة**\n` +
-                    `الإجراء عند التنفيذ: ${s.autoCloseAction === 'delete' ? '🗑️ حذف نهائي' : '🔒 قفل فقط'}`,
-                inline: true,
-            },
-            {
-                name: '🗑️ الحذف والأرشفة',
-                value: `⏱️ العد التنازلي قبل الحذف: **${s.deleteCountdownSeconds} ثانية**\n📜 أرشيف HTML في اللوق عند الحذف: ${onoff(s.archiveOnDelete)}`,
-                inline: true,
-            },
-            {
-                name: '🔢 الترقيم',
-                value: `🔢 بداية رقم التذاكر: **${s.ticketNumberStart}**`,
-                inline: true,
-            },
-            {
-                name: '🛠️ وضع الصيانة',
-                value:
-                    `الحالة: ${onoff(s.maintenanceEnabled)}\n💬 الرسالة: ${s.maintenanceMessage ? '\n' + String(s.maintenanceMessage).slice(0, 150) : 'افتراضية'}`,
-                inline: true,
-            },
-            {
-                name: '🌙 ساعات العمل',
-                value:
-                    `الحالة: ${onoff(s.workHoursEnabled)}\n⏰ من **${String(s.workHoursStart).padStart(2, '0')}:00** إلى **${String(s.workHoursEnd).padStart(2, '0')}:00**\n   (خارجها يُمْنع الفتح)`,
-                inline: true,
-            },
-            {
-                name: '🚫 قائمة الحظر',
-                value: `عدد المحظورين: **${(s.blockedUsers || []).length}**\nاضغط [قائمة الحظر] للعرض/الإضافة/الإزالة`,
-                inline: true,
-            },
-            {
-                name: '⏱️ حد عمر التذكرة',
-                value:
-                    `بعد **${s.maxTicketAgeHours > 0 ? s.maxTicketAgeHours + ' ساعة' : 'معطّل (0)'}** مفتوحة → ${s.autoCloseAction === 'delete' ? '🗑️ حذف' : '🔒 قفل'} تلقائي\n🧹 تنظيف المقفلات: ${s.autoPurgeLockedDays > 0 ? 'بعد **' + s.autoPurgeLockedDays + ' يوم** → حذف' : 'معطّل (0)'}`,
+                name: '⭐ التقييم والملاحظات',
+                value: `روم التقييمات: ${s.ratingChannelId ? `<#${s.ratingChannelId}>` : '❌'}\nروم الملاحظات: ${s.notesChannelId ? `<#${s.notesChannelId}>` : '❌'}`,
                 inline: true,
             }
         )
         .setFooter({ text: `الإصدار: ${version}` })
         .setTimestamp();
 
-    // ---------- الأزرار (3 صفوف × 5) ----------
-    const toggleStyle = v => (v ? ButtonStyle.Success : ButtonStyle.Secondary);
-
     const row1 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('ticket_settings_max_open').setLabel('👤 حد تذاكر العضو').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId('ticket_settings_max_panel').setLabel('📁 حد تذاكر البنل').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId('ticket_settings_cooldown').setLabel('⏱️ كولداون الفتح').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId('ticket_settings_max_claims').setLabel('👥 حد استلام الستاف').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId('ticket_settings_claim_sla').setLabel('⏳ مهلة رد الستاف').setStyle(ButtonStyle.Primary)
+        new ButtonBuilder().setCustomId('ticket_settings_cat_limits').setLabel('🎫 حدود الفتح والاستلام').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('ticket_settings_cat_auto_close').setLabel('🤖 الإغلاق التلقائي').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('ticket_settings_cat_delete').setLabel('🗑️ الحذف والأرشفة').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('ticket_settings_cat_maintenance').setLabel('🛠️ الصيانة والترقيم').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('ticket_settings_cat_work_hours').setLabel('🌙 ساعات العمل').setStyle(ButtonStyle.Primary)
     );
 
     const row2 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId('ticket_settings_auto_close')
-            .setLabel(`🤖 إغلاق الخمول: ${onoff(s.autoCloseEnabled)}`)
-            .setStyle(toggleStyle(s.autoCloseEnabled)),
-        new ButtonBuilder().setCustomId('ticket_settings_auto_close_idle').setLabel('⏰ ساعات الخمول').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId('ticket_settings_auto_close_grace').setLabel('🕰️ سماح التنبيه').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-            .setCustomId('ticket_settings_auto_close_action')
-            .setLabel(s.autoCloseAction === 'delete' ? '🗑️ إجراء الخمول: حذف' : '🔒 إجراء الخمول: قفل')
-            .setStyle(s.autoCloseAction === 'delete' ? ButtonStyle.Danger : ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId('ticket_settings_delete_countdown').setLabel('⏱️ ثواني الحذف').setStyle(ButtonStyle.Primary)
-    );
-
-    const row3 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('ticket_settings_number_start').setLabel('🔢 بداية الترقيم').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-            .setCustomId('ticket_settings_archive')
-            .setLabel(`📜 أرشيف عند الحذف: ${onoff(s.archiveOnDelete)}`)
-            .setStyle(toggleStyle(s.archiveOnDelete)),
-        new ButtonBuilder()
-            .setCustomId('ticket_settings_maintenance')
-            .setLabel(`🛠️ وضع الصيانة: ${onoff(s.maintenanceEnabled)}`)
-            .setStyle(toggleStyle(s.maintenanceEnabled)),
-        new ButtonBuilder().setCustomId('ticket_settings_maintenance_msg').setLabel('💬 رسالة الصيانة').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId('ticket_settings_blacklist').setLabel('🚫 قائمة الحظر').setStyle(ButtonStyle.Danger)
-    );
-
-    const row4 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId('ticket_settings_work_hours')
-            .setLabel(`🌙 ساعات العمل: ${onoff(s.workHoursEnabled)}`)
-            .setStyle(toggleStyle(s.workHoursEnabled)),
-        new ButtonBuilder().setCustomId('ticket_settings_work_start').setLabel('🌅 ساعة البداية').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId('ticket_settings_work_end').setLabel('🌇 ساعة النهاية').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId('ticket_settings_max_age').setLabel('⏱️ حد عمر التذكرة').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId('ticket_settings_purge_locked').setLabel('🧹 تنظيف المقفلات').setStyle(ButtonStyle.Primary)
-    );
-
-    const row5 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('ticket_settings_rating').setLabel('⭐ التقييم والملاحظات').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId('ticket_settings_cat_blacklist').setLabel('🚫 قائمة الحظر').setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId('ticket_settings_cat_rating').setLabel('⭐ التقييم والملاحظات').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId('ticket_back').setLabel('🔙 رجوع للرئيسية').setStyle(ButtonStyle.Secondary)
     );
 
-    return { embeds: [embed], components: [row1, row2, row3, row4, row5] };
+    return { embeds: [embed], components: [row1, row2] };
 }
 
 /**
- * بناء صفحة "🚫 قائمة الحظر" — منع أعضاء محددين من فتح التذاكر:
- *   - عرض المحظورين (آيدي + السبب + التاريخ)
- *   - زر ➕ إضافة عضو (Modal: آيدي + سبب)
- *   - قائمة منسدلة لإزالة محظور
- * @returns {{ embeds: EmbedBuilder[], components: ActionRowBuilder[] }}
+ * بناء صفحة تصنيف فرعي داخل نفس اللوحة (مع زر رجوع للتصنيفات).
+ * الأزرار تعيد استخدام نفس customIds — فلا حاجة لأي توجيه جديد.
+ * @param {String} catId - limits | auto_close | delete | maintenance | work_hours
+ * @returns {{ embeds: EmbedBuilder[], components: ActionRowBuilder[] }|null}
  */
+function buildTicketSettingsCategory(catId) {
+    const s = getTicketSettings();
+    const version = require('../../package.json').version;
+
+    const num = v => (v > 0 ? `**${v}**` : 'بدون حد');
+    const onoff = v => (v ? '✅ مفعّل' : '❌ معطّل');
+    const mins = v => (v > 0 ? `**${v}** دقيقة` : 'بدون');
+    const toggleStyle = v => (v ? ButtonStyle.Success : ButtonStyle.Secondary);
+
+    const back = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('ticket_settings_back').setLabel('🔙 رجوع للتصنيفات').setStyle(ButtonStyle.Secondary)
+    );
+
+    if (catId === 'limits') {
+        const embed = new EmbedBuilder()
+            .setColor(COLORS.main)
+            .setTitle('🎫 حدود الفتح والاستلام')
+            .setDescription('القيمة **0** = بدون حد — 👑 الإدارة غير مشمولة.')
+            .addFields(
+                { name: '👤 تذاكر متزامنة للعضو', value: `${num(s.maxOpenPerUser)}`, inline: true },
+                { name: '📁 من نفس البنل', value: `${num(s.maxOpenPerPanelPerUser)}`, inline: true },
+                { name: '⏱️ كولداون الفتح', value: `${mins(s.openCooldownMinutes)}`, inline: true },
+                { name: '👥 حد استلام الستاف', value: `${num(s.maxClaimsPerStaff)}`, inline: true },
+                { name: '⏳ مهلة رد الستاف (SLA)', value: `${mins(s.claimSlaMinutes)}\n(بلا رد = إلغاء استلام تلقائي)`, inline: true }
+            )
+            .setFooter({ text: `الإصدار: ${version}` })
+            .setTimestamp();
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('ticket_settings_max_open').setLabel('👤 حد تذاكر العضو').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('ticket_settings_max_panel').setLabel('📁 حد تذاكر البنل').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('ticket_settings_cooldown').setLabel('⏱️ كولداون الفتح').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('ticket_settings_max_claims').setLabel('👥 حد استلام الستاف').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('ticket_settings_claim_sla').setLabel('⏳ مهلة رد الستاف').setStyle(ButtonStyle.Primary)
+        );
+        return { embeds: [embed], components: [row, back] };
+    }
+
+    if (catId === 'auto_close') {
+        const embed = new EmbedBuilder()
+            .setColor(COLORS.main)
+            .setTitle('🤖 الإغلاق التلقائي (الخمول + حد العمر)')
+            .setDescription('الخمول: تنبيه بعد الساعات المحددة ثم تنفيذ الإجراء بعد فترة السماح.\nحد العمر: مفتوحة أكثر من المدة → نفس الإجراء حتى مع وجود رسائل.')
+            .addFields(
+                { name: '🔄 الحالة', value: `${onoff(s.autoCloseEnabled)}`, inline: true },
+                { name: '⏰ تنبيه بعد خمول', value: `**${s.autoCloseIdleHours} ساعة**`, inline: true },
+                { name: '🕰️ سماح إضافي', value: `**${s.autoCloseGraceHours} ساعة**`, inline: true },
+                { name: '🔒/🗑️ إجراء التنفيذ', value: s.autoCloseAction === 'delete' ? '🗑️ حذف نهائي' : '🔒 قفل فقط', inline: true },
+                { name: '⏱️ حد عمر التذكرة', value: s.maxTicketAgeHours > 0 ? `**${s.maxTicketAgeHours} ساعة**` : 'معطّل (0)', inline: true }
+            )
+            .setFooter({ text: `الإصدار: ${version}` })
+            .setTimestamp();
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('ticket_settings_auto_close')
+                .setLabel(`🤖 تفعيل الخمول: ${onoff(s.autoCloseEnabled)}`)
+                .setStyle(toggleStyle(s.autoCloseEnabled)),
+            new ButtonBuilder().setCustomId('ticket_settings_auto_close_idle').setLabel('⏰ ساعات الخمول').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('ticket_settings_auto_close_grace').setLabel('🕰️ سماح التنبيه').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+                .setCustomId('ticket_settings_auto_close_action')
+                .setLabel(s.autoCloseAction === 'delete' ? '🗑️ إجراء الخمول: حذف' : '🔒 إجراء الخمول: قفل')
+                .setStyle(s.autoCloseAction === 'delete' ? ButtonStyle.Danger : ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('ticket_settings_max_age').setLabel('⏱️ حد عمر التذكرة').setStyle(ButtonStyle.Primary)
+        );
+        return { embeds: [embed], components: [row, back] };
+    }
+
+    if (catId === 'delete') {
+        const embed = new EmbedBuilder()
+            .setColor(COLORS.main)
+            .setTitle('🗑️ الحذف والأرشفة والتنظيف')
+            .setDescription('الإعدادات الخاصة بحذف التذاكر وأرشفتها وتنظيف المقفلات تلقائياً.')
+            .addFields(
+                { name: '⏱️ العد التنازلي قبل الحذف', value: `**${s.deleteCountdownSeconds} ثانية**`, inline: true },
+                { name: '📜 أرشيف HTML عند الحذف', value: `${onoff(s.archiveOnDelete)}`, inline: true },
+                { name: '🧹 تنظيف المقفلات', value: s.autoPurgeLockedDays > 0 ? `بعد **${s.autoPurgeLockedDays} يوم** → حذف` : 'معطّل (0)', inline: true }
+            )
+            .setFooter({ text: `الإصدار: ${version}` })
+            .setTimestamp();
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('ticket_settings_delete_countdown').setLabel('⏱️ ثواني الحذف').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+                .setCustomId('ticket_settings_archive')
+                .setLabel(`📜 الأرشيف: ${onoff(s.archiveOnDelete)}`)
+                .setStyle(toggleStyle(s.archiveOnDelete)),
+            new ButtonBuilder().setCustomId('ticket_settings_purge_locked').setLabel('🧹 تنظيف المقفلات').setStyle(ButtonStyle.Primary)
+        );
+        return { embeds: [embed], components: [row, back] };
+    }
+
+    if (catId === 'maintenance') {
+        const embed = new EmbedBuilder()
+            .setColor(COLORS.main)
+            .setTitle('🛠️ الصيانة والترقيم')
+            .setDescription('وضع الصيانة يمنع فتح كل التذاكر برسالة مخصصة — والإدارة غير مشمولة.')
+            .addFields(
+                { name: '🛠️ وضع الصيانة', value: `${onoff(s.maintenanceEnabled)}`, inline: true },
+                { name: '💬 رسالة الصيانة', value: s.maintenanceMessage ? String(s.maintenanceMessage).slice(0, 150) : 'افتراضية', inline: true },
+                { name: '🔢 بداية رقم التذاكر', value: `**${s.ticketNumberStart}**`, inline: true }
+            )
+            .setFooter({ text: `الإصدار: ${version}` })
+            .setTimestamp();
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('ticket_settings_maintenance')
+                .setLabel(`🛠️ وضع الصيانة: ${onoff(s.maintenanceEnabled)}`)
+                .setStyle(toggleStyle(s.maintenanceEnabled)),
+            new ButtonBuilder().setCustomId('ticket_settings_maintenance_msg').setLabel('💬 رسالة الصيانة').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('ticket_settings_number_start').setLabel('🔢 بداية الترقيم').setStyle(ButtonStyle.Primary)
+        );
+        return { embeds: [embed], components: [row, back] };
+    }
+
+    if (catId === 'work_hours') {
+        const embed = new EmbedBuilder()
+            .setColor(COLORS.main)
+            .setTitle('🌙 ساعات العمل')
+            .setDescription('خارج النطاق المحدد يُمنع فتح التذاكر (يدعم النطاق الليلي الممتد).')
+            .addFields(
+                { name: '🔄 الحالة', value: `${onoff(s.workHoursEnabled)}`, inline: true },
+                { name: '🌅 ساعة البداية', value: `**${String(s.workHoursStart).padStart(2, '0')}:00**`, inline: true },
+                { name: '🌇 ساعة النهاية', value: `**${String(s.workHoursEnd).padStart(2, '0')}:00**`, inline: true }
+            )
+            .setFooter({ text: `الإصدار: ${version}` })
+            .setTimestamp();
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('ticket_settings_work_hours')
+                .setLabel(`🌙 ساعات العمل: ${onoff(s.workHoursEnabled)}`)
+                .setStyle(toggleStyle(s.workHoursEnabled)),
+            new ButtonBuilder().setCustomId('ticket_settings_work_start').setLabel('🌅 ساعة البداية').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('ticket_settings_work_end').setLabel('🌇 ساعة النهاية').setStyle(ButtonStyle.Primary)
+        );
+        return { embeds: [embed], components: [row, back] };
+    }
+
+    return null;
+}
 function buildBlacklistPage() {
     const s = getTicketSettings();
     const blocked = (s.blockedUsers || []).slice(0, 20);
@@ -353,6 +453,8 @@ module.exports = {
     buildMainDashboard,
     buildSubPanel,
     buildTicketSettingsPage,
+    buildTicketSettingsCategory,
+    buildPageForSettings,
     buildBlacklistPage,
     buildRatingSettingsPage,
 };

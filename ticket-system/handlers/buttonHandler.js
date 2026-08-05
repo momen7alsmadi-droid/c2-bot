@@ -32,7 +32,7 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder } = require('discord.js');
 const { reportError } = require('../../src/utils/errorLogger');
 const { safeDeferUpdate } = require('../utils/interactionGuard');
-const { buildMainDashboard, buildSubPanel, buildTicketSettingsPage, buildBlacklistPage, buildRatingSettingsPage } = require('./dashboardBuilder');
+const { buildMainDashboard, buildSubPanel, buildTicketSettingsPage, buildTicketSettingsCategory, buildPageForSettings, buildBlacklistPage, buildRatingSettingsPage } = require('./dashboardBuilder');
 const { buildPanelSettings } = require('./panelSettingsBuilder');
 const {
     buildCreatePanelModal,
@@ -96,6 +96,13 @@ async function handleTicketButton(interaction) {
         'ticket_settings_auto_close_idle',
         'ticket_settings_auto_close_grace',
         'ticket_settings_auto_close_action',
+        'ticket_settings_cat_limits',
+        'ticket_settings_cat_auto_close',
+        'ticket_settings_cat_delete',
+        'ticket_settings_cat_maintenance',
+        'ticket_settings_cat_work_hours',
+        'ticket_settings_cat_blacklist',
+        'ticket_settings_cat_rating',
         'ticket_settings_delete_countdown',
         'ticket_settings_number_start',
         'ticket_settings_archive',
@@ -186,7 +193,8 @@ async function handleTicketButton(interaction) {
             const settings = getTicketSettings();
             const key = TOGGLE_MAP[interaction.customId];
             updateTicketSettings({ [key]: settings[key] ? 0 : 1 });
-            await interaction.editReply(buildTicketSettingsPage());
+            // نعيد بناء صفحة التصنيف الذي يخص المفتاح (وليس صفحة التصنيفات دائماً)
+            await interaction.editReply(buildPageForSettings([key]));
             return;
         }
 
@@ -197,13 +205,25 @@ async function handleTicketButton(interaction) {
             updateTicketSettings({
                 autoCloseAction: settings.autoCloseAction === 'delete' ? 'lock' : 'delete',
             });
-            await interaction.editReply(buildTicketSettingsPage());
+            await interaction.editReply(buildTicketSettingsCategory('auto_close'));
             return;
         }
 
         // ---------------------------------------------------
-        // صفحة قائمة الحظر + الإضافة + الرجوع للإعدادات
+        // فتح تصنيف من صفحة التصنيفات (نفس اللوحة — بدون رسالة جديدة)
         // ---------------------------------------------------
+        if (interaction.customId.startsWith('ticket_settings_cat_')) {
+            const catId = interaction.customId.replace('ticket_settings_cat_', '');
+            if (catId === 'blacklist') {
+                await interaction.update(buildBlacklistPage());
+            } else if (catId === 'rating') {
+                await interaction.update(buildRatingSettingsPage());
+            } else {
+                const page = buildTicketSettingsCategory(catId);
+                if (page) await interaction.update(page);
+            }
+            return;
+        }
         if (interaction.customId === 'ticket_settings_blacklist') {
             await interaction.update(buildBlacklistPage());
             return;
