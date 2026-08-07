@@ -179,19 +179,16 @@ function buildWelcomeMessageModal(panel) {
         .setMaxLength(500)
         .setRequired(false);
 
-    const hintInput = new TextInputBuilder()
-        .setCustomId('welcome_hint')
-        .setLabel('📋 كل المتغيرات المدعومة (متغير + شرح بسيط)')
-        .setStyle(TextInputStyle.Paragraph)
-        .setValue(VARIABLES_HINT)
-        .setRequired(false);
-
+    // ⚠️ ديسكورد: كل صف في النافذة المنبثقة يقبل حقل إدخال واحد فقط
+    // (وضع حقلين في صف واحد = COMPONENT_LAYOUT_WIDTH_EXCEEDED)
+    // والحد الأقصى 5 صفوف — لذلك أُزيل صف "قائمة المتغيرات" من هنا
+    // (ما زالت متوفرة في نافذتي إنشاء/تعديل التكت)
     modal.addComponents(
         new ActionRowBuilder().addComponents(contentInput),
         new ActionRowBuilder().addComponents(titleInput),
         new ActionRowBuilder().addComponents(descInput),
-        new ActionRowBuilder().addComponents(colorInput, imageInput),
-        new ActionRowBuilder().addComponents(hintInput)
+        new ActionRowBuilder().addComponents(colorInput),
+        new ActionRowBuilder().addComponents(imageInput)
     );
 
     return modal;
@@ -255,19 +252,16 @@ function buildPanelMessageModal(panel) {
         .setMaxLength(500)
         .setRequired(false);
 
-    const hintInput = new TextInputBuilder()
-        .setCustomId('panel_message_hint')
-        .setLabel('📋 كل المتغيرات المدعومة (متغير + شرح بسيط)')
-        .setStyle(TextInputStyle.Paragraph)
-        .setValue(VARIABLES_HINT)
-        .setRequired(false);
-
+    // ⚠️ ديسكورد: كل صف في النافذة المنبثقة يقبل حقل إدخال واحد فقط
+    // (وضع حقلين في صف واحد = COMPONENT_LAYOUT_WIDTH_EXCEEDED)
+    // والحد الأقصى 5 صفوف — لذلك أُزيل صف "قائمة المتغيرات" من هنا
+    // (ما زالت متوفرة في نافذتي إنشاء/تعديل التكت)
     modal.addComponents(
         new ActionRowBuilder().addComponents(titleInput),
         new ActionRowBuilder().addComponents(descInput),
-        new ActionRowBuilder().addComponents(footerInput, colorInput),
-        new ActionRowBuilder().addComponents(imageInput),
-        new ActionRowBuilder().addComponents(hintInput)
+        new ActionRowBuilder().addComponents(footerInput),
+        new ActionRowBuilder().addComponents(colorInput),
+        new ActionRowBuilder().addComponents(imageInput)
     );
 
     return modal;
