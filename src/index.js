@@ -46,6 +46,13 @@ const { initCooldownStore } = require('../ticket-system/database/ticketCooldownS
 const { initCounterStore } = require('../ticket-system/database/ticketCounterStore');
 const { initStatsStore, loadStatsFromMongo, syncStatsToMongo } = require('../ticket-system/database/ticketStatsStore');
 const { startTicketMaintenance } = require('../ticket-system/handlers/ticketAutoClose');
+const {
+  handleStaffWeekCommand,
+  handleStaffWeekInteraction,
+  handleStaffWeekSelect,
+  handleStaffWeekModal,
+  startStaffOfWeekScheduler,
+} = require('../ticket-system/handlers/staffWeekPanel');
 const { handleUserSelectMenu } = require('../ticket-system/handlers/userSelectHandler');
 const { handleStatsUserSelect } = require('../ticket-system/handlers/ticketStatsBuilder');
 const { handleRatingButton, handleNoteButton, handleNoteModal } = require('../ticket-system/handlers/ticketRatingHandler');
@@ -376,6 +383,9 @@ ID: ${guild.id}
     // تشغيل الصيانة التلقائية للتذاكر (إغلاق الخمول + مهلة الستاف + الحذف التلقائي)
     startTicketMaintenance(client);
 
+    // تشغيل مجدول 🏆 إداري الأسبوع (فحص كل دقيقة بتوقيت الأردن)
+    startStaffOfWeekScheduler(client);
+
     // إشعارات التحديث: عند كل إصدار جديد يُرسل الملخص الكامل + تأكيد النجاح
     // إلى روم الأخطاء المحدد (بعد 5 ثوانٍ حتى تكتمل مزامنة القنوات)
     setTimeout(async () => {
@@ -515,9 +525,11 @@ ID: ${guild.id}
         const login = recordDailyLogin(message.author.id);
         if (login.isNew) {
           const { version } = require('../package.json');
-          const todayAr = new Date().toLocaleDateString('ar-EG', {
+          // التاريخ بتوقيت الأردن (نفس الأساس الذي يُسجَّل به يوم الدخول)
+          const todayAr = new Intl.DateTimeFormat('ar-EG', {
+            timeZone: 'Asia/Amman',
             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-          });
+          }).format(new Date());
           const embed = new EmbedBuilder()
             .setColor(0x5865F2)
             .setTitle('✅ تم تسجيل دخولك اليوم')
@@ -648,6 +660,9 @@ client.on('interactionCreate', async (interaction) => {
         await handleAutoReplyInteraction(interaction);
       } else if (interaction.customId.startsWith('sb_')) {
         await handleStarboardInteraction(interaction);
+      } else if (interaction.customId.startsWith('sw_')) {
+        // قوائم لوحة إداري الأسبوع (يوم الإرسال / روم الإرسال)
+        await handleStaffWeekSelect(interaction);
       } else if (interaction.customId.startsWith('adm_board_')) {
         await handleBoardInteraction(interaction);
       } else if (interaction.customId.startsWith('adm_')) {
@@ -735,6 +750,7 @@ async function handleSlashCommand(interaction) {
     case 'لوحة_النجوم': return handleStarboardMain(interaction);
     case 'اعدادات_لوحة_الإدارة': return handleAdminPanelMain(interaction);
     case 'لوحة_الإدارة': return handleBoardMain(interaction);
+    case 'اداري_الأسبوع': return handleStaffWeekCommand(interaction);
     case 'تغيير-اسم-البوت': return handleBotName(interaction);
     case 'تغيير-صورة-البوت': return handleBotAvatar(interaction);
     case 'ticket-setup': return ticketSetupCmd.execute(interaction);
@@ -832,6 +848,9 @@ async function handleButton(interaction) {
   if (prefix === 'rr') {
     return handleReactInteraction(interaction);
   }
+
+  // أزرار لوحة إداري الأسبوع (تفعيل/روم/وقت/رسالة/معاينة/رجوع)
+  if (id.startsWith('sw_')) return handleStaffWeekInteraction(interaction);
 
   // أزرار نظام لوحة النجوم
   if (prefix === 'sb') {

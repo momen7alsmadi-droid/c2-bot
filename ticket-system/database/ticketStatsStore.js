@@ -21,6 +21,21 @@ const { reportError } = require('../../src/utils/errorLogger');
 
 const DB_PATH = path.join(__dirname, '..', 'data', 'ticket-stats.json');
 
+/**
+ * تاريخ اليوم بتوقيت الأردن (Asia/Amman) بصيغة YYYY-MM-DD.
+ * أساس نظام تسجيل الدخول اليومي وكل المفاتيح اليومية — حتى يطابق
+ * اليومُ المحلي للمستخدمين اليومَ الذي يعدّه البوت (لا UTC).
+ * (قبل هذا الإصلاح كانت المفاتيح بـ UTC فكانت رسالتان في نفس اليوم
+ *  المحلي بعد منتصف الليل تُحسبان يومين — تسجيل دخول مزدوج)
+ */
+function ammanDateKey(ts = Date.now()) {
+    try {
+        return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Amman', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ts));
+    } catch {
+        return new Date(ts).toISOString().slice(0, 10);
+    }
+}
+
 /** كل 50 رسالة داخل التكتات = نقطة */
 const MESSAGES_PER_POINT = 50;
 
@@ -57,12 +72,46 @@ function initStatsStore() {
         const raw = JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
         if (raw && typeof raw.users === 'object') {
             state.users = raw.users;
+            cleanupDuplicateLoginData(); // إصلاح أي تسجيل دخول مكرر قديم
         }
     } catch (err) {
         console.error('[ticketStats] فشل استعادة الإحصائيات:', err.message);
         reportError('TICKET_STATS_LOAD', 'stats-restore', err);
         state.users = {};
     }
+}
+
+/**
+ * تنظيف البيانات المكررة (إصلاح ثغرة تسجيل الدخول المزدوج القديمة):
+ *   1) loginDays: إزالة أي تاريخ مكرر (نفس اليوم مرتين)
+ *   2) pointsLog: إزالة نقاط 'login' المكررة لنفس اليوم بالأردن
+ */
+function cleanupDuplicateLoginData() {
+    let cleaned = false;
+    for (const u of Object.values(state.users)) {
+        if (u && Array.isArray(u.loginDays)) {
+            const dedup = Array.from(new Set(u.loginDays));
+            if (dedup.length !== u.loginDays.length) {
+                u.loginDays = dedup;
+                cleaned = true;
+            }
+        }
+        if (u && Array.isArray(u.pointsLog)) {
+            const seenDays = new Set();
+            const filtered = u.pointsLog.filter(e => {
+                if (!e || e.reason !== 'login') return true;
+                const key = ammanDateKey(e.at);
+                if (seenDays.has(key)) return false;
+                seenDays.add(key);
+                return true;
+            });
+            if (filtered.length !== u.pointsLog.length) {
+                u.pointsLog = filtered;
+                cleaned = true;
+            }
+        }
+    }
+    if (cleaned) persist();
 }
 
 function ensureUser(userId) {
@@ -117,12 +166,16 @@ const LOGIN_POINTS_PER_DAY = 3;
 /**
  * تسجيل دخول يومي — أول رسالة من المستخدم في اليوم الجديد:
  * يُضاف اليوم لقائمة أيامه ويحصل على نقاط نشاط يومي (مرة واحدة في اليوم).
+ * التاريخ الافتراضي بتوقيت الأردن (Asia/Amman) وليس UTC — حتى لا يحصل
+ * المستخدم على تسجيلين دخول لنفس يومه المحلي بعد منتصف الليل.
  * @returns {{ isNew: Boolean, days: Number, points: Number }}
  */
-function recordDailyLogin(userId, date = new Date().toISOString().slice(0, 10)) {
+function recordDailyLogin(userId, date = ammanDateKey()) {
     if (!userId) return { isNew: false, days: 0, points: 0 };
     const raw = ensureUser(userId);
-    const days = Array.isArray(raw.loginDays) ? raw.loginDays : (raw.loginDays = []);
+    // أمان إضافي: نزيل أي تكرار من القائمة (حتى لو كانت البيانات القديمة مكررة)
+    const days = Array.from(new Set(Array.isArray(raw.loginDays) ? raw.loginDays : []));
+    raw.loginDays = days;
     if (days.includes(date)) return { isNew: false, days: days.length, points: 0 };
     days.push(date);
     pushPoints(userId, LOGIN_POINTS_PER_DAY, 'login');
@@ -208,7 +261,7 @@ function commitTicketStats(session) {
 
     const claimer = session.claimedBy;
     const counts = session.messageCounts || {};
-    const dayKey = new Date().toISOString().slice(0, 10);
+    const dayKey = ammanDateKey();
 
     // 1) رسائل كل المشاركين (دفعة واحدة) + اليومي + أطول تكت + آخر تواجد
     for (const [uid, count] of Object.entries(counts)) {
