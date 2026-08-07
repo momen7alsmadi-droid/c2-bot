@@ -76,6 +76,36 @@ async function syncJsonToMongo() {
   console.log(`✅ تمت مزامنة ${synced}/${names.length} تفاعل`);
 }
 
+/**
+ * استعادة التفاعلات من MongoDB إلى ملف JSON عند الإقلاع
+ * (حماية من مسح القرص المؤقت) — تُضيف الناقص فقط ولا تستبدل المحلي.
+ * @returns {Promise<Number>} عدد التفاعلات المستعادة
+ */
+async function loadReactsFromMongo() {
+  if (!isMongoReady()) return 0;
+  try {
+    const mongoData = await ReactModel.find().lean();
+    if (!mongoData || mongoData.length === 0) return 0;
+    const json = readJSON();
+    let restored = 0;
+    for (const item of mongoData) {
+      const key = item && item.name;
+      if (!key || typeof key !== 'string') continue; // سجل تالف بلا اسم
+      if (json[key]) continue; // لا نستبدل المحلي
+      json[key] = { ...item, _id: key };
+      restored++;
+    }
+    if (restored > 0) {
+      objToJson(json);
+      console.log(`🔄 reactions: تمت استعادة ${restored} تفاعل من MongoDB → ${Object.keys(json).slice(0, 5).join(', ')}${Object.keys(json).length > 5 ? '...' : ''}`);
+    }
+    return restored;
+  } catch (e) {
+    console.error('❌ reaction loadFromMongo:', e.message);
+    return 0;
+  }
+}
+
 // ========== مساعدة ==========
 
 async function writeToMongo(name, data) {
@@ -198,7 +228,7 @@ async function getReactsList(guildId) {
 }
 
 module.exports = {
-  initReactModel, syncJsonToMongo,
+  initReactModel, syncJsonToMongo, loadReactsFromMongo,
   getAllReacts, getReact, getReactsList, getEnabledReacts,
   createReact, updateReact, deleteReact, incrementReactCount
 };

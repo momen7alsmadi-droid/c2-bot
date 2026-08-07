@@ -57,8 +57,8 @@ const { handleTicketBoardTrigger } = require('../ticket-system/handlers/ticketBo
 const { rebuildImageLibrary } = require('../ticket-system/utils/imageLibrary');
 
 const { initStarboardModels, ensureStarboardLoaded } = require('./utils/starboardStorage');
-const { initAutoReplyModel, syncJsonToMongo: syncAr } = require('./utils/autoReplyStorage');
-const { initReactModel, syncJsonToMongo: syncRr } = require('./utils/reactionReplyStorage');
+const { initAutoReplyModel, syncJsonToMongo: syncAr, loadRepliesFromMongo } = require('./utils/autoReplyStorage');
+const { initReactModel, syncJsonToMongo: syncRr, loadReactsFromMongo } = require('./utils/reactionReplyStorage');
 const {
     initPanelsModel,
     syncPanelsToMongo: syncPanels,
@@ -279,6 +279,10 @@ async function initialize() {
       const { syncJsonToMongo } = require('./utils/embedStorage');
       await syncJsonToMongo();
     }
+    // استعادة الردود/التفاعلات من MongoDB → JSON (حماية من مسح القرص المؤقت)
+    // حتى لو انقطع الاتصال لاحقاً تبقى البيانات متوفرة في الملف المحلي
+    await loadRepliesFromMongo();
+    await loadReactsFromMongo();
     if (arReady) { await syncAr(); }
     if (rrReady) { await syncRr(); }
     if (admReady) { await syncAdminConfigFromMongo(); }
@@ -301,6 +305,8 @@ async function initialize() {
         await ensureConfigLoaded();
         const { syncJsonToMongo: syncEmbeds } = require('./utils/embedStorage');
         await syncEmbeds();
+        await loadRepliesFromMongo();
+        await loadReactsFromMongo();
         await syncAr();
         await syncRr();
         await loadPanels();
@@ -440,12 +446,27 @@ ID: ${guild.id}
 
   // معالج الرسائل (messageCreate) - مع فترة سماح عند بدء التشغيل
   let startupGrace = true;
+  // تحذير لمرة واحدة فقط عند اكتشاف أن محتوى الرسائل يصل فارغاً
+  // (يدل على أن MESSAGE CONTENT INTENT غير مفعّل في Developer Portal)
+  let warnedAboutContentIntent = false;
   setTimeout(() => { startupGrace = false; console.log('👂 فترة سماح بدء التشغيل انتهت — جاهز لاستقبال الرسائل'); }, 6000);
 
   client.on('messageCreate', async (message) => {
     if (startupGrace) {
       console.log('⏳ فترة السماح... تجاهل رسالة', message.id);
       return;
+    }
+    // ⚠️ تشخيص مهم: إذا وصلت رسائل من أعضاء بمحتوى فارغ، فهذا يعني أن
+    // MESSAGE CONTENT INTENT غير مفعّل في Developer Portal
+    // ← الردود التلقائية والتفاعلات لن تعمل أبداً مهما كانت البيانات موجودة
+    if (!message.author.bot && !message.system && !message.content) {
+      if (!warnedAboutContentIntent) {
+        warnedAboutContentIntent = true;
+        console.warn('⚠️⚠️ message.content فارغ لأول رسالة عضو!');
+        console.warn('   السبب الأكثر شيوعاً: MESSAGE CONTENT INTENT غير مفعّل في Discord Developer Portal.');
+        console.warn('   الحل: Developer Portal → تطبيقك → Bot → Privileged Gateway Intents → فعّل MESSAGE CONTENT INTENT ثم أعد تشغيل البوت.');
+        console.warn('   حتى ذلك الحين: الردود التلقائية والتفاعلات لن تعمل في أي سيرفر.');
+      }
     }
     try {
       // تحديث نشاط التذكرة + عدّ رسائل المشاركين في الذاكرة فقط
@@ -484,7 +505,7 @@ ID: ${guild.id}
       // 📅 تسجيل دخول يومي: أول رسالة من الشخص في اليوم الجديد = +3 نقاط
       // (في أي شات يراه البوت — مثل نظام تسجيل الدخول، مرة واحدة في اليوم)
       if (!message.author.bot && !message.system) {
-        const { recordDailyLogin } = require('./ticket-system/database/ticketStatsStore');
+        const { recordDailyLogin } = require('../ticket-system/database/ticketStatsStore');
         const login = recordDailyLogin(message.author.id);
         if (login.isNew) {
           const { version } = require('../package.json');

@@ -65,6 +65,8 @@ async function canSendReply(messageId, replyName) {
 // أنظمة منع التكرار:
 // 1- سجل لمنع معالجة نفس الرسالة مرتين
 const processedMessages = new Set();
+// آخر وقت ظهر فيه تحذير "لا توجد ردود" (لتخفيف التكرار في اللوق)
+let lastEmptyRepliesWarn = 0;
 // 2- كولدون لكل رد (ثانية بين كل إرسال)
 const replyCooldowns = new Map();
 const COOLDOWN_MS = 2000;
@@ -1195,7 +1197,16 @@ async function handleMessage(message) {
   setTimeout(() => processedMessages.delete(msgKey), 10000);
 
   const replies = await getEnabledReplies();
-  if (replies.length === 0) return;
+  if (replies.length === 0) {
+    // تحذير مخفَّف (مرة كل دقيقتين كحد أقصى) حتى لا تكون المشكلة صامتة
+    const now = Date.now();
+    if (now - (lastEmptyRepliesWarn || 0) > 120000) {
+      lastEmptyRepliesWarn = now;
+      console.warn('⚠️ autoReply: لا توجد ردود مفعلة! (MongoDB غير متصل والملف المحلي فارغ، أو الكلمات المفتاحية غير مطابقة)');
+      console.warn('   تحقق من: 1) اتصال MongoDB  2) MESSAGE CONTENT INTENT مفعّل  3) كلمة الزناد مطابقة لنوع المطابقة (exact = النص كاملاً)');
+    }
+    return;
+  }
 
   const content = message.content;
   const member = message.member;

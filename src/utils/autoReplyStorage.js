@@ -103,6 +103,37 @@ async function syncJsonToMongo() {
   console.log(`✅ تمت مزامنة ${synced}/${names.length} رد`);
 }
 
+/**
+ * استعادة الردود من MongoDB إلى ملف JSON عند الإقلاع
+ * (حماية من مسح القرص المؤقت — مثل loadPanels للبنلات)
+ * لا تستبدل أي رد موجود محلياً، تُضيف الناقص فقط.
+ * @returns {Promise<Number>} عدد الردود المستعادة
+ */
+async function loadRepliesFromMongo() {
+  if (!isMongoReady()) return 0;
+  try {
+    const mongoData = await AutoReplyModel.find().lean();
+    if (!mongoData || mongoData.length === 0) return 0;
+    const json = readJSON();
+    let restored = 0;
+    for (const item of mongoData) {
+      const key = item && item.name;
+      if (!key || typeof key !== 'string') continue; // سجل تالف بلا اسم
+      if (json[key]) continue; // لا نستبدل المحلي
+      json[key] = { ...item, _id: key };
+      restored++;
+    }
+    if (restored > 0) {
+      objToJson(json);
+      console.log(`🔄 autoReply: تمت استعادة ${restored} رد من MongoDB → ${Object.keys(json).slice(0, 5).join(', ')}${Object.keys(json).length > 5 ? '...' : ''}`);
+    }
+    return restored;
+  } catch (e) {
+    console.error('❌ autoReply loadFromMongo:', e.message);
+    return 0;
+  }
+}
+
 // ========== دوال مساعدة ==========
 
 async function writeToMongo(name, data) {
@@ -261,7 +292,7 @@ async function getRepliesList(guildId) {
 }
 
 module.exports = {
-  initAutoReplyModel, syncJsonToMongo,
+  initAutoReplyModel, syncJsonToMongo, loadRepliesFromMongo,
   getAllReplies, getReply, getRepliesList, getEnabledReplies,
   createReply, updateReply, deleteReply, incrementUseCount
 };
