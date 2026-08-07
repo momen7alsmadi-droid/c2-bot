@@ -2,6 +2,7 @@ const { EmbedBuilder } = require('discord.js');
 const { COLORS } = require('../utils/colors');
 const { version } = require('../../package.json');
 const { reportError } = require('../utils/errorLogger');
+const { ensureGuildMembers } = require('../utils/helpers');
 
 /**
  * /broadcast - إرسال رسالة خاصة (DM) إلى أعضاء السيرفر
@@ -30,9 +31,9 @@ async function handleBroadcast(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
   try {
-    // جلب كل أعضاء السيرفر
+    // جلب كل أعضاء السيرفر (بأمان — مقيّد بمرة/دقيقة)
     const guild = interaction.guild;
-    await guild.members.fetch();
+    await ensureGuildMembers(guild);
 
     let members;
     if (targetRole) {

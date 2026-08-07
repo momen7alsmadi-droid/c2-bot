@@ -8,7 +8,7 @@ const {
 } = require('discord.js');
 const { version } = require('../../package.json');
 const { getAdminConfig } = require('../utils/adminStorage');
-const { sendLog } = require('../utils/helpers');
+const { sendLog, ensureGuildMembers, ensureGuildRoles } = require('../utils/helpers');
 const { reportError } = require('../utils/errorLogger');
 const { handleMyStats, handleTopStats, handleTopNav, handlePickPerson, handleDetailStats, handleDetailStatsBack, handleTeamStats, handleTeamDetail } = require('../../ticket-system/handlers/ticketStatsBuilder');
 const { ackComponent, deliverComponent } = require('../../ticket-system/utils/interactionSafe');
@@ -57,9 +57,9 @@ function isHighAdmin(member, cfg) {
 /** جلب جميع أعضاء الإدارة الفعليين (بدون الرتب المستثناة) */
 async function getAdminMembers(guild, cfg) {
   if (!guild) return [];
-  // نجلب كل الأعضاء والرولات أولاً لحل مشكلة الكاش الناقص
-  try { await guild.members.fetch(); } catch (e) { console.error('❌ getAdminMembers fetch members:', e.message); reportError('HANDLER_ADMIN_BOARD', 'fetch-members', e); }
-  try { await guild.roles.fetch(); } catch (e) { console.error('❌ getAdminMembers fetch roles:', e.message); reportError('HANDLER_ADMIN_BOARD', 'fetch-roles', e); }
+  // نجلب كل الأعضاء والرولات بأمان (مقيّد بمرة/دقيقة — يمنع تحديد Gateway opcode 8)
+  await ensureGuildMembers(guild);
+  await ensureGuildRoles(guild);
   const hierarchyRoles = getHierarchyRolesInRange(guild, cfg);
   const hierarchyRoleIds = hierarchyRoles.map(r => r.id);
 
