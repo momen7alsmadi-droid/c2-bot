@@ -47,6 +47,7 @@ async function connectDatabase() {
 
     mongoose.connection.on('error', (err) => {
       console.error('❌ MongoDB Error:', err);
+      reportError('STORAGE', 'mongo-connection-error', err);
       dbConnected = false;
     });
     mongoose.connection.on('disconnected', () => {
@@ -61,6 +62,7 @@ async function connectDatabase() {
     return true;
   } catch (err) {
     console.error('❌ MongoDB Error:', err);
+    reportError('STORAGE', 'mongo-connect-failed', err);
     console.log('📦 التخزين عبر JSON فقط (بياناتك قد تختفي عند إعادة التشغيل).');
     return false;
   }

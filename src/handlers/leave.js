@@ -6,6 +6,7 @@ const {
 const { getConfig, saveConfig, getLeaves, saveLeaves } = require('../utils/storage');
 const { parseDurationToDays } = require('../utils/duration');
 const { hasRole, setFieldValue, sendLog } = require('../utils/helpers');
+const { reportError } = require('../utils/errorLogger');
 
 const CHECK_INTERVAL_MS = 60 * 1000; // فحص الاجازات المنتهية كل دقيقة
 
@@ -208,6 +209,7 @@ async function checkExpiredLeaves(client) {
       }
     } catch (e) {
       console.error('خطأ أثناء إرجاع رتب العضو بعد انتهاء الاجازة:', e);
+      reportError('HANDLER_LEAVE', 'expired-leaves', e);
     }
 
     delete leaves[userId];

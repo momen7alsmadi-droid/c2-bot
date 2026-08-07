@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
+const { reportError } = require('./errorLogger');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -98,6 +99,7 @@ function readJSON(filePath, fallback) {
     return raw.trim() ? JSON.parse(raw) : fallback;
   } catch (e) {
     console.error(`فشل في قراءة الملف ${filePath}:`, e);
+    reportError('STORAGE', `read-file:${filePath}`, e);
     return fallback;
   }
 }
@@ -120,7 +122,7 @@ async function mongoSaveConfig(cfg) {
   if (!isMongoReady()) return;
   try {
     await ConfigModel.findByIdAndUpdate('main', { data: cfg }, { upsert: true });
-  } catch (e) { console.error('Mongo saveConfig error:', e); }
+  } catch (e) { console.error('Mongo saveConfig error:', e); reportError('STORAGE', 'mongo-save-config', e); }
 }
 
 function getConfig() {
@@ -192,7 +194,7 @@ async function mongoSaveLeaves(leaves) {
     // Remove deleted entries (those not in leaves object)
     const existingIds = Object.keys(leaves);
     await LeavesModel.deleteMany({ _id: { $nin: existingIds } });
-  } catch (e) { console.error('Mongo saveLeaves error:', e); }
+  } catch (e) { console.error('Mongo saveLeaves error:', e); reportError('STORAGE', 'mongo-save-leaves', e); }
 }
 
 function getLeaves() {
@@ -231,7 +233,7 @@ async function mongoSaveReports(reports) {
     if (ops.length) await ReportsModel.bulkWrite(ops);
     const existingIds = Object.keys(reports);
     await ReportsModel.deleteMany({ _id: { $nin: existingIds } });
-  } catch (e) { console.error('Mongo saveReports error:', e); }
+  } catch (e) { console.error('Mongo saveReports error:', e); reportError('STORAGE', 'mongo-save-reports', e); }
 }
 
 function getReports() {

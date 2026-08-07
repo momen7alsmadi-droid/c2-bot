@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 const { version } = require('../../package.json');
+const { reportError } = require('../utils/errorLogger');
 const { getLeaves, saveLeaves, getConfig, saveConfig } = require('../utils/storage');
 
 const DEV_BOT_ID = '1387331972094890036';
@@ -741,6 +742,7 @@ async function confirmDevSetupStore(interaction) {
     await interaction.editReply({ content: summary });
   } catch (err) {
     console.error('[dev_setup_store] حدث خطأ أثناء إعداد المتجر:', err);
+    reportError('HANDLER_MASTER_PANEL', 'dev-setup-store', err);
     await interaction.editReply({ content: `❌ حدث خطأ أثناء الإعداد: \`${err.message}\`` }).catch(() => {});
   } finally {
     // تحرير القفل دائماً حتى لو فشلت العملية

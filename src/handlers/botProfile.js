@@ -35,6 +35,7 @@ async function handleBotName(interaction) {
     return interaction.editReply({ embeds: [embed] });
   } catch (err) {
     console.error('[bot-name]', err.message);
+    reportError('HANDLER_BOT_PROFILE', 'bot-name', err);
     return interaction.editReply({
       content: `❌ فشل تغيير الاسم: ${err.message || 'خطأ غير معروف'} (ديسكورد يسمح بتغييرين في الساعة فقط)`,
     }).catch(() => {});
@@ -63,6 +64,7 @@ async function handleBotAvatar(interaction) {
     return interaction.editReply({ embeds: [embed] });
   } catch (err) {
     console.error('[bot-avatar]', err.message);
+    reportError('HANDLER_BOT_PROFILE', 'bot-avatar', err);
     return interaction.editReply({
       content: `❌ فشل تغيير الصورة: ${err.message || 'خطأ غير معروف'} (ديسكورد يسمح بتغييرين في الساعة فقط)`,
     }).catch(() => {});

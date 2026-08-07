@@ -4,6 +4,7 @@
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
+const { reportError } = require('./errorLogger');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -56,6 +57,7 @@ function readJSON() {
     return raw.trim() ? JSON.parse(raw) : { ...DEFAULT_CONFIG };
   } catch (e) {
     console.error('❌ adminStorage readJSON:', e.message);
+    reportError('STORAGE', 'admin-read-json', e);
     return { ...DEFAULT_CONFIG };
   }
 }
@@ -65,6 +67,7 @@ function writeJSON(data) {
     fs.writeFileSync(ADMIN_CONFIG_PATH, JSON.stringify(data, null, 2), 'utf8');
   } catch (e) {
     console.error('❌ adminStorage writeJSON:', e.message);
+    reportError('STORAGE', 'admin-write-json', e);
   }
 }
 
@@ -96,7 +99,7 @@ function saveAdminConfig(cfg) {
   if (isMongoReady()) {
     AdminConfigModel.findByIdAndUpdate('main', { data: clean }, { upsert: true })
       .then(() => {})
-      .catch(e => console.error('❌ adminStorage MongoDB save error:', e.message));
+      .catch(e => { console.error('❌ adminStorage MongoDB save error:', e.message); reportError('STORAGE', 'admin-mongo-save', e); });
   }
 }
 
@@ -111,6 +114,7 @@ async function syncAdminConfigFromMongo() {
     }
   } catch (e) {
     console.error('❌ adminStorage sync from MongoDB:', e.message);
+    reportError('STORAGE', 'admin-mongo-sync', e);
   }
   // Push local to MongoDB
   const local = readJSON();
@@ -119,6 +123,7 @@ async function syncAdminConfigFromMongo() {
     console.log('📦 admin → تم الدفع إلى MongoDB');
   } catch (e) {
     console.error('❌ adminStorage push to MongoDB:', e.message);
+    reportError('STORAGE', 'admin-mongo-push', e);
   }
 }
 

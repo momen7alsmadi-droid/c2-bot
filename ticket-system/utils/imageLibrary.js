@@ -19,6 +19,7 @@
 const fs = require('fs');
 const path = require('path');
 const { findOrCreateBank } = require('./imageStore');
+const { reportError } = require('../../src/utils/errorLogger');
 
 const LIB_PATH = path.join(__dirname, '..', 'data', 'image-library.json');
 
@@ -34,6 +35,7 @@ function readLibrary() {
         }
     } catch (err) {
         console.error('[imageLibrary] فشل قراءة المكتبة:', err.message);
+        reportError('STORAGE', 'image-library-read', err);
     }
     return {};
 }
@@ -47,6 +49,7 @@ function writeLibrary(lib) {
         fs.writeFileSync(LIB_PATH, JSON.stringify(lib, null, 2), 'utf-8');
     } catch (err) {
         console.error('[imageLibrary] فشل حفظ المكتبة:', err.message);
+        reportError('STORAGE', 'image-library-write', err);
     }
 }
 
@@ -137,6 +140,7 @@ async function rebuildImageLibrary(client) {
         if (added > 0) writeLibrary(lib);
     } catch (err) {
         console.error('[imageLibrary] فشل إعادة بناء المكتبة:', err.message);
+        reportError('STORAGE', 'image-library-rebuild', err);
     }
     return added;
 }

@@ -311,6 +311,7 @@ async function syncSessionsToMongo() {
         return all.length;
     } catch (e) {
         console.error('❌ sessions sync MongoDB:', e.message);
+        reportError('TICKET_STORE_SAVE', 'sessions-mongo-sync', e);
         return 0;
     }
 }
@@ -341,6 +342,7 @@ async function loadSessionsFromMongo() {
         return restored;
     } catch (e) {
         console.error('❌ sessions load MongoDB:', e.message);
+        reportError('TICKET_STORE_LOAD', 'sessions-mongo-load', e);
         return 0;
     }
 }
@@ -394,6 +396,7 @@ async function recoverTicketSession(channel) {
         return session;
     } catch (e) {
         console.error('[ticketStore] فشل استعادة الجلسة من الرسالة:', e.message);
+        reportError('TICKET_STORE_LOAD', 'session-from-message', e);
         return null;
     }
 }

@@ -305,6 +305,7 @@ async function backupSettingsToChannel(settings) {
         }
     } catch (e) {
         console.error('❌ ticketSettings backup:', e.message);
+        reportError('TICKET_SETTINGS_WRITE', 'settings-backup', e);
     }
 }
 
@@ -326,6 +327,7 @@ async function restoreSettingsFromChannel() {
         }
     } catch (e) {
         console.error('❌ ticketSettings channel restore:', e.message);
+        reportError('TICKET_SETTINGS_READ', 'settings-channel-restore', e);
     }
 }
 
@@ -340,6 +342,7 @@ async function writeSettingsToMongo(settings) {
         );
     } catch (e) {
         console.error('❌ ticketSettings MongoDB write:', e.message);
+        reportError('TICKET_SETTINGS_WRITE', 'settings-mongo-write', e);
     }
 }
 
@@ -355,6 +358,7 @@ async function loadSettingsFromMongo() {
         }
     } catch (e) {
         console.error('❌ ticketSettings MongoDB load:', e.message);
+        reportError('TICKET_SETTINGS_READ', 'settings-mongo-load', e);
     }
 }
 

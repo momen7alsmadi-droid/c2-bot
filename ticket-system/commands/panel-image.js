@@ -25,6 +25,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { storeImageInBank } = require('../utils/imageStore');
 const { addImage } = require('../utils/imageLibrary');
+const { reportError } = require('../../src/utils/errorLogger');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -84,6 +85,7 @@ module.exports = {
             });
         } catch (error) {
             console.error('[panel-image] حدث خطأ أثناء رفع الصورة:', error);
+            reportError('PANEL_IMAGE', 'upload', error);
             await interaction.editReply({
                 content: `❌ حدث خطأ أثناء رفع الصورة: \`${error.message}\``,
             });

@@ -268,6 +268,7 @@ async function handleTicketSelectMenu(interaction) {
                 previewEmbeds = buildPublicPanelMessage(panel).embeds;
             } catch (err) {
                 console.error('[selectMenuHandler] فشل بناء المعاينة:', err.message);
+                reportError('TICKET_SELECT', 'build-preview', err);
             }
 
             const backRow = new ActionRowBuilder().addComponents(
@@ -591,6 +592,7 @@ async function handleTicketSelectMenu(interaction) {
                 } catch (e) {
                     // إذا فشل فتح النافذة (تفاعل مستهلك مثلاً) نوجه المستخدم بدلاً من خطأ غامض
                     console.error('[selectMenuHandler] فشل فتح نافذة إضافة الخيار:', e.message);
+                    reportError('TICKET_SELECT', 'add-option-modal', e);
                     await interaction.reply({
                         content: '⚠️ تعذر فتح نافذة الإضافة. اختر الزر من القائمة مرة أخرى ثم أعد المحاولة.',
                         ephemeral: true,
@@ -719,6 +721,7 @@ async function handleTicketSelectMenu(interaction) {
 
             await opener.roles.add(option.roleId).catch(async err => {
                 console.error('[selectMenuHandler] فشل منح الرتبة:', err.message);
+                reportError('TICKET_ROLE_SELECT', 'grant-role', err);
                 // تنبيه خاص للمنفِّذ فقط
                 await interaction.followUp({
                     content: `❌ فشل منح الرتبة: \`${err.message}\``,

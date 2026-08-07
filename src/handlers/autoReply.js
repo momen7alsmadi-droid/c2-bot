@@ -5,6 +5,7 @@ const {
 } = require('discord.js');
 const { version } = require('../../package.json');
 const mongoose = require('mongoose');
+const { reportError } = require('../utils/errorLogger');
 const {
   createReply, updateReply, deleteReply, getReply,
   getAllReplies, getRepliesList, getEnabledReplies, incrementUseCount
@@ -30,6 +31,7 @@ function initDedup() {
       return true;
     } catch (e) {
       console.error('❌ dedup init error:', e.message);
+      reportError('HANDLER_AUTOREPLY', 'dedup-init', e);
       return false;
     }
   }
@@ -57,6 +59,7 @@ async function canSendReply(messageId, replyName) {
     }
     // خطأ آخر → نسمح احتياطاً
     console.error('❌ dedup error:', e.message);
+    reportError('HANDLER_AUTOREPLY', 'dedup-check', e);
     return true;
   }
 }
@@ -240,6 +243,7 @@ async function handleArCreateModal(interaction) {
     return showArControlPanel(interaction, name);
   } catch (e) {
     console.error('[Modal:ArCreate]', e);
+    reportError('HANDLER_AUTOREPLY', 'modal-create', e);
     try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch(_) {}
   }
 }
@@ -1350,6 +1354,7 @@ async function handleMessage(message) {
           }
         } catch (e) {
           console.error(`❌ autoReply send error:`, e.message);
+          reportError('HANDLER_AUTOREPLY', `send:${reply.name}`, e);
         }
       };
 
@@ -1363,6 +1368,7 @@ async function handleMessage(message) {
       console.log(`✅ autoReply: "${reply.trigger}" ← ${message.author.tag}`);
     } catch (e) {
       console.error(`❌ autoReply error for "${reply.name}":`, e.message);
+      reportError('HANDLER_AUTOREPLY', `match:${reply.name}`, e);
     }
 
     // ملاحظة: بدون break عشان كل الردود المطابقة تشتغل

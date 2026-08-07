@@ -9,6 +9,7 @@ const {
 const { version } = require('../../package.json');
 const { getAdminConfig } = require('../utils/adminStorage');
 const { sendLog } = require('../utils/helpers');
+const { reportError } = require('../utils/errorLogger');
 const { handleMyStats, handleTopStats, handleTopNav, handlePickPerson, handleDetailStats, handleDetailStatsBack, handleTeamStats, handleTeamDetail } = require('../../ticket-system/handlers/ticketStatsBuilder');
 const { ackComponent, deliverComponent } = require('../../ticket-system/utils/interactionSafe');
 
@@ -57,8 +58,8 @@ function isHighAdmin(member, cfg) {
 async function getAdminMembers(guild, cfg) {
   if (!guild) return [];
   // نجلب كل الأعضاء والرولات أولاً لحل مشكلة الكاش الناقص
-  try { await guild.members.fetch(); } catch (e) { console.error('❌ getAdminMembers fetch members:', e.message); }
-  try { await guild.roles.fetch(); } catch (e) { console.error('❌ getAdminMembers fetch roles:', e.message); }
+  try { await guild.members.fetch(); } catch (e) { console.error('❌ getAdminMembers fetch members:', e.message); reportError('HANDLER_ADMIN_BOARD', 'fetch-members', e); }
+  try { await guild.roles.fetch(); } catch (e) { console.error('❌ getAdminMembers fetch roles:', e.message); reportError('HANDLER_ADMIN_BOARD', 'fetch-roles', e); }
   const hierarchyRoles = getHierarchyRolesInRange(guild, cfg);
   const hierarchyRoleIds = hierarchyRoles.map(r => r.id);
 
@@ -711,6 +712,7 @@ async function executeAction(interaction, action, targetId) {
     }).catch(() => {});
   } catch (e) {
     console.error(`❌ executeAction ${action}:`, e.message);
+    reportError('HANDLER_ADMIN_BOARD', `executeAction:${action}`, e);
     return interaction.followUp({ content: `⚠️ فشل التنفيذ: ${e.message}`, ephemeral: true }).catch(() => {});
   }
 }

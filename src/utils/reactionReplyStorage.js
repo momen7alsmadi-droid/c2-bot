@@ -4,6 +4,7 @@
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
+const { reportError } = require('./errorLogger');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -42,11 +43,11 @@ function readJSON() {
     if (!fs.existsSync(REACT_PATH)) return {};
     const raw = fs.readFileSync(REACT_PATH, 'utf8');
     return raw.trim() ? JSON.parse(raw) : {};
-  } catch (e) { console.error('❌ reaction readJSON:', e.message); return {}; }
+  } catch (e) { console.error('❌ reaction readJSON:', e.message); reportError('STORAGE', 'reaction-read-json', e); return {}; }
 }
 
 function writeJSON(data) {
-  try { fs.writeFileSync(REACT_PATH, JSON.stringify(data, null, 2), 'utf8'); } catch (e) { console.error('❌ reaction writeJSON:', e.message); }
+  try { fs.writeFileSync(REACT_PATH, JSON.stringify(data, null, 2), 'utf8'); } catch (e) { console.error('❌ reaction writeJSON:', e.message); reportError('STORAGE', 'reaction-write-json', e); }
 }
 
 function objToJson(obj) { writeJSON(obj); }
@@ -71,7 +72,7 @@ async function syncJsonToMongo() {
   console.log(`🔄 مزامنة ${names.length} تفاعل من JSON إلى MongoDB...`);
   let synced = 0;
   for (const name of names) {
-    try { await ReactModel.findByIdAndUpdate(name, { $set: json[name] }, { upsert: true }); synced++; } catch (e) { console.error(`❌ فشل مزامنة ${name}:`, e.message); }
+    try { await ReactModel.findByIdAndUpdate(name, { $set: json[name] }, { upsert: true }); synced++; } catch (e) { console.error(`❌ فشل مزامنة ${name}:`, e.message); reportError('STORAGE', `reaction-mongo-sync:${name}`, e); }
   }
   console.log(`✅ تمت مزامنة ${synced}/${names.length} تفاعل`);
 }
@@ -102,6 +103,7 @@ async function loadReactsFromMongo() {
     return restored;
   } catch (e) {
     console.error('❌ reaction loadFromMongo:', e.message);
+    reportError('STORAGE', 'reaction-mongo-load', e);
     return 0;
   }
 }
@@ -114,7 +116,7 @@ async function writeToMongo(name, data) {
     const { _id, ...safeData } = data || {};
     safeData.updatedAt = new Date();
     return await ReactModel.findByIdAndUpdate(name, { $set: safeData }, { upsert: true, new: true }).lean();
-  } catch (e) { console.error(`❌ reaction MongoDB error:`, e.message); return null; }
+  } catch (e) { console.error(`❌ reaction MongoDB error:`, e.message); reportError('STORAGE', 'reaction-mongo-save', e); return null; }
 }
 
 async function deleteFromMongo(name) {
@@ -141,7 +143,7 @@ async function getAllReacts() {
         objToJson(jsonData);
         return Object.values(jsonData);
       }
-    } catch (e) { console.error('❌ reaction getAll MongoDB:', e.message); }
+    } catch (e) { console.error('❌ reaction getAll MongoDB:', e.message); reportError('STORAGE', 'reaction-mongo-getall', e); }
   }
 
   return jsonReacts;

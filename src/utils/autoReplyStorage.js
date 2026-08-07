@@ -5,6 +5,7 @@
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
+const { reportError } = require('./errorLogger');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -52,6 +53,7 @@ function readJSON() {
     return raw.trim() ? JSON.parse(raw) : {};
   } catch (e) {
     console.error('❌ autoReply readJSON:', e.message);
+    reportError('STORAGE', 'autoreply-read-json', e);
     return {};
   }
 }
@@ -61,6 +63,7 @@ function writeJSON(data) {
     fs.writeFileSync(AUTOREPLY_PATH, JSON.stringify(data, null, 2), 'utf8');
   } catch (e) {
     console.error('❌ autoReply writeJSON:', e.message);
+    reportError('STORAGE', 'autoreply-write-json', e);
   }
 }
 
@@ -98,7 +101,7 @@ async function syncJsonToMongo() {
     try {
       await AutoReplyModel.findByIdAndUpdate(name, { $set: json[name] }, { upsert: true });
       synced++;
-    } catch (e) { console.error(`❌ فشل مزامنة ${name}:`, e.message); }
+    } catch (e) { console.error(`❌ فشل مزامنة ${name}:`, e.message); reportError('STORAGE', `autoreply-mongo-sync:${name}`, e); }
   }
   console.log(`✅ تمت مزامنة ${synced}/${names.length} رد`);
 }
@@ -130,6 +133,7 @@ async function loadRepliesFromMongo() {
     return restored;
   } catch (e) {
     console.error('❌ autoReply loadFromMongo:', e.message);
+    reportError('STORAGE', 'autoreply-mongo-load', e);
     return 0;
   }
 }
@@ -149,6 +153,7 @@ async function writeToMongo(name, data) {
     ).lean();
   } catch (e) {
     console.error(`❌ autoReply MongoDB error:`, e.message);
+    reportError('STORAGE', 'autoreply-mongo-save', e);
     return null;
   }
 }
@@ -179,7 +184,7 @@ async function getAllReplies() {
         objToJson(jsonData);
         return Object.values(jsonData);
       }
-    } catch (e) { console.error('❌ autoReply getAll MongoDB:', e.message); }
+    } catch (e) { console.error('❌ autoReply getAll MongoDB:', e.message); reportError('STORAGE', 'autoreply-mongo-getall', e); }
   }
 
   return jsonReplies;

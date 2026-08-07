@@ -21,6 +21,7 @@
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
+const { reportError } = require('../../src/utils/errorLogger');
 
 // مسار ملف قاعدة البيانات (المصدر المتزامن)
 const DB_PATH = path.join(__dirname, '..', 'data', 'panels.json');
@@ -152,6 +153,7 @@ function readDB() {
         return data;
     } catch (err) {
         console.error('[panelsDB] خطأ في قراءة ملف قاعدة البيانات، سيتم استخدام هيكل فارغ:', err);
+        reportError('TICKET_SETTINGS_READ', 'panels-db-read', err);
         return { panels: [] };
     }
 }
@@ -271,6 +273,7 @@ async function writePanelToMongo(panel) {
         );
     } catch (e) {
         console.error(`❌ panels MongoDB write (${panel?.name}):`, e.message);
+        reportError('TICKET_SETTINGS_WRITE', `panels-mongo-write:${panel?.name}`, e);
     }
 }
 
@@ -281,6 +284,7 @@ async function deletePanelFromMongo(name) {
         await PanelModel.findByIdAndDelete(name);
     } catch (e) {
         console.error(`❌ panels MongoDB delete (${name}):`, e.message);
+        reportError('TICKET_SETTINGS_WRITE', `panels-mongo-delete:${name}`, e);
     }
 }
 
@@ -314,6 +318,7 @@ async function loadPanelsFromMongo() {
         return restored.length;
     } catch (e) {
         console.error('❌ panels load MongoDB:', e.message);
+        reportError('TICKET_SETTINGS_READ', 'panels-mongo-load', e);
         return 0;
     }
 }
@@ -330,6 +335,7 @@ async function syncPanelsToMongo() {
         console.log(`✅ panels: تمت مزامنة ${panels.length} بنل إلى MongoDB`);
     } catch (e) {
         console.error('❌ panels sync MongoDB:', e.message);
+        reportError('TICKET_SETTINGS_WRITE', 'panels-mongo-sync', e);
     }
 }
 

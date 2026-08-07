@@ -1,4 +1,5 @@
 const { PermissionFlagsBits } = require('discord.js');
+const { reportError } = require('./errorLogger');
 
 function hasRole(member, roleId) {
   return Boolean(roleId) && member.roles.cache.has(roleId);
@@ -28,6 +29,7 @@ async function sendLog(guild, channelId, payload) {
     await channel.send(payload);
   } catch (e) {
     console.error('فشل إرسال سجل اللوق:', e);
+    reportError('LOG_SEND', 'send-log', e);
   }
 }
 

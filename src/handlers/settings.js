@@ -5,6 +5,7 @@ const {
 const mongoose = require('mongoose');
 const { getConfig, saveConfig } = require('../utils/storage');
 const { version } = require('../utils/version');
+const { reportError } = require('../utils/errorLogger');
 
 const rl = (id) => id ? `<@&${id}>` : '❌ غير محدد';
 const ch = (id) => id ? `<#${id}>` : '❌ غير محدد';
@@ -116,6 +117,7 @@ async function handleSettings(interaction) {
     return respondOrUpdate(interaction, { embeds: [embed], components: [row] });
   } catch (e) {
     console.error('ERR-HOME:', e.message);
+    reportError('HANDLER_SETTINGS', 'settings-home', e);
     const errMsg = `⚠️ **خطأ:** \`${e.message.slice(0, 500)}\``;
     if (interaction.deferred) {
       await interaction.editReply({ content: errMsg, components: [] }).catch(() => {});
@@ -322,6 +324,7 @@ async function showSettingsPage(interaction, type, page) {
   } catch (e) {
     console.error('ERR-GLOBAL:', e.message);
     if (e.stack) console.error(e.stack.split('\n').slice(0, 5).join('\n'));
+    reportError('HANDLER_SETTINGS', 'settings-global', e);
     const errMsg = `⚠️ **خطأ:** \`${e.message.slice(0, 500)}\``;
     if (interaction.deferred) {
       await interaction.editReply({ content: errMsg, components: [] }).catch(() => {});
@@ -414,6 +417,7 @@ async function handleSettingsSelect(interaction) {
     return showSettingsPage(interaction, pageInfo.type, pageInfo.page);
   } catch (e) {
     console.error('ERR-SEL:', e.message, e.stack);
+    reportError('HANDLER_SETTINGS', 'settings-select', e);
     const errMsg = `⚠️ **خطأ:** \`${e.message.slice(0, 500)}\``;
     if (interaction.deferred) {
       await interaction.editReply({ content: errMsg, components: [] }).catch(() => {});
@@ -464,6 +468,7 @@ async function handleDbCheck(interaction) {
     return respondOrUpdate(interaction, { embeds: [embed], components: [row] });
   } catch (e) {
     console.error('ERR-DB:', e.message);
+    reportError('HANDLER_SETTINGS', 'settings-db-check', e);
     const errMsg = `⚠️ **خطأ:** \`${e.message.slice(0, 500)}\``;
     try {
       if (interaction.isRepliable()) {

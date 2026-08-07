@@ -4,6 +4,7 @@
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
+const { reportError } = require('./errorLogger');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -56,11 +57,11 @@ function readJSON() {
     if (!fs.existsSync(PANELS_PATH)) return [];
     const raw = fs.readFileSync(PANELS_PATH, 'utf8');
     return raw.trim() ? JSON.parse(raw) : [];
-  } catch (e) { console.error('❌ starboardStorage readJSON:', e.message); return []; }
+  } catch (e) { console.error('❌ starboardStorage readJSON:', e.message); reportError('STORAGE', 'starboard-read-json', e); return []; }
 }
 
 function writeJSON(data) {
-  try { fs.writeFileSync(PANELS_PATH, JSON.stringify(data, null, 2), 'utf8'); } catch (e) { console.error('❌ starboardStorage writeJSON:', e.message); }
+  try { fs.writeFileSync(PANELS_PATH, JSON.stringify(data, null, 2), 'utf8'); } catch (e) { console.error('❌ starboardStorage writeJSON:', e.message); reportError('STORAGE', 'starboard-write-json', e); }
 }
 
 // ========== API اللوحات المتعددة ==========
@@ -85,7 +86,7 @@ function savePanel(name, data) {
 
   if (isMongoReady()) {
     PanelModel.findByIdAndUpdate(name, panel, { upsert: true })
-      .then(() => {}).catch(e => console.error('❌ starboard MongoDB save error:', e.message));
+      .then(() => {}).catch(e => { console.error('❌ starboard MongoDB save error:', e.message); reportError('STORAGE', 'starboard-mongo-save', e); });
   }
   return panel;
 }
@@ -96,7 +97,7 @@ function deletePanel(name) {
   panels = panels.filter(p => p.name !== name);
   writeJSON(panels);
   if (isMongoReady()) {
-    PanelModel.findByIdAndDelete(name).then(() => {}).catch(e => console.error('❌ starboard MongoDB delete error:', e.message));
+    PanelModel.findByIdAndDelete(name).then(() => {}).catch(e => { console.error('❌ starboard MongoDB delete error:', e.message); reportError('STORAGE', 'starboard-mongo-delete', e); });
   }
 }
 
@@ -106,14 +107,14 @@ async function ensureStarboardLoaded() {
   try {
     const docs = await PanelModel.find().lean();
     if (docs && docs.length > 0) { writeJSON(docs); console.log(`📦 starboard → تم تحميل ${docs.length} لوحة من MongoDB`); return; }
-  } catch (e) { console.error('❌ ensureStarboardLoaded MongoDB read:', e.message); }
+  } catch (e) { console.error('❌ ensureStarboardLoaded MongoDB read:', e.message); reportError('STORAGE', 'starboard-mongo-read', e); }
 
   const jsonData = readJSON();
   if (jsonData.length > 0 && isMongoReady()) {
     try {
       for (const panel of jsonData) await PanelModel.findByIdAndUpdate(panel.name, panel, { upsert: true });
       console.log(`📦 starboard → تم دفع ${jsonData.length} لوحة إلى MongoDB`);
-    } catch (e) { console.error('❌ ensureStarboardLoaded MongoDB write:', e.message); }
+    } catch (e) { console.error('❌ ensureStarboardLoaded MongoDB write:', e.message); reportError('STORAGE', 'starboard-mongo-write', e); }
   }
 }
 

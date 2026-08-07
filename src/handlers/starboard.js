@@ -27,6 +27,7 @@ const {
   getAllPanels, getPanel, savePanel, deletePanel
 } = require('../utils/starboardStorage');
 const { COLORS } = require('../utils/colors');
+const { reportError } = require('../utils/errorLogger');
 
 function hexToInt(hex) {
   return parseInt((hex || '#F1C40F').replace('#', ''), 16) || 0xF1C40F;
@@ -79,6 +80,7 @@ async function handleStarboardMain(interaction) {
     return respondOrUpdate(interaction, { embeds: [embed], components });
   } catch (e) {
     console.error('❌ handleStarboardMain:', e.message);
+    reportError('HANDLER_STARBOARD', 'main', e);
     return respondOrUpdate(interaction, { content: '⚠️ خطأ.' });
   }
 }
@@ -152,6 +154,7 @@ async function showPanelControl(interaction, name) {
     return respondOrUpdate(interaction, { embeds: [embed], components });
   } catch (e) {
     console.error('❌ showPanelControl:', e.message);
+    reportError('HANDLER_STARBOARD', 'panel-control', e);
     return respondOrUpdate(interaction, { content: '⚠️ خطأ في عرض اللوحة.' });
   }
 }
@@ -262,6 +265,7 @@ async function handleMainButton(interaction, action) {
     console.error('❌ handleMainButton:', action);
     console.error('Full error:', e);
     console.error(e.stack);
+    reportError('HANDLER_STARBOARD', `main-button:${action}`, e);
     try {
       if (interaction.deferred || interaction.replied) await interaction.editReply({ content: '⚠️ خطأ.', components: [] });
       else await interaction.reply({ content: '⚠️ خطأ.', ephemeral: true });
@@ -299,6 +303,7 @@ async function handlePanelButton(interaction, action, name) {
     }
   } catch (e) {
     console.error('❌ handlePanelButton:', action, name, e.message);
+    reportError('HANDLER_STARBOARD', `panel-button:${action}:${name}`, e);
     try { if (!interaction.replied && !interaction.deferred) await interaction.reply({ content: '⚠️ خطأ.', ephemeral: true }); } catch {}
   }
 }
@@ -353,17 +358,19 @@ async function handleStarboardSelect(interaction) {
           try {
             const channel = await interaction.guild.channels.fetch(selected);
             if (channel) await channel.permissionOverwrites.edit(interaction.guild.id, { AddReactions: false }).catch(() => {});
-          } catch (e) { console.error('❌ sb permission edit:', e.message); }
+          } catch (e) { console.error('❌ sb permission edit:', e.message); reportError('HANDLER_STARBOARD', 'permission-edit', e); }
         }
 
         return await showPanelControl(interaction, name);
       } catch (e) {
         console.error('❌ handleStarboardSelect save error:', e.message);
+        reportError('HANDLER_STARBOARD', 'select-save', e);
         return await interaction.editReply({ content: '⚠️ خطأ في حفظ البيانات.' });
       }
     }
   } catch (e) {
     console.error('❌ handleStarboardSelect:', e.message);
+    reportError('HANDLER_STARBOARD', 'select', e);
     try { await interaction.editReply({ content: '⚠️ خطأ.' }); } catch {}
   }
 }
@@ -423,6 +430,7 @@ async function handleStarboardModal(interaction) {
     }
   } catch (e) {
     console.error('❌ handleStarboardModal:', id, e.message);
+    reportError('HANDLER_STARBOARD', `modal:${id}`, e);
     try {
       if (interaction.deferred) await interaction.editReply({ content: '⚠️ خطأ: ' + e.message });
       else if (!interaction.replied) await interaction.reply({ content: '⚠️ خطأ.', ephemeral: true });
@@ -441,7 +449,7 @@ async function handleDeleteConfirm(interaction, name) {
         .setPlaceholder('DELETE').setStyle(TextInputStyle.Short).setRequired(true).setMinLength(6).setMaxLength(6)
     ));
     return await interaction.showModal(modal);
-  } catch (e) { console.error('❌ handleDeleteConfirm:', e.message); }
+  } catch (e) { console.error('❌ handleDeleteConfirm:', e.message); reportError('HANDLER_STARBOARD', 'delete-confirm', e); }
 }
 
 // ================== 8. أحداث الرسائل والتفاعلات (Loop على كل اللوحات) ==================
@@ -462,7 +470,7 @@ async function handleStarboardMessage(message) {
       if (actualChannelId !== panel.sourceChannelId) continue;
       try { await message.react(panel.emoji); } catch {}
     }
-  } catch (e) { console.error('❌ handleStarboardMessage:', e.message); }
+  } catch (e) { console.error('❌ handleStarboardMessage:', e.message); reportError('HANDLER_STARBOARD', 'message', e); }
 }
 
 async function handleStarboardReaction(reaction, user) {
@@ -511,10 +519,10 @@ async function handleStarboardReaction(reaction, user) {
         const sentMsg = await destChannel.send({ content: topLine, embeds: [embed] });
         await sentMsg.react(panel.emoji).catch(() => {});
         console.log(`✅ [${panel.name}] تم النقل إلى ${destChannel.name}`);
-      } catch (sendErr) { console.error(`❌ [${panel.name}] فشل النقل:`, sendErr.message); }
+      } catch (sendErr) { console.error(`❌ [${panel.name}] فشل النقل:`, sendErr.message); reportError('HANDLER_STARBOARD', `forward:${panel.name}`, sendErr); }
       return;
     }
-  } catch (e) { console.error('❌ handleStarboardReaction:', e.message); }
+  } catch (e) { console.error('❌ handleStarboardReaction:', e.message); reportError('HANDLER_STARBOARD', 'reaction', e); }
 }
 
 // ================== 9. الموزع الرئيسي ==================
@@ -547,6 +555,7 @@ async function handleStarboardInteraction(interaction) {
     console.warn('⚠️ sb unknown id:', id);
   } catch (e) {
     console.error('❌ handleStarboardInteraction:', id, e.message);
+    reportError('HANDLER_STARBOARD', `interaction:${id}`, e);
     try {
       if (interaction.deferred || interaction.replied) await interaction.editReply({ content: '⚠️ خطأ غير متوقع.' });
       else if (interaction.isRepliable()) await interaction.reply({ content: '⚠️ خطأ غير متوقع.', ephemeral: true });

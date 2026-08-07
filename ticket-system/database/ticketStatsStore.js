@@ -17,6 +17,7 @@
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
+const { reportError } = require('../../src/utils/errorLogger');
 
 const DB_PATH = path.join(__dirname, '..', 'data', 'ticket-stats.json');
 
@@ -44,6 +45,7 @@ function persist() {
             scheduleMongoSync(); // نسخ احتياطي إلى MongoDB (بلا انتظار)
         } catch (err) {
             console.error('[ticketStats] فشل الحفظ على القرص:', err.message);
+            reportError('TICKET_STATS_SAVE', 'stats-disk-save', err);
         }
     }, 300);
 }
@@ -58,6 +60,7 @@ function initStatsStore() {
         }
     } catch (err) {
         console.error('[ticketStats] فشل استعادة الإحصائيات:', err.message);
+        reportError('TICKET_STATS_LOAD', 'stats-restore', err);
         state.users = {};
     }
 }
@@ -660,6 +663,7 @@ async function syncStatsToMongo() {
         return ids.length;
     } catch (e) {
         console.error('❌ stats sync MongoDB:', e.message);
+        reportError('TICKET_STATS_SAVE', 'stats-mongo-sync', e);
         return 0;
     }
 }
@@ -690,6 +694,7 @@ async function loadStatsFromMongo() {
         return restored;
     } catch (e) {
         console.error('❌ stats load MongoDB:', e.message);
+        reportError('TICKET_STATS_LOAD', 'stats-mongo-load', e);
         return 0;
     }
 }

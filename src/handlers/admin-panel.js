@@ -8,6 +8,7 @@ const {
 } = require('discord.js');
 const { version } = require('../../package.json');
 const { getAdminConfig, saveAdminConfig } = require('../utils/adminStorage');
+const { reportError } = require('../utils/errorLogger');
 const { sendBoardPanelToChannel, isHighAdmin, getHighestAdminRole, getHierarchyRolesInRange, getAdminMembers } = require('./admin-board');
 
 // ---------- دالة مساعدة ----------
@@ -96,6 +97,7 @@ async function handleAdminPanelMain(interaction) {
     return respondOrUpdate(interaction, { embeds: [embed], components: [row, row2] });
   } catch (e) {
     console.error('❌ handleAdminPanelMain:', e.message);
+    reportError('HANDLER_ADMIN_PANEL', 'main', e);
     return respondOrUpdate(interaction, { content: '⚠️ خطأ في عرض اللوحة.' });
   }
 }
@@ -155,6 +157,7 @@ async function showRolesPage(interaction) {
     return interaction.editReply({ embeds: [embed], components });
   } catch (e) {
     console.error('❌ showRolesPage:', e.message);
+    reportError('HANDLER_ADMIN_PANEL', 'show-roles-page', e);
     try { await interaction.editReply({ content: `⚠️ خطأ: ${e.message}` }); } catch { try { await interaction.followUp({ content: `⚠️ خطأ: ${e.message}`, ephemeral: true }); } catch {} }
   }
 }
@@ -228,6 +231,7 @@ async function showHighAdminPage(interaction) {
     return interaction.editReply({ embeds: [embed], components: [selectRow, rangeRow, btnRow, navRow] });
   } catch (e) {
     console.error('❌ showHighAdminPage:', e.message, e.stack?.split('\n')[1]);
+    reportError('HANDLER_ADMIN_PANEL', 'show-high-admin-page', e);
     try { await interaction.editReply({ content: `⚠️ خطأ: ${e.message}` }); } catch { try { await interaction.followUp({ content: `⚠️ خطأ: ${e.message}`, ephemeral: true }); } catch {} }
   }
 }
@@ -273,6 +277,7 @@ async function showRoomsPage(interaction) {
     return interaction.editReply({ embeds: [embed], components });
   } catch (e) {
     console.error('❌ showRoomsPage:', e.message);
+    reportError('HANDLER_ADMIN_PANEL', 'show-rooms-page', e);
     try { await interaction.editReply({ content: `⚠️ خطأ: ${e.message}` }); } catch { try { await interaction.followUp({ content: `⚠️ خطأ: ${e.message}`, ephemeral: true }); } catch {} }
   }
 }
@@ -307,6 +312,7 @@ async function handleSendPanel(interaction) {
     return interaction.editReply({ content: `❌ فشل الإرسال: ${result.error}` });
   } catch (e) {
     console.error('❌ handleSendPanel:', e.message);
+    reportError('HANDLER_ADMIN_PANEL', 'send-panel', e);
     try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch {}
   }
 }
@@ -341,6 +347,7 @@ async function handleHighAdminAuto(interaction) {
     });
   } catch (e) {
     console.error('❌ handleHighAdminAuto:', e.message);
+    reportError('HANDLER_ADMIN_PANEL', 'high-admin-auto', e);
     try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch {}
   }
 }
@@ -361,6 +368,7 @@ async function handleHighAdminClear(interaction) {
     });
   } catch (e) {
     console.error('❌ handleHighAdminClear:', e.message);
+    reportError('HANDLER_ADMIN_PANEL', 'high-admin-clear', e);
     try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch {}
   }
 }
@@ -415,6 +423,7 @@ async function handleAdminSelect(interaction) {
     return handleAdminPanelMain(interaction);
   } catch (e) {
     console.error('❌ handleAdminSelect:', e.message);
+    reportError('HANDLER_ADMIN_PANEL', `select:${interaction.customId}`, e);
     try {
       await interaction.editReply({ content: '⚠️ خطأ في معالجة الاختيار.' });
     } catch {}
@@ -500,6 +509,7 @@ async function handleGrantConfirm(interaction) {
     });
   } catch (e) {
     console.error('❌ handleGrantConfirm:', e.message);
+    reportError('HANDLER_ADMIN_PANEL', 'grant-confirm', e);
     try { await interaction.editReply({ content: `⚠️ خطأ: ${e.message}` }); } catch { try { await interaction.followUp({ content: `⚠️ خطأ: ${e.message}`, ephemeral: true }); } catch {} }
   }
 }
@@ -543,6 +553,7 @@ async function handleGrantExecute(interaction) {
         } catch (e) {
           totalFailed++;
           console.error(`❌ فشل إضافة ${role.name} لـ ${item.member.user.tag}:`, e.message);
+          reportError('HANDLER_ADMIN_PANEL', `grant-add:${role.name}`, e);
         }
         processed++;
         // تحديث التقدم كل 5 إضافات
@@ -577,6 +588,7 @@ async function handleGrantExecute(interaction) {
     });
   } catch (e) {
     console.error('❌ handleGrantExecute:', e.message);
+    reportError('HANDLER_ADMIN_PANEL', 'grant-execute', e);
     try { await interaction.editReply({ content: `⚠️ خطأ: ${e.message}` }); } catch { try { await interaction.followUp({ content: `⚠️ خطأ: ${e.message}`, ephemeral: true }); } catch {} }
   }
 }

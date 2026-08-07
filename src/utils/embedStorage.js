@@ -4,6 +4,7 @@
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
+const { reportError } = require('./errorLogger');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -35,11 +36,11 @@ function readJSON() {
     if (!fs.existsSync(EMBEDS_PATH)) return {};
     const raw = fs.readFileSync(EMBEDS_PATH, 'utf8');
     return raw.trim() ? JSON.parse(raw) : {};
-  } catch (e) { console.error('❌ embedStorage readJSON:', e.message); return {}; }
+  } catch (e) { console.error('❌ embedStorage readJSON:', e.message); reportError('STORAGE', 'embed-read-json', e); return {}; }
 }
 
 function writeJSON(data) {
-  try { fs.writeFileSync(EMBEDS_PATH, JSON.stringify(data, null, 2), 'utf8'); } catch (e) { console.error('❌ embedStorage writeJSON:', e.message); }
+  try { fs.writeFileSync(EMBEDS_PATH, JSON.stringify(data, null, 2), 'utf8'); } catch (e) { console.error('❌ embedStorage writeJSON:', e.message); reportError('STORAGE', 'embed-write-json', e); }
 }
 
 function objToJson(obj) { writeJSON(obj); }
@@ -64,7 +65,7 @@ async function syncJsonToMongo() {
   console.log(`🔄 مزامنة ${names.length} إيمبد من JSON إلى MongoDB...`);
   let synced = 0;
   for (const name of names) {
-    try { await EmbedModel.findByIdAndUpdate(name, { $set: json[name] }, { upsert: true }); synced++; } catch (e) { console.error(`❌ فشل مزامنة ${name}:`, e.message); }
+    try { await EmbedModel.findByIdAndUpdate(name, { $set: json[name] }, { upsert: true }); synced++; } catch (e) { console.error(`❌ فشل مزامنة ${name}:`, e.message); reportError('STORAGE', `embed-mongo-sync:${name}`, e); }
   }
   console.log(`✅ تمت مزامنة ${synced}/${names.length} إيمبد`);
 }
@@ -78,7 +79,7 @@ async function writeToMongo(name, data) {
     const { _id, ...safeData } = data || {};
     safeData.updatedAt = new Date();
     return await EmbedModel.findByIdAndUpdate(name, { $set: safeData }, { upsert: true, new: true }).lean();
-  } catch (e) { console.error(`❌ embed MongoDB error:`, e.message); return null; }
+  } catch (e) { console.error(`❌ embed MongoDB error:`, e.message); reportError('STORAGE', 'embed-mongo-save', e); return null; }
 }
 
 async function deleteFromMongo(name) {
@@ -109,7 +110,7 @@ async function getAllEmbeds() {
         objToJson(jsonData);
         return Object.values(jsonData);
       }
-    } catch (e) { console.error('❌ embed getAll MongoDB:', e.message); }
+    } catch (e) { console.error('❌ embed getAll MongoDB:', e.message); reportError('STORAGE', 'embed-mongo-getall', e); }
   }
 
   return jsonEmbeds;
@@ -212,7 +213,7 @@ async function incrementSendCount(name) {
       count = json[name].sendCount;
       objToJson(json);
     }
-  } catch (e) { console.error('❌ incrementSendCount JSON:', e.message); }
+  } catch (e) { console.error('❌ incrementSendCount JSON:', e.message); reportError('STORAGE', 'embed-incr-json', e); }
   if (isMongoReady()) {
     try {
       // collection.updateOne يتجاوز تحويلات Mongoose فلا يتأثر بالـ strict schema
@@ -220,7 +221,7 @@ async function incrementSendCount(name) {
         { _id: name },
         { $inc: { sendCount: 1 }, $set: { updatedAt: new Date() } }
       );
-    } catch (e) { console.error('❌ incrementSendCount Mongo:', e.message); }
+    } catch (e) { console.error('❌ incrementSendCount Mongo:', e.message); reportError('STORAGE', 'embed-incr-mongo', e); }
   }
   return count;
 }

@@ -11,7 +11,7 @@ const {
   handleLeaveCommand, handleLeaveModalSubmit, handleLeaveButton,
   handleLeaveSettings, checkExpiredLeaves, CHECK_INTERVAL_MS
 } = require('./handlers/leave');
-const { setErrorClient, logError } = require('./utils/errorLogger');
+const { setErrorClient, logError, reportError } = require('./utils/errorLogger');
 const { handleDaleelCommand, handleDaleelSettings } = require('./handlers/daleel');
 const { handleReportCommand, handleReportButton, handleReportSettings } = require('./handlers/report');
 const { handleResign, handleResignButton, handleDevSettings } = require('./handlers/resign');
@@ -111,6 +111,7 @@ async function sendPingMessage() {
     console.log('✅ تم إرسال رسالة البقاء شغالاً إلى الروم المحدد');
   } catch (err) {
     console.error('❌ فشل إرسال رسالة البقاء شغالاً:', err.message);
+    reportError('PING', 'keepalive', err);
   }
 }
 
@@ -160,6 +161,7 @@ async function sendBotStatus(client) {
     console.log('✅ تم إرسال تقرير حالة البوت');
   } catch (err) {
     console.error('❌ فشل إرسال تقرير حالة البوت:', err.message);
+    reportError('STATUS', 'bot-status', err);
   }
 }
 
@@ -218,6 +220,7 @@ async function sendDbStatus(client) {
     console.log('✅ تم إرسال تقرير حالة قاعدة البيانات');
   } catch (err) {
     console.error('❌ فشل إرسال تقرير حالة القاعدة:', err.message);
+    reportError('STATUS', 'db-status', err);
   }
 }
 
@@ -227,7 +230,7 @@ async function sendDbStatus(client) {
 // أصبحت في src/utils/errorLogger.js (sendErrorToChannel)
 
 // ---------- الاتصال بقاعدة البيانات ----------
-async function initialize() {
+async function initializeInner() {
   const dbConnected = await connectDatabase();
   initModels();
   const embedReady = initEmbedModel();
@@ -348,6 +351,7 @@ ID: ${guild.id}
       }
     } catch (e) {
       console.error('❌ فشل إرسال إشعار للمطور:', e.message);
+      reportError('GUILD_CREATE', guild.id, e);
     }
   });
 
@@ -380,6 +384,7 @@ ID: ${guild.id}
         await notifyVersionUpdate(client);
       } catch (e) {
         console.error('❌ فشل تشغيل إشعار التحديث:', e.message);
+        reportError('UPDATE_NOTIFY', 'version-notify', e);
       }
     }, 5000);
 
@@ -397,6 +402,7 @@ ID: ${guild.id}
         console.log(`✅ تم تسجيل الأوامر للسيرفر الجديد ${guild.id}`);
       } catch (e) {
         console.error('❌ فشل تسجيل الأوامر عند دخول سيرفر جديد:', e.message);
+        reportError('DEPLOY', `guild-create:${guild.id}`, e);
       }
     });
     
@@ -533,11 +539,34 @@ ID: ${guild.id}
       await handleStarboardMessage(message);
     } catch (e) {
       console.error('❌ messageCreate error:', e.message);
+      reportError('MESSAGE_CREATE', message.id, e);
     }
   });
 }
 
+// غلاف آمن لبدء التشغيل: أي خطأ أثناء الإقلاع يصل لروم الأخطاء
+async function initialize() {
+  try {
+    await initializeInner();
+  } catch (e) {
+    console.error('❌ فشل بدء التشغيل:', e);
+    reportError('INIT', 'startup', e);
+  }
+}
+
 initialize();
+
+// ========== تغطية شاملة لأخطاء ديسكورد (كلها تصل لروم الأخطاء) ==========
+// أخطاء الاتصال / الـ WebSocket / الشاردز / تجاوز الحدود
+client.on('error', (err) => reportError('CLIENT_ERROR', 'discord-client', err));
+client.on('shardError', (err) => reportError('SHARD_ERROR', 'discord-shard', err));
+client.on('rateLimit', (info) => {
+  reportError('RATE_LIMIT', info.route || 'discord-api', new Error(
+    `تجاوز حد طلبات ديسكورد — ${info.method || ''} ${info.route || ''} (الحد: ${info.limit || '?'}، سيتكرر بعد ${Math.ceil((info.timeout || 0) / 1000)} ثانية)`
+  ));
+});
+// تحذيرات ديسكورد تظهر في اللوق فقط (ليست أخطاء)
+client.on('warn', (info) => console.warn('⚠️ [discord warn]', info));
 
 // ========== معالج الأخطاء العام (Unhandled Rejections / Exceptions) ==========
 process.on('unhandledRejection', (reason, promise) => {
@@ -605,6 +634,7 @@ client.on('interactionCreate', async (interaction) => {
         }
       } catch (acErr) {
         console.error('❌ Autocomplete error:', acErr.message);
+        reportError('AUTOCOMPLETE', interaction.commandName || interaction.customId || '?', acErr);
       }
     } else if (interaction.isStringSelectMenu() || interaction.isRoleSelectMenu() || interaction.isChannelSelectMenu() || interaction.isUserSelectMenu()) {
       console.log('🔽 Select Menu:', interaction.customId, 'values:', interaction.values);
@@ -871,6 +901,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
     await handleStarboardReaction(reaction, user);
   } catch (e) {
     console.error('❌ reaction error:', e.message);
+    reportError('REACTION', 'reaction-handler', e);
   }
 });
 

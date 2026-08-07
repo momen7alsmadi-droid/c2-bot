@@ -12,6 +12,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { reportError } = require('../../src/utils/errorLogger');
 
 const DB_PATH = path.join(__dirname, '..', 'data', 'ticket-counter.json');
 
@@ -32,6 +33,7 @@ function persist() {
             fs.writeFileSync(DB_PATH, JSON.stringify(state, null, 2), 'utf-8');
         } catch (err) {
             console.error('[ticketCounter] فشل الحفظ على القرص:', err.message);
+            reportError('TICKET_COUNTER_SAVE', 'counter-disk-save', err);
         }
     }, 200);
 }
@@ -44,6 +46,7 @@ function initCounterStore() {
         state.next = typeof raw.next === 'number' ? raw.next : null;
     } catch (err) {
         console.error('[ticketCounter] فشل استعادة العداد:', err.message);
+        reportError('TICKET_COUNTER_LOAD', 'counter-restore', err);
         state.next = null;
     }
 }

@@ -4,6 +4,7 @@
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
+const { reportError } = require('./errorLogger');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -58,6 +59,7 @@ function readJSON(filePath, fallback) {
     return JSON.parse(raw);
   } catch (e) {
     console.error('❌ featuredStorage readJSON فشل:', filePath, e.message);
+    reportError('STORAGE', `featured-read:${filePath}`, e);
     return fallback;
   }
 }
@@ -69,6 +71,7 @@ function writeJSON(filePath, data) {
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
   } catch (e) {
     console.error('❌ featuredStorage writeJSON فشل:', filePath, e.message);
+    reportError('STORAGE', `featured-write:${filePath}`, e);
   }
 }
 
@@ -101,7 +104,7 @@ function saveFeaturedConfig(cfg) {
   if (isMongoReady()) {
     FeaturedConfigModel.findByIdAndUpdate('main', { data: cfg }, { upsert: true })
       .then(() => console.log('📦 featuredConfig → MongoDB ✅'))
-      .catch(e => console.error('❌ featuredConfig MongoDB save error:', e.message));
+      .catch(e => { console.error('❌ featuredConfig MongoDB save error:', e.message); reportError('STORAGE', 'featured-mongo-save', e); });
   } else {
     console.warn('⚠️ featuredConfig → MongoDB غير متصل (حفظ في JSON فقط)');
   }
@@ -126,6 +129,7 @@ async function ensureFeaturedConfigLoaded() {
     }
   } catch (e) {
     console.error('❌ ensureFeaturedConfigLoaded MongoDB read error:', e.message);
+    reportError('STORAGE', 'featured-mongo-read', e);
   }
 
   // إذا JSON موجود سليم، ادفعه إلى MongoDB
@@ -136,6 +140,7 @@ async function ensureFeaturedConfigLoaded() {
       console.log('📦 featuredConfig → تم الدفع إلى MongoDB من JSON');
     } catch (e) {
       console.error('❌ ensureFeaturedConfigLoaded MongoDB write error:', e.message);
+      reportError('STORAGE', 'featured-mongo-write', e);
     }
   }
 }
@@ -154,10 +159,10 @@ function saveFeaturedPosts(posts) {
       updateOne: { filter: { _id: msgId }, update: { data }, upsert: true }
     }));
     if (ops.length) {
-      FeaturedPostModel.bulkWrite(ops).catch(e => console.error('❌ featuredPosts bulkWrite:', e.message));
+      FeaturedPostModel.bulkWrite(ops).catch(e => { console.error('❌ featuredPosts bulkWrite:', e.message); reportError('STORAGE', 'featured-bulkwrite', e); });
     }
     FeaturedPostModel.deleteMany({ _id: { $nin: Object.keys(posts) } })
-      .catch(e => console.error('❌ featuredPosts deleteMany:', e.message));
+      .catch(e => { console.error('❌ featuredPosts deleteMany:', e.message); reportError('STORAGE', 'featured-deletemany', e); });
   }
 }
 
@@ -173,6 +178,7 @@ async function loadFeaturedPostsFromMongo() {
     }
   } catch (e) {
     console.error('❌ loadFeaturedPostsFromMongo error:', e.message);
+    reportError('STORAGE', 'featured-load-posts', e);
   }
 }
 

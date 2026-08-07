@@ -3,6 +3,7 @@ const {
   StringSelectMenuBuilder, RoleSelectMenuBuilder, ChannelSelectMenuBuilder,
   ModalBuilder, TextInputBuilder, TextInputStyle, ChannelType
 } = require('discord.js');
+const { reportError } = require('../utils/errorLogger');
 const {
   createReact, updateReact, deleteReact, getReact,
   getReactsList, getEnabledReacts, incrementReactCount
@@ -100,6 +101,7 @@ async function handleRrCreateModal(interaction) {
     return showRrControlPanel(interaction, name);
   } catch (e) {
     console.error('[Modal:RrCreate]', e);
+    reportError('HANDLER_REACT', 'modal-create', e);
     try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch(_) {}
   }
 }
@@ -589,6 +591,7 @@ async function handleReactMessage(message) {
       console.log(`✅ reactReply: "${react.trigger}" ← ${message.author.tag} ← ${emojis.join(' ')}`);
     } catch (e) {
       console.error(`❌ reactReply error for "${react.name}":`, e.message);
+      reportError('HANDLER_REACT', `match:${react.name}`, e);
     }
     // بدون break — كل التفاعلات المطابقة تشتغل
   }

@@ -14,6 +14,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { reportError } = require('../../src/utils/errorLogger');
 
 const DB_PATH = path.join(__dirname, '..', 'data', 'ticket-cooldowns.json');
 
@@ -34,6 +35,7 @@ function persist() {
             fs.writeFileSync(DB_PATH, JSON.stringify(track, null, 2), 'utf-8');
         } catch (err) {
             console.error('[ticketCooldown] فشل الحفظ على القرص:', err.message);
+            reportError('TICKET_COOLDOWN_SAVE', 'cooldown-disk-save', err);
         }
     }, 400);
 }
@@ -45,6 +47,7 @@ function initCooldownStore() {
         track = JSON.parse(fs.readFileSync(DB_PATH, 'utf-8')) || {};
     } catch (err) {
         console.error('[ticketCooldown] فشل استعادة السجل:', err.message);
+        reportError('TICKET_COOLDOWN_LOAD', 'cooldown-restore', err);
         track = {};
     }
 }

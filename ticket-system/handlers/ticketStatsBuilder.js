@@ -20,6 +20,7 @@
 
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, UserSelectMenuBuilder } = require('discord.js');
 const { version } = require('../../package.json');
+const { reportError } = require('../../src/utils/errorLogger');
 const { getUserStats, getAllStats, getTotalClaims, getDetailedStats, getTeamAggregate, getLevelInfo, MESSAGES_PER_POINT, LOGIN_POINTS_PER_DAY } = require('../database/ticketStatsStore');
 const { getAdminConfig } = require('../../src/utils/adminStorage');
 const { getAllSessions } = require('./ticketStore');
@@ -356,8 +357,8 @@ async function getTeamAdminIds(guild) {
     if (!guild) return [];
     // نجلب الأعضاء والرولات أولاً حتى لا يكون عدد الإدارة ناقصاً
     // بسبب كاش غير مكتمل (كان يظهر 0 أو عدد خاطئ)
-    try { await guild.members.fetch(); } catch (e) { console.error('❌ getTeamAdminIds fetch members:', e.message); }
-    try { await guild.roles.fetch(); } catch (e) { console.error('❌ getTeamAdminIds fetch roles:', e.message); }
+    try { await guild.members.fetch(); } catch (e) { console.error('❌ getTeamAdminIds fetch members:', e.message); reportError('TICKET_STATS', 'fetch-members', e); }
+    try { await guild.roles.fetch(); } catch (e) { console.error('❌ getTeamAdminIds fetch roles:', e.message); reportError('TICKET_STATS', 'fetch-roles', e); }
     const cfg = getAdminConfig();
     const roleId = cfg.sharedAdminRoleId;
     if (roleId && guild.roles.cache.has(roleId)) {

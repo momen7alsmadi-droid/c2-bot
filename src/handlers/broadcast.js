@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require('discord.js');
 const { COLORS } = require('../utils/colors');
 const { version } = require('../../package.json');
+const { reportError } = require('../utils/errorLogger');
 
 /**
  * /broadcast - إرسال رسالة خاصة (DM) إلى أعضاء السيرفر
@@ -125,6 +126,7 @@ async function handleBroadcast(interaction) {
     return interaction.editReply({ embeds: [summaryEmbed] });
   } catch (err) {
     console.error('❌ خطأ في /broadcast:', err.message, err.stack);
+    reportError('HANDLER_BROADCAST', 'broadcast', err);
     return interaction.editReply({
       content: '⚠️ حدث خطأ أثناء إرسال الرسائل. تأكد من صلاحيات البوت.',
     });

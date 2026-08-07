@@ -18,6 +18,7 @@
  */
 
 const { getSession } = require('../handlers/ticketStore');
+const { reportError } = require('../../src/utils/errorLogger');
 
 /**
  * إثراء سياق رسالة إجراء ببيانات التذكرة الحالية
@@ -45,6 +46,7 @@ async function enrichActionContext(interaction, base = {}) {
         }
     } catch (err) {
         console.error('[ticketContext] فشل جلب بيانات الجلسة:', err.message);
+        reportError('TICKET_CONTEXT', 'session-fetch', err);
     }
 
     // اسم الكاتيجوري (روم التذكرة موجود داخل كاتيجوري)

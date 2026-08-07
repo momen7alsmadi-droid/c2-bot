@@ -32,8 +32,8 @@ const path = require('path');
 const mongoose = require('mongoose');
 const { EmbedBuilder } = require('discord.js');
 const { getConfig } = require('./storage');
-const CHANGELOG = require('./changelog');
 const { reportError } = require('./errorLogger');
+const CHANGELOG = require('./changelog');
 
 const STATE_PATH = path.join(__dirname, '..', '..', 'data', 'last-notified-version.json');
 const COLOR_MAIN = 0x5865F2;
@@ -328,6 +328,7 @@ async function notifyVersionUpdate(client) {
         console.log(`📦 تم إرسال إشعار التحديث v${stored} → v${current} إلى <#${channelId}>`);
     } catch (e) {
         console.error('❌ فشل إشعار التحديث:', e.message);
+        reportError('UPDATE_NOTIFY', 'version-notify', e);
     }
 }
 

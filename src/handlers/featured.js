@@ -13,6 +13,7 @@ const {
   getFeaturedConfig, saveFeaturedConfig
 } = require('../utils/featuredStorage');
 const { COLORS } = require('../utils/colors');
+const { reportError } = require('../utils/errorLogger');
 
 // ---------- دالة مساعدة: تحويل hex (#RRGGBB) إلى integer لـ discord.js ----------
 function hexToInt(hex) {
@@ -102,6 +103,7 @@ async function showFeaturedSettings(interaction) {
     return respondOrUpdate(interaction, { embeds: [embed], components });
   } catch (e) {
     console.error('❌ showFeaturedSettings:', e.message);
+    reportError('HANDLER_FEATURED', 'settings', e);
     return respondOrUpdate(interaction, { content: '⚠️ خطأ في عرض الإعدادات.' });
   }
 }
@@ -154,6 +156,7 @@ async function handleFeaturedButton(interaction, action) {
     console.error('Message:', e.message);
     console.error('Stack:', e.stack);
     console.error('=============================================');
+    reportError('HANDLER_FEATURED', `button:${action}`, e);
     try {
       if (interaction.deferred || interaction.replied) {
         await interaction.editReply({ content: '⚠️ خطأ.', components: [] });
@@ -201,6 +204,7 @@ async function handleFeaturedSelect(interaction) {
         }
       } catch (e) {
         console.error('❌ feat permission edit:', e.message);
+        reportError('HANDLER_FEATURED', 'permission-edit', e);
       }
     }
 
@@ -212,6 +216,7 @@ async function handleFeaturedSelect(interaction) {
     console.error('Message:', e.message);
     console.error('Stack:', e.stack);
     console.error('=============================================');
+    reportError('HANDLER_FEATURED', `select:${interaction.customId}`, e);
     return showFeaturedSettings(interaction);
   }
 }
@@ -256,6 +261,7 @@ async function handleFeaturedModal(interaction) {
         return showFeaturedSettings(interaction);
       } catch (e) {
         console.error('[Modal:FeatCustomColor]', e);
+        reportError('HANDLER_FEATURED', 'modal-customcolor', e);
         try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch(_) {}
       }
     }
@@ -265,6 +271,7 @@ async function handleFeaturedModal(interaction) {
     console.error('Message:', e.message);
     console.error('Stack:', e.stack);
     console.error('=============================================');
+    reportError('HANDLER_FEATURED', `modal:${interaction.customId}`, e);
     try {
       return interaction.editReply({ content: '⚠️ خطأ في معالجة الإدخال.' });
     } catch {
@@ -327,12 +334,14 @@ async function handleFeaturedMessage(message) {
       console.log('✅ تم إضافة', cfg.emoji, 'تلقائياً على رسالة', message.id);
     } catch (reactErr) {
       console.error('❌ فشل إضافة التفاعل التلقائي:', cfg.emoji, '| خطأ:', reactErr.message);
+      reportError('HANDLER_FEATURED', 'auto-reaction', reactErr);
       if (reactErr.code === 50013) {
         console.error('⚠️ البوت لا يملك صلاحية AddReactions في هذا الروم!');
       }
     }
   } catch (e) {
     console.error('❌ handleFeaturedMessage:', e.message);
+    reportError('HANDLER_FEATURED', 'message', e);
   }
 }
 
@@ -386,6 +395,7 @@ async function handleFeaturedReaction(reaction, user) {
         console.log('✅ تم حذف', emojiStr, '(غير مصرح) من رسالة', reaction.message.id);
       } catch (err) {
         console.error('❌ فشل حذف التفاعل غير المصرح:', emojiStr, '| خطأ:', err.message);
+        reportError('HANDLER_FEATURED', 'reaction-remove', err);
         if (err.code === 50013) {
           console.error('⚠️ البوت لا يملك صلاحية ManageMessages!');
         }
@@ -416,6 +426,7 @@ async function handleFeaturedReaction(reaction, user) {
     // جهز روم الوجهة
     const destChannel = await message.guild.channels.fetch(cfg.destChannelId).catch((err) => {
       console.error('❌ فشل جلب روم الوجهة:', err.message);
+      reportError('HANDLER_FEATURED', 'fetch-dest-channel', err);
       return null;
     });
     if (!destChannel) {
@@ -469,11 +480,13 @@ async function handleFeaturedReaction(reaction, user) {
       console.log('✅ تم إضافة', emoji, 'على الرسالة المنقولة', sentMsg.id);
     } catch (sendErr) {
       console.error('❌ فشل إرسال/تفاعل الرسالة إلى روم الوجهة:', sendErr.message);
+      reportError('HANDLER_FEATURED', 'forward-send', sendErr);
       return;
     }
   } catch (e) {
     console.error('❌ handleFeaturedReaction:', e.message);
     console.error('Stack:', e.stack);
+    reportError('HANDLER_FEATURED', 'reaction', e);
   }
 }
 
@@ -508,6 +521,7 @@ async function handleFeaturedInteraction(interaction) {
     console.error('========== ❌ handleFeaturedInteraction ==========');
     console.error('customId:', interaction.customId);
     console.error('Message:', e.message);
+    reportError('HANDLER_FEATURED', `interaction:${interaction.customId}`, e);
     console.error('Stack:', e.stack);
     console.error('=============================================');
     try {

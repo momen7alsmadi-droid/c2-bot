@@ -244,9 +244,10 @@ async function autoDelete(client, channel, panel, session, settings, reason = 'i
             clearInterval(timer);
             updateSession(session.channelId, { deleteTimer: null, deleteCountdown: 0 });
             const { finalizeTicketDeletion } = require('./transcriptLogger');
-            await finalizeTicketDeletion(channel, panel).catch(err =>
-                console.error('[ticketAutoClose] فشل أرشفة/حذف التذكرة التلقائي:', err)
-            );
+            await finalizeTicketDeletion(channel, panel).catch(err => {
+                console.error('[ticketAutoClose] فشل أرشفة/حذف التذكرة التلقائي:', err);
+                reportError('TICKET_MAINTENANCE', 'auto-archive-delete', err);
+            });
             return;
         }
         if (countdownMessage) {
@@ -359,6 +360,7 @@ async function sendBotLog(client, channel, panel, session, title, description) {
         }).catch(() => {});
     } catch (err) {
         console.error('[ticketAutoClose] فشل إرسال لوق الإجراء التلقائي:', err.message);
+        reportError('TICKET_MAINTENANCE', 'auto-log-send', err);
     }
 }
 

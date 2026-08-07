@@ -191,9 +191,10 @@ async function handleTicketCloseButton(interaction) {
                         })
                     );
 
-                    await finalizeTicketDeletion(interaction.channel, panel).catch(err =>
-                        console.error('[ticketCloseHandler] فشل في إتمام أرشفة/حذف التذكرة:', err)
-                    );
+                    await finalizeTicketDeletion(interaction.channel, panel).catch(err => {
+                        console.error('[ticketCloseHandler] فشل في إتمام أرشفة/حذف التذكرة:', err);
+                        reportError('TICKET_CLOSE', 'archive-delete', err);
+                    });
                     return;
                 }
 

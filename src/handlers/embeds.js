@@ -5,6 +5,7 @@ const {
 } = require('discord.js');
 const { COLORS } = require('../utils/colors');
 const { version } = require('../../package.json');
+const { reportError } = require('../utils/errorLogger');
 const {
   initEmbedModel,
   getAllEmbeds,
@@ -123,6 +124,7 @@ async function handleEmbCreateModal(interaction) {
     } catch (checkErr) {
       // إذا فشل الفحص نفسه (مثلاً قاعدة البيانات ترجع بيانات تالفة)
       console.error('⚠️ embed فحص الاسم فشل:', checkErr.message);
+      reportError('HANDLER_EMBEDS', 'name-check', checkErr);
       return interaction.editReply({
         content: '❌ هذا الاسم الداخلي مستخدم مسبقاً (بيانات تالفة)، يرجى اختيار اسم آخر.'
       });
@@ -140,6 +142,7 @@ async function handleEmbCreateModal(interaction) {
     return showEmbedControlPanel(interaction, name);
   } catch (e) {
     console.error('[Modal:CreateEmbed]', e);
+    reportError('HANDLER_EMBEDS', 'modal-create', e);
     try {
       if (interaction.deferred) await interaction.editReply({ content: '⚠️ خطأ غير متوقع: ' + e.message });
       else if (!interaction.replied) await interaction.reply({ content: '⚠️ خطأ غير متوقع.', ephemeral: true });
@@ -649,10 +652,12 @@ async function handleEmbSchedModal(interaction) {
       console.log(`✅ إرسال مجدول: ${embedName} إلى القناة ${channelId}`);
     } catch (e) {
       console.error(`❌ خطأ في الإرسال المجدول: ${embedName}`, e.message);
+      reportError('HANDLER_EMBEDS', `scheduled-send:${embedName}`, e);
     }
   }, delayMs);
   } catch (e) {
     console.error('[Modal:Sched]', e);
+    reportError('HANDLER_EMBEDS', 'modal-sched', e);
     try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch(_) {}
   }
 }
@@ -828,6 +833,7 @@ async function handleEmbAddFieldModal(interaction, embedName) {
     return showEmbedControlPanel(interaction, embedName, true);
   } catch (e) {
     console.error('[Modal:AddField]', e);
+    reportError('HANDLER_EMBEDS', 'modal-addfield', e);
     try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch(_) {}
   }
 }
@@ -881,6 +887,7 @@ async function handleEmbFooterModal(interaction, embedName) {
     return showEmbedControlPanel(interaction, embedName, true);
   } catch (e) {
     console.error('[Modal:Footer]', e);
+    reportError('HANDLER_EMBEDS', 'modal-footer', e);
     try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch(_) {}
   }
 }
@@ -975,6 +982,7 @@ async function handleEmbEditTitleModal(interaction, embedName) {
     return showEmbedControlPanel(interaction, embedName, true);
   } catch (e) {
     console.error('[Modal:EditTitle]', e);
+    reportError('HANDLER_EMBEDS', 'modal-edittitle', e);
     try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch(_) {}
   }
 }
@@ -987,6 +995,7 @@ async function handleEmbEditDescModal(interaction, embedName) {
     return showEmbedControlPanel(interaction, embedName, true);
   } catch (e) {
     console.error('[Modal:EditDesc]', e);
+    reportError('HANDLER_EMBEDS', 'modal-editdesc', e);
     try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch(_) {}
   }
 }
@@ -1206,6 +1215,7 @@ async function handleEmbedsModal(interaction) {
       return showEmbedControlPanel(interaction, embedName, true);
     } catch (e) {
       console.error('[Modal:CustomColor]', e);
+      reportError('HANDLER_EMBEDS', 'modal-customcolor', e);
       try { await interaction.editReply({ content: '⚠️ خطأ: ' + e.message }); } catch(_) {}
     }
   }
